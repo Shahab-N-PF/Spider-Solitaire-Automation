@@ -1,0 +1,389 @@
+# Functional test suite (Unity build)
+
+The `verify*.py` cases in this directory are **functional UI tests for the Unity
+build**. They ask *"does the Unity build work?"* — a different question from the
+two other suites here:
+
+| Suite | Question | Build |
+|---|---|---|
+| `verify*.py` + `run_all.py` (this one) | does it **work**? | Unity |
+| `compare_unity*.py` | does it **look** like the Obj-C baseline? | Unity vs Obj-C pixels |
+| `fps/` | does it **animate** smoothly? | either |
+
+The Obj-C build is no longer functionally tested — these cases were converted in
+place. `baselines/` still holds the Obj-C reference for the pixel comparison and
+must never be re-baselined to Unity (see CLAUDE.md).
+
+## Why this needs its own driver
+
+Unity renders the whole UI into one opaque view. There is **no accessibility
+tree** — Poco sees nothing and WDA reports a single anonymous element — so
+element-based automation is unavailable. That leaves pixels.
+
+`compare_unity*.py` drives Unity by **fixed coordinates**, and for a
+*pixel-fidelity* tool that is the right call: a comparison must not locate its
+targets using the very pixels it is measuring, or a real regression could move a
+button and the harness would silently follow it.
+
+Functional testing wants the opposite trade. Here, finding a button by sight is
+not cheating — it *is* the assertion. So `unity_ui.py` locates controls with
+templates cropped from **Unity's own rendering**, which:
+
+* makes "the Options control is on screen" a real check rather than an assumption;
+* taps wherever the control actually is, surviving the between-build layout
+  shifts that left `compare_unity.py`'s hardcoded coordinates ~15% off;
+* fails loudly (control not found) instead of silently tapping empty felt.
+
+The inherited `assets/` templates are **Obj-C** crops and do not match Unity.
+This suite uses `config.UNITY_ASSETS` (`assets_unity/`, per-device) instead.
+
+## Running
+
+```bash
+./scripts/wda.sh 00008030-001C51DA0E80A02E     # device UNLOCKED; leave running
+export DEVICE_UDID=00008030-001C51DA0E80A02E   # THEN enable Airplane Mode
+./.venv/bin/python tests/run_all.py                          # whole suite
+./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay  # a subset
+./.venv/bin/python tests/verifyGamePlay.py                   # one test, standalone
+```
+
+`run_all.py` preflights the rig (templates present, WDA reachable, `DEVICE_UDID`
+set) and exits 2 with a readable message rather than failing test-by-test.
+
+Not in the default suite, on purpose: **`resetStats.py`** (destructive — wipes
+local statistics), **`verifyHelpShift.py`** (needs the device online, which the
+suite otherwise avoids), **`verifyAds.py`** (same — ads need the network; see
+*Ads* below), **`verifyFirstLaunch.py`** (cold-start check, meaningful mainly
+after a reinstall).
+
+## The app is NOT restarted between tests
+
+`helpers.launch_app()` used to create its WDA session with WDA's default
+`forceAppLaunch`, which **restarted the app at the start of every test** and
+silently threw away in-app state. It now attaches to the running app
+(`forceAppLaunch=False`) and only launches when the app is not running.
+
+This is what lets one test build on another: `verifyVictory` uses the Dev Panel
+that `openDebugTools` unlocked instead of repeating the 5-tap gesture
+(`ui.win_game(level, arm=False)`). A restart hides that button again — verified
+both ways on the device.
+
+Two places still want a genuinely fresh app and ask for it explicitly:
+
+* `openDebugTools` → `ui.launch_to_menu(force=True)`. Its premise is that the
+  Dev Panel button is hidden until the gesture reveals it, and only a restart
+  makes that true — without the force it would fail on a re-run by finding its
+  own previous unlock still on screen.
+* `ui.cold_launch()` — the recovery path, whose whole job is to discard state.
+
+Consequence for ordering: **`verifyMoreGamesIcons` must stay last** and
+`openDebugTools` must stay ahead of `verifyVictory`. See the next section.
+
+## Result (2026-08-13, Unity build 353, iPhone 11, online)
+
+**13/13.** Every test run individually, in suite order, on build 353
+(`CFBundleVersion`; the marketing version reads `8.0.0` on every build, so it
+cannot tell builds apart — use `tidevice`/`installation.iter_installed`).
+
+There are **no expected failures any more**. `run_all.py`'s `KNOWN_UNITY_GAPS`
+is empty.
+
+**Correction — the promo strip is not a port gap.** This README, the test, and
+`run_all.py` all used to say the home-screen promo icon strip was dropped by the
+Unity port (and, briefly and even more wrongly, that build 353 regressed it).
+Both readings were wrong. **The strip only appears once at least one game has
+been completed**; on a fresh install with stats at 0 the app does not draw it.
+Measured on one device and build with no reinstall between: 0 of 5 icons at
+12:07 and 12:11 on a fresh install, 4 of 5 at 12:43 after `verifyVictory` won a
+game. That is why the test is **last** in the suite — `verifyVictory` (#12)
+satisfies its precondition. Do not move it earlier, and do not file a bug from a
+fresh-install capture.
+
+The 5th icon needed a second fix: `promo_freecell` scored ~0.54 against a strip
+plainly on screen because **FreeCell's app icon was redesigned** (dark blue
+square → lighter squircle with a sparkle). These are other publishers' icons and
+will keep changing, so the test now accepts any known art variant
+(`promo_freecell_alt.png`; add `<name>_alt.png` when art changes again).
+
+`openDebugTools` was on that list and **is not any more** — the hidden QA entry
+point is present on Unity after all. **5 rapid taps on the About screen's spider
+emblem** reveal a **"Dev Panel"** button in the bottom-right corner. The earlier
+"the gesture opens nothing" reading was a harness fault, not a port gap: the taps
+were aimed at the `about_logo` crop, whose centre lands on the *"Spider
+SOLITAIRE" wordmark*, and the wordmark is inert. The identical burst ~50 px
+higher, on the emblem, works every time. That is why `about_emblem` is now its
+own template rather than an offset from the wordmark.
+
+**That button is the cheat route.** Tapping it expands a QA panel — surface /
+language / card-back pickers, **Complete Game**, Max Debugger, Kill Banner Ad, PT
+Debugger, Screen Stats — so Unity does have the synthetic win the Obj-C build
+had. `ui.win_game(level)` drives it end to end (arm on About → deal → Complete
+Game → victory), which makes the victory screens reachable without playing a game
+out. Complete Game acts on the **active** game, so it does nothing if fired from
+About.
+
+Two things still matter for this test to mean anything:
+
+* **The taps must be genuinely rapid.** A loop of ordinary airtest taps runs at
+  **~510 ms each** (>2.5 s for five) — outside the detection window — so it would
+  report the gesture as absent purely by driving it too slowly. `ui.rapid_tap()`
+  sends the whole burst as ONE W3C Actions request executed on-device
+  (~70–120 ms/tap) and returns False if it falls back; the test asserts on that
+  *before* judging the app, so an inconclusive run never reads as a finding.
+* **Fire exactly one burst.** The gesture **toggles** — a second 5-tap burst
+  hides the button again. The button is *not* scoped to About (only the gesture
+  is); once unlocked it shows on every screen until the app is restarted. The
+  test's "hidden beforehand" precondition therefore comes from its own
+  `launch_to_menu(force=True)`, and the unlock it leaves behind is deliberate —
+  `verifyVictory` uses it.
+
+Everything else passes, including gameplay assertions the Obj-C suite never had:
+deal a row from the stock → board changes **9.6%** → undo → residual **0.00%**.
+
+## Coverage
+
+| Test | What it asserts |
+|---|---|
+| `verifyMainMenu` | all 7 menu controls + logo render *simultaneously* (polled — a launch toast and sparkle can briefly hide one) |
+| `verifyStatsPage` | Statistics renders, Game Center present, scrolls end to end to "Reset Statistics" (not tapped) |
+| `verifyOptions` | all three sections reachable by scrolling, Contact Us present, and a toggle actually responds |
+| `verifyHelpPage` | Help opens on "Introduction" and the body scrolls to its footer |
+| `verifySpiderLogo` | About reachable from both the menu item **and the logo**; version, copyright, links; in-app FAQ opens |
+| `verifyMoreGamesBtn` | the in-app cross-promo page opens and returns |
+| `verifyMoreGamesIcons` | all 5 promo icons present, **each one opens the App Store**, switching back (never killing the app) returns to the menu, and the 5 go to *different* pages. Needs a completed game first — runs last |
+| `openDebugTools` | 5 rapid taps on the About emblem reveal the "Dev Panel" button, bottom-right. Forces a restart first; leaves the panel unlocked for `verifyVictory` |
+| `verifyChooseLook` | Surface/Cards tabs switch, a surface applies (screen changes), × closes to the menu |
+| `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
+| `verifyDifficultyLevels` | every level (Easy…Expert) deals a game; per-level failures reported individually |
+| `verifyGamePlay` | **deal/undo round trip**, hints respond, and all six drawer actions behave |
+| `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its "new" deals a fresh game |
+| `resetStats` | reset link + confirmation chain (destructive, opt-in) |
+| `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
+| `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |
+
+### The assertion worth knowing about
+
+Unity publishes no state to read, so "did that control do anything?" is answered
+from the screen: capture, act, capture, compare. `verifyGamePlay` uses this for a
+real game-logic check:
+
+```
+capture board → deal a row from the stock → board must change
+              → undo                      → board must return to the original
+```
+
+Undo is only correct if the pixels come back. That catches a class of port bug
+(undo not restoring state) that no screenshot diff would, and it needs no
+accessibility tree.
+
+## Templates and their quality gate
+
+| Path | Purpose |
+|---|---|
+| `unity_ui.py` (repo root) | the driver: matching, navigation, dialogs, table controls, pixel observation |
+| `assets_unity/` | **the** Unity template set — one set for every 19.5:9 phone |
+| `iphone14/assets_unity/` | reference crops at 1290px; no longer used at runtime |
+| `scripts/capture_unity_screens.py` | bootstrap: walk Unity by coordinate, shoot every screen → `log/unity_screens/` |
+| `scripts/crop_unity_assets.py` | cut anchors out of those captures (`--device iphone14｜iphone11`) |
+| `scripts/derive_unity_assets.py` | derive one device's templates from another's by multi-scale matching |
+| `scripts/verify_unity_assets.py` | offline quality gate: fragile / ambiguous crops |
+| `scripts/verify_unity_scaling.py` | offline gate: does the one set cover every device? |
+
+### One set, every device
+
+There is no per-device Unity template tree. `unity_ui.find()` rescales each crop
+for the attached phone, so an iPhone 16 Pro needs **no new templates and no new
+coordinates** — everything resolution-dependent in the suite is already a
+fraction of `screen_size()`, read from the device at runtime. Verified by running
+the whole suite on one: **12/13 on an iPhone 16 Pro (1206×2622)**, the only
+failure the promo strip — which was later shown not to be a gap at all: that
+device had no completed game, which is what the strip needs (see the result
+section above).
+
+**Two rendering regimes, not one.** Unity's own artwork scales by **width**
+(1206/828 = 1.4565 on a 16 Pro). Spider's confirmation dialogs are **native iOS
+alerts** — SF font, translucent card, system button pills — and native UI is laid
+out in *points*, so it scales by **point density** instead (@2x → @3x = 3/2 =
+1.500). Only 3% apart, and that 3% is the difference between working and not:
+`prompt_abandon` peaked at 0.962 @1.500 but only 0.694 inside the width-based
+sweep, so the abandon prompt went unrecognised, was answered "No", and **every
+game-dealing test failed**. `NATIVE_UI` in `unity_ui.py` lists the templates on
+the point-density basis; everything else uses width.
+
+That is measured, not assumed. Cross-matching every template between an iPhone 11
+(828) and an iPhone 14 Pro Max (1290) capture of the same screen:
+
+| direction | result | best scale | predicted |
+|---|---|---|---|
+| 1290 → 828 (downscale) | 49/49 ≥0.80, median **0.978** | 0.645 (sd 0.003) | 0.642 |
+| 828 → 1290 (upscale) | 53/53 ≥0.80, median **0.981** | 1.560 (sd 0.005) | 1.558 |
+
+The scales cluster within ~0.5% of the pure width ratio, which is why `find()`
+sweeps a narrow band around the prediction rather than trusting it outright. It
+tries the predicted scale first and exits early, so the common case still costs a
+single `matchTemplate`.
+
+**Keep that sweep tight.** Every extra scale is another chance for the *wrong*
+screen to cross the threshold, and that is not hypothetical — a first cut used
+±3% and the top bar's "menu" word (`in_game_menu`) started matching the Stats
+and Help pages, which it scores only 0.684 / 0.659 against at native scale:
+
+| sweep | false matches across 5 weak screens |
+|---|---|
+| ±3% | 3 (0.759, 0.712, 0.760) |
+| ±1% | 1 (0.704) |
+| single scale | 0 |
+
+±1% is still 2–3× the observed prediction error, so it buys tolerance without
+widening the door. The remaining case was a genuinely weak anchor rather than a
+scaling problem: `in_game_menu` is **shared chrome** — the same "menu" word sits
+on the Stats page, the Help page and the victory screen — so it now carries
+`THRESH["in_game_menu"] = 0.85`. True matches score 0.98–1.00 and the highest
+false is 0.827, a clean gap. That also fixed a pre-existing bug: at the default
+0.70, `at_table()` returned True on the **victory screen**, reporting a game in
+progress right after a win.
+
+`verify_unity_scaling.py` keeps this honest by driving the **real** `find()`
+against saved captures per device, and reports the two failures separately — a
+MISS means the one-set design does not reach that device, a GHOST means a crop is
+ambiguous. Current, with `--ghosts --synthetic`:
+
+| profile | unity scale | native scale | missed | ghosts |
+|---|---|---|---|---|
+| iPhone 11 (828×1792, @2x) | 1.000 | 1.000 | 0 | 0 |
+| iPhone 14 Pro Max (1290×2796, @3x) | 1.558 | 1.500 | 0 | 0 |
+| iPhone 16 Pro (1206×2622, @3x) | 1.457 | 1.500 | 0 | 0 |
+
+All three are **real captures** — the iPhone 16 Pro profile was synthetic
+(a resampled iPhone 14 frame) until the device was available; it is now that
+device's own screens. Profiles judge different template counts because not every
+screen has been captured on every phone.
+
+**Limits worth stating.** The iPhone 16 Pro profile is *synthetic* — a resampled
+iPhone 14 capture. It proves the scaling math, not how that device actually
+renders; confirm on the real phone when one is attached. And the **iPhone 7**
+(750×1334, 16:9) is out of scope for this: its UI genuinely reflows rather than
+scaling, so it would need its own set via `UNITY_ASSETS`. The status-bar airplane
+glyph in `preflight_offline.py` also stays per-device — it is an iOS element, not
+Unity's.
+
+A suite that locates by template is only as good as its templates, so
+`verify_unity_assets.py` checks both ways one can be bad, with **no device**:
+
+* **FRAGILE** — matches its own source frame but not *another* capture of the
+  same screen. The menu labels sit under an animated sparkle, so a crop that
+  caught one can score 1.000 on its source and nothing else. Every template is
+  tested against the same screen captured from a **different build** (341 vs 343).
+* **AMBIGUOUS** — also matches a screen it shouldn't, which would let an
+  assertion pass on the wrong screen.
+
+Currently **53 templates, 0 fragile, 0 ambiguous**. Two findings from this gate
+are baked into the driver: the menu labels stay visible **behind the Choose Look
+modal** (so `ui.on_menu()` rules the modal out), and the Help footer carries the
+**same** FAQ link as About.
+
+Refreshing templates for a new Unity build (**not** the same as re-baselining —
+`baselines/` stay Obj-C):
+
+```bash
+./.venv/bin/python scripts/capture_unity_screens.py
+./.venv/bin/python scripts/crop_unity_assets.py --device iphone11
+./.venv/bin/python scripts/verify_unity_assets.py      # gate before trusting
+```
+
+## Gotchas
+
+* **Pin the device with `DEVICE_UDID`.** Airtest picks the *first* device it can
+  see, including **WiFi-paired** ones that aren't plugged in — the iPhone 7 pairs
+  over WiFi and outranked the USB iPhone 11, so a run aimed at the 11 silently
+  drove the 7 (`wda xctest launched but check failed`). `idevice_id -l` won't
+  show the culprit (USB only); `tidevice list` does, with a `ConnType` column.
+* **Run OFFLINE (Airplane Mode), and start WDA first.** Online, FingerArts pops
+  full-screen cross-promo interstitials on screen transitions, and one fires
+  *reliably*: opening Options from the in-game drawer was interrupted on 3/3
+  attempts. A blind tap on one can land on the ad body and open a **StoreKit App
+  Store sheet**. `ui.lost()` detects "nothing we recognise is on screen" and
+  `ui.recover()` terminates and relaunches rather than hunting for a close button
+  whose position moves with the ad creative. Order matters: WDA needs the network
+  for its certificate check at launch, but runs over USB afterwards.
+* **Two look-alike dialogs, opposite answers.** "Are you sure you want to abandon
+  the currently paused game?" → **Yes**; "Would you like to review the game rules
+  before to play?" → **No**. Same geometry, so they are told apart by TEXT, never
+  by position — and the text now comes from **WDA**, not from image matching.
+* **Do not match iOS alerts as images.** They are translucent, so a crop bakes in
+  whatever was behind the alert when it was cut. With the abandon prompt plainly
+  on screen, and the crops taken from that very device, `prompt_abandon` scored
+  **0.188**, `dialog_yes` 0.311, `dialog_no` 0.329 — all far under 0.70 — purely
+  because the templates were cut over the game table and this one sat over the
+  difficulty picker. `settle_prompts()` silently saw nothing, the deal was
+  cancelled, and `verifyPlay` failed. These are real `UIAlertController`s, so
+  `ui.alert_now()` reads their text over WDA and `ui.answer_dialog()` presses
+  Yes/No by name; the templates remain only as a fallback.
+* **Two first-launch gates block everything, once per install.** A fresh install
+  shows the **App Tracking Transparency** prompt, then **Terms & Conditions** on
+  the next launch. Every TestFlight build is a fresh install, so the first run on
+  each new build hits them. They need *different* mechanisms, and the difference
+  was measured: ATT is presented **out of process** and is invisible to the
+  session (`/alert/text` 404s while it is plainly on screen), so it is matched as
+  an image (`att_prompt` / `att_deny`, answered "Ask App Not to Track"); T&C is
+  app-presented, so it is matched by alert text (`ui.FIRST_LAUNCH_GATES`) and
+  accepted. `ui.clear_overlays()` does both and only touches alerts it positively
+  recognises as gates, so the game's own confirmations are left to
+  `settle_prompts()`.
+* **`/alert/buttons` does not exist on this WDA (15.0.0) — it 404s.** That made
+  `helpers.alert_buttons()` return `[]`, which `clear_overlays()` read as "no
+  alert", so the whole overlay sweep was dead code. Use `helpers.alert_text()` as
+  the presence check; `[]` from `alert_buttons()` means nothing either way.
+* **A third dialog isn't Yes/No at all.** A "Did you know?" tip pops over the
+  table after a deal with **OK / Show Me**, and blocks taps on everything beneath
+  it until answered — it silently swallowed a tap whose template had matched
+  fine. `settle_prompts()` checks it first and answers **OK** ("Show Me"
+  navigates away to Options).
+* **The Dev Panel overlay hides the menu.** Once expanded it follows you across
+  screens and covers the right-hand column — which is where the main menu draws
+  its labels, so `ui.on_menu()`/`ui.to_menu()` cannot confirm the menu while it
+  is up. Navigate around it or call `ui.close_dev_panel()` first.
+* **Some feedback is transient.** The hint highlight plays for <0.7 s and the
+  board returns to *exactly* its previous pixels, so a single capture after a
+  settle reads as "the control did nothing". Use `ui.peak_change_after()` to
+  sample across the animation. An earlier version of this test reported a false
+  Unity defect this way.
+* **A screenshot cannot tell you which app you are looking at.** Use
+  `ui.active_app()` (WDA's foreground bundle id) for anything that hands off to
+  another app, and `ui.resume()` to come back — it foregrounds Spider WITHOUT
+  restarting it, so in-app state survives. Never terminate to get back.
+
+## Ads (`verifyAds.py`) — online only
+
+The rest of the suite runs offline to keep ads *out*. This one test runs online
+to check they are still there, because ads are revenue and a port that broke
+them is a regression nothing else here would see.
+
+Hard assertions: a banner is served on the menu; an interstitial appears where
+the app schedules one (leaving a game — fired on **12 of 12** attempts); the ad
+never moves the user out of Spider on its own; the app is usable afterwards.
+Whether the ad could be *closed* is reported, not asserted — creatives are third
+party and differ every run, so failing on one creative's close button would make
+the suite flaky.
+
+What it found on build 353, and why the test is shaped this way:
+
+* Interstitials **chain**. A video plays ~15 s, then at ~16 s it opens an App
+  Store product sheet **by itself** — confirmed with screenshot-only sampling,
+  40 frames, no touch events of any kind — and closing that sheet starts a
+  further playable ad.
+* **The chain is long.** Watched for a full 5 minutes: exactly one closable
+  control ever appeared (the store sheet's X, at t+27 s) and Spider's own UI
+  never came back. A user, who has no relaunch button, is stuck for minutes.
+  Worth raising with whoever owns the ad configuration.
+* The only other exit is a small **"▶▶" skip glyph**, which the driver
+  deliberately does **not** use: its position moves between creatives (top-left
+  on some, top-right on others) and a crop of it scores 0.65–0.75 on real ads but
+  **0.656 on the plain main menu** — indistinguishable from noise. Guessing at it
+  would tap the ad and open the App Store.
+* `ui.dismiss_ad()` was **dead on Unity**: it only looked for an `ad_close` crop
+  that exists in the Obj-C `assets/` set, and `have()` searches the Unity set, so
+  it always returned False. It now also knows `ad_store_close` — the X on the
+  in-app StoreKit sheet, which sits on plain white and matches cleanly (1.000 on
+  the sheet, ≤0.29 on all eight Spider screens). `ui.ad_free(budget)` loops
+  close-or-wait and gives up honestly rather than pretending.

@@ -1,0 +1,10 @@
+# NOTE: baselines/ is intentionally NOT ignored — the visual-regression
+# baselines are committed. Only the throwaway captures in log/ are ignored.
+.venv/
+log/
+logs/
+*.log
+target/
+__pycache__/
+.airtest_cache/
+.DS_Store
