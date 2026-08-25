@@ -17,11 +17,19 @@ pre-signed** in this repo at [`wda/`](wda/). That is what saves you a day of set
 The catch: a signed build only installs on the devices that were listed when it was
 signed. **9 devices.** Anything else is refused by iOS, no matter what you do.
 
-Find your device's UDID:
+Find your device's UDID. **Use Finder for this** — you have not installed anything
+yet, so the command-line tools are not available to you until step 4:
+
+> Plug the iPhone in and unlock it → open **Finder** → click the iPhone in the
+> sidebar → under the device name, **click the line of text** (the one showing
+> capacity or the model) — it cycles through serial number, UDID and phone number.
+> Copy the **UDID**. Right-click it to copy.
+
+Once the tools are installed (steps 3–4) you can also use:
 
 ```bash
-idevice_id -l      # USB-connected devices only
-tidevice list      # also shows WiFi-paired devices, with a ConnType column
+idevice_id -l                      # USB-connected devices only
+./.venv/bin/python -m tidevice list  # also shows WiFi-paired devices (ConnType column)
 ```
 
 Now check it against the list in [`wda/README.md`](wda/README.md). The four phones the
@@ -73,7 +81,11 @@ Open Xcode once and let it finish installing components before continuing.
 
 ```bash
 brew install libimobiledevice
+which iproxy idevice_id          # both must print a path
 ```
+
+(`iproxy` actually comes from `libusbmuxd`, which Homebrew installs automatically as a
+dependency — you do not need to ask for it separately.)
 
 **Python 3.9+** — macOS already ships `python3` (this project was built on 3.9.6).
 
@@ -91,10 +103,20 @@ cd Spider-Solitaire-Automation
 ./scripts/setup.sh
 ```
 
+If that clone fails with a permission error you have no SSH key on GitHub. Either
+[add one](https://github.com/settings/keys), or clone over HTTPS instead and sign in
+when prompted:
+
+```bash
+git clone https://github.com/Shahab-N-PF/Spider-Solitaire-Automation.git
+```
+
 That creates `.venv/` and installs airtest, poco and tidevice. **Always run things with
 `./.venv/bin/python`**, never a system `python3` — the plain one has none of these.
 
-The clone is about 400 MB, nearly all of it screenshots, so give it a few minutes.
+**This needs about 800 MB of disk** — roughly 420 MB of working files plus 380 MB of
+git history, nearly all of it screenshots. Measured on a real clone. Downloading it
+takes a few minutes.
 
 ---
 
