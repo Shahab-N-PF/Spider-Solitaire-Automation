@@ -1,28 +1,49 @@
 #!/usr/bin/env bash
 # wda.sh — start WebDriverAgent for this Airtest project.
 #
-# REUSES the already-signed WDA build from the sudoku-automation repo (team
-# 4528523FZZ) — no new signing, no new build. It just launches that signed
-# test bundle on the device and forwards port 8100, then waits until WDA is
-# healthy. Leave this running while you author/run scripts; Ctrl-C stops it.
+# Launches an already-signed WDA test bundle on the device, forwards port 8100
+# and waits until WDA is healthy. NO signing and NO build happen here.
+#
+# The signed build is COMMITTED to this repo at wda/ (see wda/README.md), so a
+# fresh clone needs nothing else. It only installs on the 9 devices baked into
+# its provisioning profile, and it expires around 2027-07-02 — wda/README.md
+# lists both, and SETUP.md section 8 covers rebuilding.
+#
+# If wda/ is absent (e.g. a partial checkout) it falls back to the old source:
+# the sudoku-automation repo this build originally came from.
 #
 # Usage:
 #   ./scripts/wda.sh                 # auto-detect device, port 8100
 #   ./scripts/wda.sh <UDID>          # explicit device
-#   SUDOKU_REPO=~/path WDA_PORT=8200 ./scripts/wda.sh
+#   WDA_PORT=8200 ./scripts/wda.sh
+#   WDA_PRODUCTS=/path ./scripts/wda.sh    # override which build to launch
+#   SUDOKU_REPO=~/path ./scripts/wda.sh    # point the fallback elsewhere
 #
-# Prereqs: iPhone connected + UNLOCKED. The sudoku-automation repo must have a
-# built WDA (any prior `mvn test` or `airtest-wda.sh` run produces it).
+# Prereqs: iPhone connected + UNLOCKED, Xcode installed, and the developer
+# certificate trusted on the phone.
 
 set -u
 
-# Where the already-signed WDA build lives (override if your repo is elsewhere).
-SUDOKU_REPO="${SUDOKU_REPO:-$HOME/sudoku-automation}"
-DERIVED="${WDA_DERIVED:-$SUDOKU_REPO/target/wda/derived}"
-PRODUCTS="$DERIVED/Build/Products"
 PORT="${WDA_PORT:-8100}"
 IPROXY_BIN="${IPROXY_BIN:-$(command -v iproxy || echo /opt/homebrew/bin/iproxy)}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ── which signed build to launch ──────────────────────────────────
+# In-repo first (the committed one), then the sudoku-automation repo this build
+# originally came from. WDA_PRODUCTS overrides both.
+SUDOKU_REPO="${SUDOKU_REPO:-$HOME/sudoku-automation}"
+DERIVED="${WDA_DERIVED:-$SUDOKU_REPO/target/wda/derived}"
+if [ -n "${WDA_PRODUCTS:-}" ]; then
+    PRODUCTS="$WDA_PRODUCTS"; SOURCE="WDA_PRODUCTS override"
+elif ls "$ROOT/wda"/WebDriverAgentRunner_*.xctestrun >/dev/null 2>&1; then
+    PRODUCTS="$ROOT/wda"; SOURCE="in-repo (wda/)"
+else
+    PRODUCTS="$DERIVED/Build/Products"; SOURCE="fallback: $SUDOKU_REPO"
+fi
+
+# xcodebuild writes results/logs here, so it must be writable and must NOT be the
+# committed wda/ tree. log/ is git-ignored.
+DERIVED_OUT="${WDA_DERIVED_OUT:-$ROOT/log/wda-derived}"
 
 # ── device UDID ───────────────────────────────────────────────────
 UDID="${1:-}"
@@ -36,12 +57,15 @@ echo ">>> [wda] device: $UDID   port: $PORT"
 XCTESTRUN="$(find "$PRODUCTS" -maxdepth 1 -name "WebDriverAgentRunner_*.xctestrun" 2>/dev/null | head -n1)"
 if [ -z "$XCTESTRUN" ]; then
     echo "ERROR: no signed WDA build found under $PRODUCTS" >&2
-    echo "       Build it once in the sudoku-automation repo, e.g.:" >&2
-    echo "         (cd \"$SUDOKU_REPO\" && ./scripts/airtest-wda.sh)   # then Ctrl-C" >&2
-    echo "       or set SUDOKU_REPO / WDA_DERIVED to the correct path." >&2
+    echo "       The signed build ships with this repo at wda/ — if that folder is" >&2
+    echo "       missing or empty, your checkout is incomplete: re-clone or run" >&2
+    echo "         git checkout -- wda" >&2
+    echo "       To point at a different build instead:" >&2
+    echo "         WDA_PRODUCTS=/path/to/Build/Products ./scripts/wda.sh" >&2
+    echo "       See wda/README.md and SETUP.md section 8." >&2
     exit 2
 fi
-echo ">>> [wda] reusing signed build: $XCTESTRUN"
+echo ">>> [wda] signed build [$SOURCE]: $XCTESTRUN"
 
 # ── cleanup on exit ───────────────────────────────────────────────
 WDA_PID=""; IPROXY_PID=""
@@ -54,10 +78,10 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 # ── launch WDA + forward the port ─────────────────────────────────
-SERVE_LOG="$ROOT/log/wda-serve.log"; mkdir -p "$(dirname "$SERVE_LOG")"
+SERVE_LOG="$ROOT/log/wda-serve.log"; mkdir -p "$(dirname "$SERVE_LOG")" "$DERIVED_OUT"
 echo ">>> [wda] launching (log: $SERVE_LOG)..."
 xcodebuild -xctestrun "$XCTESTRUN" -destination "id=$UDID" \
-    -derivedDataPath "$DERIVED" -disable-concurrent-destination-testing \
+    -derivedDataPath "$DERIVED_OUT" -disable-concurrent-destination-testing \
     test-without-building > "$SERVE_LOG" 2>&1 &
 WDA_PID=$!
 

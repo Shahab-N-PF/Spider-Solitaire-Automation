@@ -1,0 +1,11 @@
+# The signed WebDriverAgent build is a code-signed binary tree. Any line-ending
+# or encoding conversion would change bytes and INVALIDATE the code signature,
+# after which iOS refuses to install it. Force git to treat all of it as opaque
+# binary so a clone is byte-for-byte what was committed.
+wda/** binary
+
+# ...except the doc that explains it, which should stay diffable. Later rules win.
+wda/*.md text diff
+
+# Screenshots — baselines, templates and committed captures. Never touched.
+*.png binary
