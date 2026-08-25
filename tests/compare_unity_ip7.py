@@ -28,7 +28,10 @@ import numpy as np  # noqa: E402
 import config  # noqa: E402
 import visual  # noqa: E402
 
-UNITY_DIR = os.path.join(config.LOG, "ip7_unity")     # Unity 8.0.0 captures
+UNITY_DIR = os.path.join(config.LOG, os.environ.get("IP7_UNITY_DIR", "ip7_unity"))
+# ^ Unity captures. Override with IP7_UNITY_DIR to diff a different build,
+#   e.g. IP7_UNITY_DIR=ip7_unity_343. Per-build dirs: ip7_unity_343 (343),
+#   ip7_unity_341 (341), ip7_unity_prevbuild (335).
 BASE_DIR = os.path.join(config.ROOT, "iphone7", "portrait", "baselines")  # Obj-C 7.42.5
 
 # iPhone 7 = 750x1334. Volatile chrome to ignore everywhere:

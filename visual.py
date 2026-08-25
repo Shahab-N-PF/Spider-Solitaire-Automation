@@ -222,28 +222,51 @@ def compare_all():
 
 
 def exit_if_nothing_compared(results, unity_dir, device, how):
-    """Fail loudly when a comparison had no Unity captures to compare against.
+    """Fail loudly when a comparison compared nothing — and say which reason.
 
-    The per-device comparison tools (compare_unity_ip7/ip14/ipad/...) only READ
-    their Unity captures; they do not shoot them. Those captures live under
-    log/, which is git-ignored, so on a fresh clone every screen comes back
-    [no-capture] — and the run still printed a tidy summary and exited 0, which
-    reads as "compared, all good" to a person and to CI alike.
+    The per-device comparison tools only READ their captures; they do not shoot
+    them. Those captures live under log/, which is git-ignored, so on a fresh
+    clone every screen comes back [no-capture] — and the run still printed a tidy
+    summary and exited 0, which reads as "compared, all good" to a person and to
+    CI alike.
 
-    So: if nothing at all was compared, say why, say exactly where the captures
-    belong and how to make them, and exit non-zero. A partial set is left alone
-    — the per-screen [no-capture] lines already show what is missing.
+    Nothing being compared has three different causes and they need three
+    different answers, so this reports the one that actually applies rather than
+    always blaming missing captures. A partial set is left alone — the per-screen
+    status lines already show what is missing.
 
     Returns nothing; exits the process when there is nothing to compare.
     """
     import sys
     if any(r.get("status") == "ok" for r in results):
         return
+
+    counts = {}
+    for r in results:
+        counts[r.get("status")] = counts.get(r.get("status"), 0) + 1
+    reason = max(counts, key=counts.get) if counts else "no-capture"
+
     print("\n  NOTHING WAS COMPARED — this run proved nothing.\n")
-    print(f"  No Unity captures were found in:\n      {unity_dir}\n")
-    print("  The Obj-C baselines ship with this repo and are the reference. The")
-    print("  Unity side does NOT: those captures are shot from the build on the")
-    print(f"  device and land under log/, which is git-ignored.\n")
-    print(f"  To make them for the {device}:\n      {how}\n")
-    print("  See SETUP.md -> 'Capturing the Unity screenshots'.")
+
+    if reason == "size":
+        print(f"  Every capture in\n      {unity_dir}\n"
+              "  is a DIFFERENT PIXEL SIZE from its baseline, so no pair could be\n"
+              "  compared. This tool is fixed to one resolution: the captures must\n"
+              "  come from the same device model and the same orientation as the\n"
+              "  baselines. Screenshots are never rescaled to fit — that would\n"
+              "  invent differences that are not in the build.")
+    elif reason == "no-baseline":
+        print("  The BASELINES are missing — the reference side of the comparison.\n"
+              "  Baselines are committed to this repo, so an empty set means your\n"
+              "  checkout is incomplete, or the tool is pointed at the wrong folder\n"
+              "  (see BASE_DIR at the top of this tool).")
+    else:
+        print(f"  No captures were found in:\n      {unity_dir}\n")
+        print("  The Obj-C baselines ship with this repo and are the reference. The")
+        print("  build under test does NOT: those captures are shot from the app on")
+        print("  the device and land under log/, which is git-ignored.\n")
+        print(f"  To make them for the {device}:\n      {how}")
+
+    print("\n  See SETUP.md -> 'Capturing the Unity screenshots', or COMPARISON.md")
+    print("  if you only want the comparison tool.")
     sys.exit(2)
