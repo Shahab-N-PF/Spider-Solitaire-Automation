@@ -1,9 +1,9 @@
 # Launch time — Unity vs Obj-C
 
-The **fourth axis**, beside pixel fidelity (`compare_unity*.py`), animation FPS
-(`tests/fps/`) and function (`verify*.py`): **how long the user waits after tapping the
-icon.** A build can be pixel-perfect and hold 60 fps and still feel worse if the engine
-swap added seconds to startup, and nothing else in this repo would notice.
+The **third axis**, beside pixel fidelity (`compare_unity*.py`) and function
+(`verify*.py`): **how long the user waits after tapping the icon.** A build can
+be pixel-perfect and still feel worse if the engine swap added seconds to
+startup, and nothing else in this repo would notice.
 
 Unity is a specific risk here: engine init, asset bundles and first-run shader warm-up are
 startup work the Obj-C build never did.
@@ -64,7 +64,6 @@ number:
   reinstall per sample, so per-sample precision has to carry a low-N result.
 - The **iPhone 7 has no working WDA**, so video is the only option there — and one method on
   both devices keeps their numbers comparable.
-- Same reason `tests/fps/` moved to video for sub-second animations.
 
 `live_launch.py` exists only for **unattended volume** on subsequent/warm, iPhone 11 only.
 It taps the icon itself and samples screenshots, and it is honest about its limits: it

@@ -58,7 +58,6 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `tests/compare_unity_ip14.py` | **iPhone 14 Pro Max Unity-port check** (1290×2796): diff per-build captures (`log/ip14_unity/` = build 341, `log/ip14_unity_343/` = build 343) vs `iphone14/baselines/` with iPhone-14 masks (measured, not scaled — 19.5:9 reflows vs ip7's 16:9) + learned volatile masks (`iphone14/baselines/<name>.volatile.png`) + a `DEV_PANEL` mask over the build-343 "Dev Panel" debug button on both victory screens + curated `META`. Covers 17 screens (the ip7 set + `HelpPageBottom`). `--report` regenerates the versioned report `reports/iPhone14_Unity_Report.html` (build switcher 343 / 341). |
 | `scripts/gen_compare_report.py` | Build the interactive wipe/fade comparison report (`log/unity_compare.html`) from the latest `log/` captures + `baselines/`. Curated per-element callouts live in its `META`. |
 | `scripts/gen_versioned_report.py` | The **polished, Artifact-ready** fidelity report — a single page with a **build switcher** (e.g. 341 / 337 / 335) that swaps verdict, tiles, findings + all screen cards; the Obj-C baseline stays constant. `python scripts/gen_versioned_report.py {ip7\|ip7-landscape\|ipad\|ip14}` → `reports/<Device>_Unity_Report.html` (ip7 → `iPhone7_Unity_Report.html`, ip7-landscape → `iPhone7_Landscape_Unity_Report.html`, ip14 → `iPhone14_Unity_Report.html`, ipad → `ipad_unity_report.html`). Per-build capture dirs, curated findings + per-device image sizing (the landscape report embeds native-res 1334×750 screenshots, 2-up) live in its `DEVICES` config. |
-| `tests/fps/` | **FPS / animation performance** — a *separate axis* from pixel fidelity: does each in-game move animate smoothly, and did the Unity port add hitches? `fps_capture.py`+`fps_analyze.py` stream/summarize `tidevice perf -o fps` (~1 Hz, continuous drag); `vid_analyze.py` does per-frame analysis of a 60 fps QuickTime recording (deal / suit fly-off, + Apple-style hitch metrics); `trace_fps.py` parses an Xcode `xctrace` "Animation Hitches" trace for **iOS 17+/120 Hz** devices (iPhone 14, where video caps at 60). Moves by hand. See `tests/fps/README.md`. |
 | `assets/` | Template images for image matching, cropped from the **Obj-C** build (commit these). Do **not** use these against Unity — they don't match. |
 | `assets_unity/` | Template images cropped from the **Unity** build's own rendering, for `unity_ui.py`. **One set for every 19.5:9 phone** (iPhone 11 / 14 Pro Max / 16 Pro) — unlike `assets/`, this is *not* per-device: `unity_ui.find()` rescales each crop by `device width / REF_WIDTH` at match time. `iphone14/assets_unity/` is now only a reference set. |
 | `scripts/verify_unity_scaling.py` | Offline gate for that claim: drives the real `unity_ui.find()` against saved captures from each device, reporting MISSED (set doesn't cover the device) and GHOST (matches a screen it shouldn't). `--synthetic` adds resampled profiles for phones we have no captures of. |
@@ -106,45 +105,12 @@ wipe/fade viewer with alignment rulers + callout pins). If a new Unity build mov
 elements, re-shoot with `tests/launch_and_shoot.py` and update the coordinates at
 the top of `tests/compare_unity.py`.
 
-## FPS / animation performance (iPhone 7)
-
-A separate axis from pixel fidelity: does each in-game *move* animate at a smooth
-60 fps, and did the Unity port add hitches? Tooling in `tests/fps/` (full doc:
-`tests/fps/README.md`). Measured on the **iPhone 7** — 60 Hz + weakest HW exposes
-drops best, and it's the one device where the FPS tooling needs no extra setup
-(`tidevice perf -o fps` works on iOS 15; iOS 17+ would need `pymobiledevice3` + a
-sudo tunnel). No WDA there, so moves are performed **by hand**.
-
-- **Continuous moves (drag):** `tests/fps/fps_capture.py` streams `tidevice perf
-  -o fps --json` (~1 Hz) while you drag; `fps_analyze.py` summarizes. FPS reads ~0
-  when static, so only active (fps>0) samples count.
-- **Sub-second animations (deal, suit fly-off):** ~1 Hz is too coarse — record a
-  tight 60 fps QuickTime clip (New Movie Recording → Camera = the iPhone) and run
-  `tests/fps/vid_analyze.py` for per-frame analysis (effective fps + held-frame hitches).
-- **120 Hz / iOS 17+ device (iPhone 14):** video caps at 60 fps, so use Xcode's
-  `xctrace` ("Animation Hitches" template, attach via `devicectl`-launched PID) and
-  parse with `tests/fps/trace_fps.py`. One-time: let Xcode → Devices and Simulators
-  "prepare" the device or `xctrace` lists it Offline and hangs. `xctrace` timing has
-  no pixel data, so window to the move and fall back to video for pause-vs-stall.
-- **Gotcha:** a low 1 Hz sample is *not* automatically a hitch — a static pause
-  between two eased animation waves reads identically to a stall at 1 Hz. Confirm
-  with `vid_analyze.py --detail` (a real stall cuts off mid-motion; a designed
-  pause eases `frac`→0 then back up). This corrected an early wrong "Unity fly-off
-  hitches" call — see `reports/CHANGELOG.md`.
-
-Result (2026-08-06, Obj-C 7.42.5 vs Unity 8.0.0): **no FPS regression** on the
-iPhone 7 — drag, rapid 2-card, deal (10 cards) and suit fly-off (13) all hold 60 on
-both; the fly-off is a two-wave 60 fps animation + designed pause on both builds. On
-the **iPhone 14 (120 Hz)**, Unity is **locked to 60 fps** (does not use ProMotion) —
-open question whether Obj-C drove 120. Builds share the bundle id, so swap Obj-C↔Unity
-via **TestFlight** (measure one at a time).
-
 ## Unity functional testing (`tests/verify*.py` + `run_all.py`)
 
-A **third axis**, alongside pixel fidelity (`compare_unity*.py`) and FPS
-(`tests/fps/`): does the Unity build actually **work**? The `verify*.py` cases
-were **converted in place** from Obj-C to Unity — the Obj-C build is no longer
-functionally tested. Full doc: `tests/README.md`.
+A **second axis**, alongside pixel fidelity (`compare_unity*.py`): does the
+Unity build actually **work**? The `verify*.py` cases were **converted in
+place** from Obj-C to Unity — the Obj-C build is no longer functionally tested.
+Full doc: `tests/README.md`.
 
 **13/13 on the iPhone 11, Unity build 353 (2026-08-13).** `KNOWN_UNITY_GAPS` is
 now **empty** — no test is expected to fail. Note the build number comes from
@@ -333,9 +299,7 @@ re-baselining — `baselines/` stay Obj-C):
     `iphone7/landscape/{assets,baselines}` (1334×750) — run with
     `DEVICE=iphone7/portrait` or `DEVICE=iphone7/landscape`. WDA is built for iOS
     26.5, so confirm the cert is trusted and WDA launches on iOS 15 before trusting
-    a run (in practice the iPhone 7 uses tidevice capture, not WDA). Also the
-    **FPS-testing device** (60 Hz, weak HW): `tidevice perf -o fps` works on its
-    iOS 15 with no tunnel — see `tests/fps/`.
+    a run (in practice the iPhone 7 uses tidevice capture, not WDA).
   - **iPhone 14 Pro Max** (`00008120-0001485A1E60201E`, `iPhone15,3`), iOS
     **26.5.2**, **1290×2796** (19.5:9). Its set is `iphone14/{assets,baselines}`
     (`DEVICE=iphone14`). Already in the default signed WDA profile, so plain

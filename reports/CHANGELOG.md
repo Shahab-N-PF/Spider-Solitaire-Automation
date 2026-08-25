@@ -339,9 +339,15 @@ shouldn't). Currently 53/53 clean.
 
 ## FPS / animation performance (iPhone 7 · 60 Hz · tidevice + video)
 
+> **RETIRED — 2026-08-25.** The FPS tooling (`tests/fps/`) has been removed from
+> the repo; this axis is no longer tested. The findings below are kept as the
+> record of what was measured while it existed, so nobody repeats the work — the
+> headline is that the port cost nothing in frame rate. Reproducing any of it now
+> means writing the tooling again.
+
 *A different axis from the fidelity reports below — animation **frame-rate**, not
-pixels. Tooling in `tests/fps/` (`fps_capture.py`/`fps_analyze.py` = tidevice ~1 Hz;
-`vid_analyze.py` = per-frame from a 60 fps QuickTime clip). See `tests/fps/README.md`.*
+pixels. Measured with a ~1 Hz `tidevice perf` sampler plus per-frame analysis of a
+60 fps QuickTime clip.*
 
 ### 2026-08-06 — Unity 8.0.0 vs Obj-C 7.42.5 — **no FPS regression**
 
@@ -361,7 +367,7 @@ clips. Neither freezes mid-flight; each wave is a clean 60 (17 ms worst hold = o
 frame). If anything Unity's inter-wave pause trends *shorter* (snappier); Obj-C plays
 a longer trailing score-tally animation. Cosmetic/timing only, no performance gap.
 
-Apple-style hitch metrics (added to `vid_analyze.py`) back this up: within motion,
+Apple-style hitch metrics back this up: within motion,
 **frame-time p99 = 17 ms** (one 60 Hz refresh) and **hitch ratio 0.0 ms/s [GOOD]** on
 every move on both builds; the fly-off's static gaps are classified as designed pauses,
 not hitches. (A first cut of the classifier over-flagged the eased stop as a hitch by
@@ -372,18 +378,18 @@ plus a 400 ms cap, fixed it. Same 1-Hz-style trap, one level up.)
 hitch" — from coarse tidevice 1 Hz FPS dipping into the 30s during completions. That
 was the **static inter-wave pause averaged into a 1 Hz bucket**, not a stall; the
 60 fps video overturned it. Lesson: never call a low 1 Hz sample a hitch without
-frame-level (`vid_analyze.py --detail`) confirmation — a designed pause between eased
-segments reads identically to a freeze at 1 Hz.
+frame-level confirmation — a designed pause between eased segments reads
+identically to a freeze at 1 Hz.
 
 ### iPhone 14 Pro Max (120 Hz ProMotion) — Unity locked at 60 fps
 
-Measured via Xcode `xctrace` ("Animation Hitches" template → `tests/fps/trace_fps.py`),
+Measured via Xcode `xctrace` ("Animation Hitches" template),
 the path for iOS 17+ where the 60 fps video caps out and tidevice's classic instruments
 are dead. **Unity 8.0.0 is locked to 60 fps and does *not* use the 120 Hz display** — a
 continuous drag presented **749/749 frames at 60 fps** (p99 16.8 ms, 0 hitches, flawless).
 The suit fly-off shows 60 fps card-motion with static gaps `xctrace` can't classify (it's
-present-timing only, no pixel data — a 60 fps screen recording + `vid_analyze.py` would
-settle pause-vs-stall, valid since the app is 60-capped). **Open question for the team:**
+present-timing only, no pixel data — a 60 fps screen recording would settle
+pause-vs-stall, valid since the app is 60-capped). **Open question for the team:**
 did the Obj-C build drive 120 Hz on ProMotion? If yes, the port dropped it; if Obj-C was
 also 60, unchanged. (Needs a TestFlight swap to the 7.x build, which may not run on iOS 26.)
 

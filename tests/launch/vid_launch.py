@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Launch time from a 60 fps screen recording. [works on ANY build — Unity or Obj-C]
 
-The fourth axis, beside pixel fidelity (`compare_unity*.py`), animation FPS
-(`tests/fps/`) and function (`verify*.py`): how long the user waits after tapping
-the icon. A port can be pixel-perfect and hold 60 fps and still feel worse if the
-engine swap added seconds to startup, and nothing else here would notice.
+The third axis, beside pixel fidelity (`compare_unity*.py`) and function
+(`verify*.py`): how long the user waits after tapping the icon. A port can be
+pixel-perfect and still feel worse if the engine swap added seconds to startup,
+and nothing else here would notice.
 
 WHY VIDEO AND NOT THE WDA HARNESS
   * t0 is the ICON TAP. Nothing a harness can report gives you that — only frames
@@ -13,7 +13,6 @@ WHY VIDEO AND NOT THE WDA HARNESS
     costs a reinstall per sample, so precision has to carry a low-N result.
   * The iPhone 7 has no working WDA at all, so video is the only option there —
     and one method on both devices keeps their numbers comparable.
-  * Same reason `tests/fps/` moved to video for sub-second animations.
 
 THE FOUR MARKERS, all read off frames so no harness overhead is inside a number:
 
@@ -73,26 +72,24 @@ import os
 import statistics
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fps"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
-import vid_analyze  # noqa: E402  (tests/fps — reuse its loader/motion series)
-
-# Analysis resolution. Far below vid_analyze's 160: that tool measures per-frame
-# MOTION, this one only has to answer "which screen is this", which survives heavy
-# downscaling. Also what keeps a long recording in memory — 96px is ~20 KB/frame,
-# so 5 minutes at 60 fps is ~350 MB rather than ~1 GB.
+# Analysis resolution. This tool only has to answer "which screen is this", and
+# screen IDENTITY survives heavy downscaling. It is also what keeps a long
+# recording in memory: 96px is ~20 KB/frame, so 5 minutes at 60 fps is ~350 MB
+# rather than ~1 GB.
 DOWN_W = 96
+PX_THRESH = 12          # per-pixel abs greyscale diff before a pixel counts as changed
 
 # ── thresholds ────────────────────────────────────────────────────
 # All are exposed on the CLI: they are tuned once against a throwaway recording
 # from the device in question (see README), never against the real session.
 #
 # Motion is the fraction of pixels that changed since the previous frame
-# (vid_analyze.frac_series). Distances are mean absolute greyscale difference,
+# (`frac_series`). Distances are mean absolute greyscale difference,
 # 0-255, between two frames.
 TAP_MOTION = 0.0020     # the still home screen "started moving" -> the tap landed
 FROZEN_MOTION = 0.0008  # at/below this a frame is a duplicate: nothing is rendering
@@ -104,14 +101,46 @@ MIN_SETTLE_S = 0.40     # a settled screen must hold this long to be an end stat
 MAX_LAUNCH_S = 30.0     # beyond this a run is not a launch; report, do not measure
 
 
+def read_video(path):
+    """Every frame as a small greyscale image, plus its timestamp in ms."""
+    cap = cv2.VideoCapture(path)
+    if not cap.isOpened():
+        raise SystemExit(f"cannot open {path}")
+    nominal = cap.get(cv2.CAP_PROP_FPS) or 60.0
+    frames, ts = [], []
+    while True:
+        ok, fr = cap.read()
+        if not ok:
+            break
+        ts.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+        h = int(fr.shape[0] * DOWN_W / fr.shape[1])
+        frames.append(cv2.cvtColor(cv2.resize(fr, (DOWN_W, h)), cv2.COLOR_BGR2GRAY))
+    cap.release()
+    # POS_MSEC is unreliable on a full sequential read for some codecs. The
+    # capture is a constant-rate grid, so synthesize the grid if it looks wrong.
+    if (len(ts) < 2 or ts[-1] <= ts[0]
+            or any(ts[i] <= ts[i - 1] for i in range(1, len(ts)))):
+        step = 1000.0 / nominal
+        ts = [k * step for k in range(len(frames))]
+    return frames, ts
+
+
+def frac_series(frames):
+    """Fraction of pixels that changed from each frame to the next."""
+    npix = frames[0].size
+    frac = [0.0]
+    for i in range(1, len(frames)):
+        d = cv2.absdiff(frames[i], frames[i - 1])
+        frac.append(float((d > PX_THRESH).sum()) / npix)
+    return np.array(frac)
+
+
 def load(path):
     """Frames as small greyscale + timestamps (seconds) + motion series."""
-    vid_analyze.DOWN_W = DOWN_W          # the loader reads this at call time
-    frames, ts_ms = vid_analyze.load(path)
+    frames, ts_ms = read_video(path)
     if len(frames) < 30:
         raise SystemExit(f"{path}: only {len(frames)} frames — is this a real recording?")
-    motion = vid_analyze.frac_series(frames)
-    return frames, np.array(ts_ms) / 1000.0, motion
+    return frames, np.array(ts_ms) / 1000.0, frac_series(frames)
 
 
 def mad(a, b):

@@ -157,26 +157,6 @@ comparing captures before/after — including a real game-logic check: deal a ro
 from the stock, the board must change; undo, the board must come back. Full
 doc: `tests/README.md`.
 
-## FPS / animation performance testing
-
-A separate axis from the pixel checks above: do in-game *moves* animate at a
-smooth 60 fps, and did the Unity port add hitches? Tools live in `tests/fps/`
-(see `tests/fps/README.md`). Run on the **iPhone 7** (no WDA there — moves are
-performed by hand while FPS streams):
-
-```bash
-# continuous move (drag) — tidevice ~1Hz sampler:
-./.venv/bin/python tests/fps/fps_capture.py --label unity-8.0.0 --move drag --seconds 18 --no-launch
-./.venv/bin/python tests/fps/fps_analyze.py log/fps/*.jsonl
-
-# sub-second animation (deal, suit fly-off) — per-frame from a 60fps QuickTime clip:
-./.venv/bin/python tests/fps/vid_analyze.py "~/Documents/FPS Testing Videos/unity_suit.mov" --motion 0.006
-```
-
-Latest result (Obj-C 7.42.5 vs Unity 8.0.0, iPhone 7): **no FPS regression** —
-drag, rapid 2-card, deal and suit fly-off all hold 60 on both builds. Details in
-`reports/CHANGELOG.md`.
-
 ## Authoring tips
 
 - **Poco** for menus/buttons with stable names; **image templates** for the

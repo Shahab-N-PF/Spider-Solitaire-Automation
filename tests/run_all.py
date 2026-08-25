@@ -3,8 +3,7 @@
 
 These tests target the **Unity** build (the Obj-C build is no longer functionally
 tested). They ask "does the Unity build WORK?" — a different question from
-tests/compare_unity*.py, which asks whether it LOOKS like the Obj-C baseline, and
-from tests/fps/, which asks whether it animates smoothly.
+tests/compare_unity*.py, which asks whether it LOOKS like the Obj-C baseline.
 
 Every test launches the app and walks itself to the main menu, so one failure
 cannot cascade into the next — the run always reports on all of them. Exit code

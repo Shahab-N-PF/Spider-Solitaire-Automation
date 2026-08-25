@@ -2,13 +2,12 @@
 
 The `verify*.py` cases in this directory are **functional UI tests for the Unity
 build**. They ask *"does the Unity build work?"* — a different question from the
-two other suites here:
+the other suite here:
 
 | Suite | Question | Build |
 |---|---|---|
 | `verify*.py` + `run_all.py` (this one) | does it **work**? | Unity |
 | `compare_unity*.py` | does it **look** like the Obj-C baseline? | Unity vs Obj-C pixels |
-| `fps/` | does it **animate** smoothly? | either |
 
 The Obj-C build is no longer functionally tested — these cases were converted in
 place. `baselines/` still holds the Obj-C reference for the pixel comparison and
