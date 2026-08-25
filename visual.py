@@ -219,3 +219,31 @@ def _write_diff(name, changed, mask, frac):
 def compare_all():
     return [compare(name, spec["ignore"], spec["max_diff"])
             for name, spec in SPECS.items()]
+
+
+def exit_if_nothing_compared(results, unity_dir, device, how):
+    """Fail loudly when a comparison had no Unity captures to compare against.
+
+    The per-device comparison tools (compare_unity_ip7/ip14/ipad/...) only READ
+    their Unity captures; they do not shoot them. Those captures live under
+    log/, which is git-ignored, so on a fresh clone every screen comes back
+    [no-capture] — and the run still printed a tidy summary and exited 0, which
+    reads as "compared, all good" to a person and to CI alike.
+
+    So: if nothing at all was compared, say why, say exactly where the captures
+    belong and how to make them, and exit non-zero. A partial set is left alone
+    — the per-screen [no-capture] lines already show what is missing.
+
+    Returns nothing; exits the process when there is nothing to compare.
+    """
+    import sys
+    if any(r.get("status") == "ok" for r in results):
+        return
+    print("\n  NOTHING WAS COMPARED — this run proved nothing.\n")
+    print(f"  No Unity captures were found in:\n      {unity_dir}\n")
+    print("  The Obj-C baselines ship with this repo and are the reference. The")
+    print("  Unity side does NOT: those captures are shot from the build on the")
+    print(f"  device and land under log/, which is git-ignored.\n")
+    print(f"  To make them for the {device}:\n      {how}\n")
+    print("  See SETUP.md -> 'Capturing the Unity screenshots'.")
+    sys.exit(2)

@@ -7,8 +7,9 @@ Guidance for Claude Code when working in this repo.
 Standalone iOS UI-automation for the **Spider Solitaire** game
 (`com.fingerarts.Spider`, listed as "Spider" by FingerArts) using **Airtest**
 (image recognition) + **Poco** (accessibility hierarchy) over **WebDriverAgent
-(WDA)**. It **reuses the already-signed WDA build** from `../sudoku-automation`
-(a Java/Appium suite) — no independent signing or WDA build here.
+(WDA)**. The **signed WDA build is committed here** at `wda/` — no signing and no
+WDA build happen in this repo. It came originally from `../sudoku-automation`, which
+is no longer needed. Setup for a new machine: `SETUP.md`.
 
 Cloned from the sibling **`../solitaire-airtest`** project (regular Solitaire),
 which shares FingerArts' menu chrome. The **`assets/` templates are inherited
@@ -40,7 +41,9 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `visual.py` | Baseline (visual-regression) comparison: masked SSIM of `log/` captures vs `baselines/`. |
 | `unity_ui.py` | **Unity functional driver.** Drives the Unity build by templates cropped from *Unity's own* rendering (`assets_unity/`), not by blind coordinates and not with the Obj-C `assets/` (which don't match Unity). Navigation, the two look-alike Yes/No dialogs, game-table controls, and pixel-observation helpers. Used by the `tests/verify*.py` suite. |
 | `scripts/setup.sh` | Create `.venv`, install `requirements.txt`. |
-| `scripts/wda.sh` | Launch + port-forward WDA, reusing the signed build from `../sudoku-automation`. |
+| `scripts/wda.sh` | Launch + port-forward WDA. Resolves the build as `WDA_PRODUCTS` → in-repo `wda/` → `../sudoku-automation` fallback. |
+| `wda/` | **The committed, signed WebDriverAgent build** (25 MB). Installs only on the 9 UDIDs in its profile; expires ~2027-07-02. `wda/README.md` has the device list and the rebuild route. Marked `binary` in `.gitattributes` so the code signature survives a clone. |
+| `SETUP.md` | Start-to-finish setup for a new Mac + which screenshots must be captured before a comparison means anything. |
 | `scripts/update_baselines.py` | Promote the latest `log/` screenshots to `baselines/`. |
 | `tests/connect_check.py` | Smoke test: connect + screenshot. |
 | `tests/launch_and_shoot.py` | Launch the game + screenshot (start of real flows). |
@@ -51,7 +54,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `scripts/crop_unity_assets.py` | Cut Unity anchors out of those captures (`--device iphone14｜iphone11`). |
 | `scripts/derive_unity_assets.py` | Derive one device's Unity templates from another's by multi-scale matching (ip14 → ip11 lands at scale ~0.64). |
 | `scripts/verify_unity_assets.py` | Offline quality gate for the Unity templates: **fragile** (doesn't match another build's capture of the same screen) and **ambiguous** (matches a screen it shouldn't). No device needed. |
-| `tests/compare_unity.py` | **Unity-port check:** coordinate-navigate the Unity build to all 10 baselined screens, capture + exact-pixel diff vs `baselines/` (Obj-C). `--report` also writes `log/unity_compare.html`. Exits non-zero if any screen exceeds threshold. |
+| `tests/compare_unity.py` | **Unity-port check:** coordinate-navigate the Unity build to all 10 baselined screens, capture + exact-pixel diff vs `baselines/` (Obj-C). `--report` also writes `log/unity_compare.html`. Captures its own screenshots, unlike the per-device tools. Exit code is 0 regardless of diff size — read the printed summary. |
 | `tests/compare_unity_ip7.py` | **iPhone 7 portrait Unity-port check** (750×1334): diff `log/ip7_unity/` captures vs `iphone7/portrait/baselines/` with iPhone-7 masks + curated `META`. `--report` regenerates the versioned report `reports/iPhone7_Unity_Report.html` (build switcher). |
 | `tests/compare_unity_ip7_landscape.py` | **iPhone 7 landscape Unity-port check** (1334×750): diff `log/ip7_landscape_unity/` captures vs `iphone7/landscape/baselines/` with landscape masks (re-measured for 1334×750, *not* rotated from portrait — Spider's landscape UI is a genuine reflow, not a rotation) + curated `META`. Covers 17 screens. `--report` regenerates the versioned report `reports/iPhone7_Landscape_Unity_Report.html` (build switcher). |
 | `tests/compare_unity_ipad.py` | **iPad Unity-port check** (1620×2160): diff `ipad/unity/` captures vs `ipad/baselines/` with iPad masks + curated `META`. `--report` regenerates the versioned report `reports/ipad_unity_report.html` (build switcher). |
@@ -279,9 +282,16 @@ re-baselining — `baselines/` stay Obj-C):
   `idevice_id -l` only lists USB devices, so it won't show the culprit —
   `tidevice list` does, with a `ConnType` column.
 - **Airtest device URI:** `iOS:///http://127.0.0.1:8100` (see `config.DEVICE_URI`).
-- **No new signing.** `wda.sh` reuses `../sudoku-automation/target/wda/derived`.
-  If that build is missing: `(cd ~/sudoku-automation && ./scripts/airtest-wda.sh)`
-  once, then Ctrl-C. Override location with `SUDOKU_REPO` / `WDA_DERIVED`.
+- **No new signing.** The signed WDA is committed at `wda/` and `wda.sh` finds it
+  automatically. It only installs on the **9 UDIDs** baked into
+  `embedded.mobileprovision` and expires **~2027-07-02** (signing cert, before the
+  profile's 2027-08-12) — after that, or for an unlisted device, it must be rebuilt
+  (`SETUP.md` → *Rebuilding WebDriverAgent*). `WDA_PRODUCTS=/path` points at another
+  build without committing it.
+- **Unity captures are not committed; Obj-C baselines are.** `log/` is git-ignored, so
+  a fresh clone can run only the iPad comparison (its captures live in `ipad/unity/`).
+  The per-device tools now exit **2** with an explanation when nothing was captured,
+  instead of printing a clean summary of nothing.
 - **Authoring:** Poco for stable-named menu buttons; image `Template(...)` for the
   card table where there are no accessibility IDs. Prefer `exists()` for
   assertions, `touch()` for taps. Crop templates from `log/*.png` into `assets/`.
@@ -330,12 +340,13 @@ re-baselining — `baselines/` stay Obj-C):
   Never promote one device's / orientation's captures into another's baselines.
 - Signing team: `4528523FZZ` (USERWISE SERVICES LLC); developer cert trusted on device.
 - Tooling: Xcode 26.5, `iproxy` + `idevice_id` (libimobiledevice) on PATH.
-- Find bundle IDs: `~/sudoku-automation/airtest/.venv/bin/python -m tidevice applist`.
+- Find bundle IDs: `./.venv/bin/python -m tidevice applist`.
 
 ## Do not
 
 - Commit `.venv/`, `log/`, or screenshots (already git-ignored).
-- Add signing/provisioning logic here — that's owned by `../sudoku-automation`.
+- Add signing/provisioning logic here. `wda/` holds a *pre-signed* build; rebuilding
+  it is a documented manual step (`SETUP.md`), not something this repo automates.
 - **Re-baseline `baselines/` to the Unity build** during the port. They are the
   Obj-C source of truth; overwriting them with Unity captures destroys the
   reference and hides the very deviations the comparison exists to catch. When

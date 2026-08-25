@@ -281,4 +281,9 @@ def run(report=False):
 
 
 if __name__ == "__main__":
-    run(report="--report" in sys.argv)
+    results = run(report="--report" in sys.argv)
+    # A fresh clone has no Unity captures (they live in git-ignored log/). Without
+    # this the run prints a tidy summary and exits 0 having compared nothing.
+    visual.exit_if_nothing_compared(
+        results, UNITY_DIR, "iPhone 7 (landscape)",
+        "tidevice launch + screenshot, by hand, phone held landscape")

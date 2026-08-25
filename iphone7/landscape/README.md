@@ -22,7 +22,7 @@ device — see `../README.md`), with the phone **rotated to landscape** and the 
 showing its landscape layout:
 
 ```bash
-~/sudoku-automation/airtest/.venv/bin/python -m tidevice -u <udid> \
+./.venv/bin/python -m tidevice -u <udid> \
     screenshot iphone7/landscape/baselines/<Name>.png    # image is 1334×750
 ```
 

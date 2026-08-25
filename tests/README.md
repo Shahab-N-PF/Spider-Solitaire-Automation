@@ -2,7 +2,7 @@
 
 The `verify*.py` cases in this directory are **functional UI tests for the Unity
 build**. They ask *"does the Unity build work?"* — a different question from the
-the other suite here:
+other suite here:
 
 | Suite | Question | Build |
 |---|---|---|
@@ -12,6 +12,14 @@ the other suite here:
 The Obj-C build is no longer functionally tested — these cases were converted in
 place. `baselines/` still holds the Obj-C reference for the pixel comparison and
 must never be re-baselined to Unity (see CLAUDE.md).
+
+> **Before running a `compare_unity*` tool on a fresh clone: you have no Unity
+> screenshots yet.** The Obj-C baselines are committed; the Unity captures are not —
+> they are shot from the build on the device and land in git-ignored `log/`. Only the
+> iPad set is committed (`ipad/unity/`), which is why that one comparison works
+> immediately. Run a tool with nothing captured and it exits **2** and tells you where
+> the files belong. Full instructions: [`../SETUP.md`](../SETUP.md) →
+> *Capturing the Unity screenshots*.
 
 ## Why this needs its own driver
 

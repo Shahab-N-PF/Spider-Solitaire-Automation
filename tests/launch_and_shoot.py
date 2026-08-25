@@ -22,7 +22,7 @@ from airtest.core.api import connect_device, snapshot, sleep    # noqa: E402
 def main():
     if not config.bundle_id_is_set():
         print("Set BUNDLE_ID in config.py first (or export BUNDLE_ID=...).")
-        print("Find it with: ../sudoku-automation/airtest/.venv/bin/python -m tidevice applist")
+        print("Find it with: ./.venv/bin/python -m tidevice applist")
         sys.exit(1)
 
     os.makedirs(config.LOG, exist_ok=True)

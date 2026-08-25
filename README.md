@@ -3,9 +3,9 @@
 > Game: **Spider Solitaire** (`com.fingerarts.Spider`, listed as "Spider")
 
 A standalone iOS UI-automation project driven by **Airtest** (image recognition)
-and **Poco** (accessibility hierarchy) over **WebDriverAgent**. It **reuses the
-already-signed WDA** from the neighbouring `sudoku-automation` repo (team
-`4528523FZZ`) — no new signing or WDA build required.
+and **Poco** (accessibility hierarchy) over **WebDriverAgent**. The **signed WDA
+ships with this repo** at [`wda/`](wda/) (team `4528523FZZ`) — no signing and no
+WDA build required. See [`SETUP.md`](SETUP.md).
 
 > **Cloned from `../solitaire-airtest`.** The `assets/` menu templates are
 > inherited from that project (FingerArts games share menu chrome) — re-verify
@@ -25,14 +25,26 @@ game-airtest/
 └── assets/              # template images for image matching
 ```
 
-## Prerequisites (already true on this Mac)
+## Setting up on a new Mac
 
-- The `sudoku-automation` repo is at `~/sudoku-automation` with a built, signed
-  WDA (any prior run produced `target/wda/derived/...`). Override the location
-  with `SUDOKU_REPO=/path ./scripts/wda.sh` if different.
-- Xcode 26.5 + iOS 26.5 platform, valid `4528523FZZ` signing identity, device
-  registered + developer-trusted on the iPhone (all done during Sudoku setup).
-- `iproxy` + `idevice_id` (libimobiledevice) on PATH.
+**→ [`SETUP.md`](SETUP.md) has the full walkthrough**, start to finish, for a machine
+with nothing installed. Read that first if this repo is new to you.
+
+The short version of what you need:
+
+- **Xcode 26.5** + the iOS platform, and `iproxy` + `idevice_id`
+  (`brew install libimobiledevice`).
+- **A supported iPhone.** WebDriverAgent ships pre-built and pre-signed in
+  [`wda/`](wda/), so there is nothing to build — but a signed build only installs
+  on the 9 devices baked into its profile, and it expires around **2 July 2027**.
+  Check yours against the list in [`wda/README.md`](wda/README.md) *before* anything
+  else; if it is not there you need to rebuild WDA, which needs Apple Developer team
+  `4528523FZZ`.
+- **A TestFlight invite** for Spider (`com.fingerarts.Spider`) — otherwise there is
+  no app to test.
+
+You do **not** need the `sudoku-automation` repo any more. The signed WDA used to be
+borrowed from it; it now lives here.
 
 ## 1. One-time setup
 
@@ -46,7 +58,7 @@ cd ~/game-airtest
 Find the bundle ID (any Python venv with tidevice works):
 
 ```bash
-~/sudoku-automation/airtest/.venv/bin/python -m tidevice applist
+./.venv/bin/python -m tidevice applist
 ```
 
 Then edit **`config.py`** — set `GAME_NAME` and `BUNDLE_ID`
@@ -177,7 +189,7 @@ doc: `tests/README.md`.
 
 | Symptom | Fix |
 |---|---|
-| `no signed WDA build found` | Build once in the Sudoku repo: `(cd ~/sudoku-automation && ./scripts/airtest-wda.sh)` then Ctrl-C; or set `SUDOKU_REPO` |
+| `no signed WDA build found` | `wda/` is missing from your checkout — `git checkout -- wda`, or re-clone. To use a build elsewhere: `WDA_PRODUCTS=/path/to/Build/Products` |
 | `may need to be unlocked` / timed out | Unlock the iPhone and keep it awake |
-| `xcodebuild exited before WDA came up` | Stale runner — `~/sudoku-automation/scripts/reset-wda.sh`, then re-run |
+| `xcodebuild exited before WDA came up` | Unlock the phone and re-run. If it persists, delete the runner from the phone (`xcrun devicectl device uninstall app --device <udid> com.facebook.WebDriverAgentRunner.xctrunner`) and try again |
 | Port 8100 busy | `WDA_PORT=8200 ./scripts/wda.sh` and set `WDA_URL` to match |

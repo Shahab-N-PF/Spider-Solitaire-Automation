@@ -7,7 +7,7 @@
 # The signed build is COMMITTED to this repo at wda/ (see wda/README.md), so a
 # fresh clone needs nothing else. It only installs on the 9 devices baked into
 # its provisioning profile, and it expires around 2027-07-02 — wda/README.md
-# lists both, and SETUP.md section 8 covers rebuilding.
+# lists both, and SETUP.md covers rebuilding.
 #
 # If wda/ is absent (e.g. a partial checkout) it falls back to the old source:
 # the sudoku-automation repo this build originally came from.
@@ -62,7 +62,7 @@ if [ -z "$XCTESTRUN" ]; then
     echo "         git checkout -- wda" >&2
     echo "       To point at a different build instead:" >&2
     echo "         WDA_PRODUCTS=/path/to/Build/Products ./scripts/wda.sh" >&2
-    echo "       See wda/README.md and SETUP.md section 8." >&2
+    echo "       See wda/README.md and SETUP.md." >&2
     exit 2
 fi
 echo ">>> [wda] signed build [$SOURCE]: $XCTESTRUN"

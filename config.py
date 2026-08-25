@@ -5,7 +5,7 @@ device lives here. Values can be overridden with environment variables so the
 same code runs in CI without editing this file.
 
 Find your bundle ID with:
-    ../sudoku-automation/airtest/.venv/bin/python -m tidevice applist
+    ./.venv/bin/python -m tidevice applist
 """
 import os
 

@@ -84,7 +84,8 @@ not from any repo here:
 3. Copy the resulting `Build/Products/` over this directory, replacing it, and commit.
    Keep the layout identical.
 
-Full context and the surrounding setup steps are in [`../SETUP.md`](../SETUP.md) §8.
+Full context and the surrounding setup steps are in [`../SETUP.md`](../SETUP.md) →
+*Rebuilding WebDriverAgent*.
 
 ## A note on what is committed here
 

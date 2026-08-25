@@ -25,7 +25,7 @@ under Xcode 26.5; see [`../../README.md`](../../README.md)). A human navigated t
 each screen and each was grabbed with:
 
 ```bash
-~/sudoku-automation/airtest/.venv/bin/python -m tidevice -u <udid> \
+./.venv/bin/python -m tidevice -u <udid> \
     screenshot iphone7/portrait/baselines/<Name>.png
 ```
 
