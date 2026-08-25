@@ -232,8 +232,8 @@ excluded — its UI reflows rather than scaling, so it keeps its own set.
 
 ## Unity functional suite (iPhone 11 · 828×1792 · WDA + Airtest)
 
-**2026-08-11 — the functional suite is now Unity-only.** A **third axis** beside
-pixel fidelity and FPS: does the Unity build *work*? The `tests/verify*.py` cases
+**2026-08-11 — the functional suite is now Unity-only.** A **second axis** beside
+pixel fidelity: does the Unity build *work*? The `tests/verify*.py` cases
 were converted in place from Obj-C to Unity (doc: `tests/README.md`), driven by
 the new `unity_ui.py`. The Obj-C build is no longer functionally tested.
 
@@ -334,74 +334,6 @@ Template integrity is gated offline by `scripts/verify_unity_assets.py`
 (*fragile* = doesn't match another build's capture of the same screen, which the
 animated menu sparkle makes a live risk; *ambiguous* = matches a screen it
 shouldn't). Currently 53/53 clean.
-
----
-
-## FPS / animation performance (iPhone 7 · 60 Hz · tidevice + video)
-
-> **RETIRED — 2026-08-25.** The FPS tooling (`tests/fps/`) has been removed from
-> the repo; this axis is no longer tested. The findings below are kept as the
-> record of what was measured while it existed, so nobody repeats the work — the
-> headline is that the port cost nothing in frame rate. Reproducing any of it now
-> means writing the tooling again.
-
-*A different axis from the fidelity reports below — animation **frame-rate**, not
-pixels. Measured with a ~1 Hz `tidevice perf` sampler plus per-frame analysis of a
-60 fps QuickTime clip.*
-
-### 2026-08-06 — Unity 8.0.0 vs Obj-C 7.42.5 — **no FPS regression**
-
-Every move that animates holds **60 fps on both builds**:
-
-| Move | Cards | Unity 8.0.0 | Obj-C 7.42.5 |
-|---|---|---|---|
-| Drag (continuous) | 1–run | 60 while dragging | 60 while dragging |
-| Rapid 2-card (~1 s) | 2 | 60, no hold | 60, no hold |
-| Deal a row | 10 | 60, no hold | 60, no hold |
-| Suit fly-off | 13 | 60 per wave | 60 per wave |
-
-**The suit fly-off — the one that looked suspicious — is a wash.** Both builds render
-it as **two eased 60 fps card-waves separated by a fully-static, designed pause**
-(Unity ~133 ms, Obj-C ~180–240 ms), confirmed across 2 Unity + 2 Obj-C tight 60 fps
-clips. Neither freezes mid-flight; each wave is a clean 60 (17 ms worst hold = one
-frame). If anything Unity's inter-wave pause trends *shorter* (snappier); Obj-C plays
-a longer trailing score-tally animation. Cosmetic/timing only, no performance gap.
-
-Apple-style hitch metrics back this up: within motion,
-**frame-time p99 = 17 ms** (one 60 Hz refresh) and **hitch ratio 0.0 ms/s [GOOD]** on
-every move on both builds; the fly-off's static gaps are classified as designed pauses,
-not hitches. (A first cut of the classifier over-flagged the eased stop as a hitch by
-looking at the *max* of the last few frames — judging by the immediate neighbor frame,
-plus a 400 ms cap, fixed it. Same 1-Hz-style trap, one level up.)
-
-**Correction worth keeping:** the fly-off first *looked* like Unity had a "~137 ms
-hitch" — from coarse tidevice 1 Hz FPS dipping into the 30s during completions. That
-was the **static inter-wave pause averaged into a 1 Hz bucket**, not a stall; the
-60 fps video overturned it. Lesson: never call a low 1 Hz sample a hitch without
-frame-level confirmation — a designed pause between eased segments reads
-identically to a freeze at 1 Hz.
-
-### iPhone 14 Pro Max (120 Hz ProMotion) — Unity locked at 60 fps
-
-Measured via Xcode `xctrace` ("Animation Hitches" template),
-the path for iOS 17+ where the 60 fps video caps out and tidevice's classic instruments
-are dead. **Unity 8.0.0 is locked to 60 fps and does *not* use the 120 Hz display** — a
-continuous drag presented **749/749 frames at 60 fps** (p99 16.8 ms, 0 hitches, flawless).
-The suit fly-off shows 60 fps card-motion with static gaps `xctrace` can't classify (it's
-present-timing only, no pixel data — a 60 fps screen recording would settle
-pause-vs-stall, valid since the app is 60-capped). **Open question for the team:**
-did the Obj-C build drive 120 Hz on ProMotion? If yes, the port dropped it; if Obj-C was
-also 60, unchanged. (Needs a TestFlight swap to the 7.x build, which may not run on iOS 26.)
-
-Getting `xctrace` working on iOS 26 took two non-obvious steps: it lists CoreDevice
-(iOS 17+) devices **Offline** and hangs ("waiting for device to boot") until Xcode →
-Devices and Simulators has **"prepared"** the device; and tidevice can't launch the app
-(classic instruments dead), so `devicectl device process launch` is used instead.
-
-*Method:* iPhone 7 (60 Hz, weak HW) exposes drops best and needs no setup (`tidevice perf`
-works on iOS 15). For iOS 17+ (iPhone 14, 120 Hz) use `xctrace` (no sudo tunnel needed,
-unlike `pymobiledevice3`). No WDA on the iPhone 7 → moves by hand. Builds share bundle id
-`com.fingerarts.Spider`, so swapped via TestFlight, one at a time.
 
 ---
 
