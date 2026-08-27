@@ -52,14 +52,18 @@ TESTS = [
     "openDebugTools",           # hidden QA entry point (5 taps -> Dev Panel)
     "verifyGamePlay",           # the table actually plays (deal/undo, drawer)
     "verifyVictory",            # the win screen (reached via the QA cheat)
-    # After verifyVictory on purpose, and it depends on that. Safe because
-    # verifyVictory collapses the Dev Panel overlay before it returns: expanded,
-    # that overlay covers the Hard/Bold/Expert rows of the difficulty picker, so
-    # this test could only ever have reached Easy. verifyVictory also leaves NO
-    # game in progress (it wins its game and exits by "back" without dealing
-    # another), which is what lets this test open on Medium with no abandon
-    # prompt to answer.
-    "verifyDifficultyLevels",   # medium..expert deal (Easy is verifyPlay's)
+    # After openDebugTools for a REASON OF ITS OWN, not just ordering: this test
+    # now wins every level with the Dev Panel cheat, so it needs the same unlock
+    # verifyVictory does. (It re-arms itself if the button has gone, but that
+    # costs a trip to About per level.)
+    #
+    # Also safe after verifyVictory because that test collapses the Dev Panel
+    # overlay before it returns: expanded, that overlay covers the Hard/Bold/
+    # Expert rows of the difficulty picker, so this test could only ever have
+    # reached Easy. verifyVictory also leaves NO game in progress, which is what
+    # lets this test open on Medium with no abandon prompt to answer — and since
+    # it now completes every level too, no level raises one.
+    "verifyDifficultyLevels",   # medium..expert deal AND win (Easy is verifyPlay's)
     # Last on purpose: this is the one test whose result depends on the build
     # (the promo strip shipped in 341/343 and is gone again in 353), so it is the
     # most likely to be red. Keeping it at the end means the summary is not led

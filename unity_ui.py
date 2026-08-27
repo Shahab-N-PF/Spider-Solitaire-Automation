@@ -1365,6 +1365,26 @@ def complete_game(settle: float = 5.0) -> bool:
     return tap("dev_complete_game", settle=settle)
 
 
+def win_current_game(timeout: float = 10.0) -> bool:
+    """Win the game ALREADY on the table with the QA cheat. True once on victory.
+
+    Needs the Dev Panel button showing (openDebugTools / unlock_dev_panel) and the
+    table up. Leaves the panel EXPANDED over the victory screen — call
+    close_dev_panel() before navigating, or to_menu() cannot see the menu labels
+    the overlay covers.
+    """
+    settle_prompts()            # the "Did you know?" tip lands AFTER the deal and
+                                # swallows taps until answered
+    if not is_on("dev_complete_game"):          # not expanded yet
+        if not is_on("dev_panel"):
+            return False
+        if not tap("dev_panel", settle=2.0):
+            return False
+    if not complete_game():
+        return False
+    return at_screen("victory", timeout=timeout)
+
+
 def win_game(level: str = "easy", arm: bool = True) -> bool:
     """Arm the cheat, deal a game at `level`, and win it. True once on victory.
 
@@ -1396,13 +1416,7 @@ def win_game(level: str = "easy", arm: bool = True) -> bool:
     settle_prompts()
     if not at_table(timeout=12.0):
         return False
-    settle_prompts()            # the "Did you know?" tip lands AFTER the deal and
-                                # swallows taps until answered
-    if not tap("dev_panel", settle=2.0):        # re-expand over the table
-        return False
-    if not complete_game():
-        return False
-    return at_screen("victory", timeout=10.0)
+    return win_current_game()   # settles the tip, re-expands over the table, cheats
 
 
 # ── game-table controls ───────────────────────────────────────────
