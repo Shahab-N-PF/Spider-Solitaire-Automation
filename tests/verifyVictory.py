@@ -6,7 +6,7 @@ Steps:
   2. close the Dev Panel so its overlay isn't covering what we assert on;
   3. assert the victory screen renders all of its parts;
   4. assert the footer names the level that was actually played;
-  5. assert "new" works — it deals a fresh game.
+  5. leave via the screen's own "back" control, landing on the main menu.
 
 Why a cheat and not a real win: winning Spider legitimately takes hundreds of
 correct moves, which no UI test can drive. The Obj-C suite used that build's QA
@@ -25,8 +25,16 @@ The level check is the assertion worth having. Any build shows *a* victory
 screen; this one has to report the level the game was actually dealt at, which
 catches the screen being rendered from stale or default state.
 
-Step 5 is the functional half: the victory screen's primary action must lead
-somewhere. "new" is asserted by the table anchor appearing, not by pixels.
+Step 5 exits by the victory screen's own "back" control. It USED to tap "new"
+(which deals a fresh game) and exit from the table, so leaving by back was a path
+the suite never took — and taking it turned up that build 363 had changed the
+control: the crops cut from 353-era captures no longer match it. It is now the
+same small green-felt back as the About screen (about_back, 0.992).
+
+Note what is no longer covered: nothing on the victory screen is now PRESSED to
+prove it works. "new" is still in PARTS, so it must still render — it is just not
+tapped any more. Leaving by back also leaves NO game in progress, which is what
+lets tests/verifyDifficultyLevels.py start at Medium without an abandon prompt.
 
 Note this test WRITES to local statistics — it records a win. That is inherent
 to testing a victory screen, and it is why the run also proves the counters are
@@ -86,15 +94,19 @@ def run():
               f"so it is not reflecting the game that was just played — see {shot}")
     print(f"  footer reports '{LEVEL} level' — matches the game played")
 
-    # 5. the primary action works.
-    ui.expect(ui.tap("victory_new", settle=3.0), "the new button was not tappable")
-    ui.settle_prompts()
-    ui.expect(ui.at_table(timeout=12.0),
-              "tapping 'new' on the victory screen did not deal a fresh game")
-    print("  'new' deals a fresh game")
+    # 5. leave by the screen's own back control. ui.back() taps whichever back
+    #    template is on screen; on build 363 the victory screen's is the same
+    #    small green-felt control as About's, which about_back matches at 0.992.
+    ui.expect(ui.back(settle=2.5),
+              f"the victory screen's 'back' control was not found, so there is no "
+              f"way off it — see {shot}")
+    # back may land on the menu directly or on the table it came from; either is
+    # fine, so long as the menu is reachable. to_menu() is a no-op once there.
+    ui.expect(ui.to_menu(),
+              "tapping 'back' on the victory screen did not lead to the main menu")
+    print("  'back' leaves the victory screen and reaches the main menu")
 
-    ui.to_menu()                    # leave clean for the next test
-    print(f"PASS: the victory screen renders and works — see {shot}")
+    print(f"PASS: the victory screen renders and can be left — see {shot}")
 
 
 if __name__ == "__main__":

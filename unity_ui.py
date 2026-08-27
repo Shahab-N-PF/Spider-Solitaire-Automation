@@ -613,7 +613,14 @@ def ad_free(budget: float = 90.0) -> bool:
 # Anchors that between them appear on every screen of the app. If NONE of these
 # match, we aren't looking at Spider at all.
 _LANDMARKS = ("menu_play", "back_bar", "back_game", "back_promo", "in_game_menu",
-              "ingame_replay", "look_close", "dialog_no", "screen_more_games")
+              "ingame_replay", "look_close", "dialog_no", "screen_more_games",
+              # Added after build 363 broke back_game on About: that crop was the
+              # ONLY landmark there, so lost() began reporting a healthy About
+              # screen as "an ad ate it" — and lost()'s handler relaunches the
+              # app. A screen whose sole landmark is a back control is one stale
+              # crop away from a silent restart, so About and the difficulty
+              # picker each get an anchor of their own.
+              "about_back", "stats_back", "difficulty_easy")
 
 
 def lost(timeout: float = 2.0) -> bool:
@@ -764,7 +771,8 @@ def at_screen(key: str, timeout: float = 6.0) -> bool:
 
 def back(settle: float = 1.5) -> bool:
     """Tap whichever 'back' control is on screen (each screen styles its own)."""
-    for anchor in ("back_bar", "back_game", "back_promo"):
+    for anchor in ("back_bar", "back_game", "back_promo", "about_back",
+                   "stats_back"):
         if have(anchor) and is_on(anchor):
             return tap(anchor, timeout=1.0, settle=settle)
     return False

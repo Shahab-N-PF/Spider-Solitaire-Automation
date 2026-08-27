@@ -39,7 +39,7 @@ from scripts.crop_unity_assets import CROPS  # noqa: E402  (the name -> source m
 # screen but the menu, and all of them do the same thing (go up one screen), so
 # a template matching another screen's back button is harmless — ui.back() tries
 # each in turn. Exempt from the ambiguity check rather than listed per screen.
-UNIVERSAL = {"back_bar", "back_game", "back_promo"}
+UNIVERSAL = {"back_bar", "back_game", "back_promo", "about_back", "stats_back"}
 
 # Templates that legitimately appear on more than one screen — an "expected
 # elsewhere" allowlist, so the ambiguity check flags only real surprises.

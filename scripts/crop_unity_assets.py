@@ -193,7 +193,44 @@ CROPS_IP11 = {
     # here — it is the pixel-fidelity reports (compare_unity*.py) that must carry
     # the finding. Text only, no Game Center icon: the icon is Apple's artwork,
     # sits ~18 px further right, and can change with iOS rather than with Spider.
+    #
+    # Consequence, so nobody re-investigates it: scripts/verify_unity_scaling.py
+    # now reports game_center MISSED on the iPhone 14 and iPhone 16 profiles.
+    # That is a BUILD mismatch, not a scaling failure — those saved captures are
+    # pre-363 (ip14 is build 343) and render the old, larger caption. Measured
+    # both ways: the old template scores 0.975 / 0.880 on those captures and
+    # 0.471 on a 363 iPhone 11 capture; this one scores 1.000 on 363 and ~0.47 on
+    # them. One shared crop cannot cover both renderings, so it tracks the build
+    # under test. Re-capture those devices on 363 to clear the MISSED.
     "game_center":     ("StatsPage.png", (663, 110, 746, 161)),
+    # The ABOUT screen's back control, re-cut for build 363 — which shrank it and
+    # slid it toward the edge, exactly as it did the Statistics header. Glyphs
+    # went from ~103x24 to 87x19 and the centre moved from x87 to x63. back_game
+    # scores 0.569 on the live 363 screen against 0.763 on the 353-era capture.
+    #
+    # This one was NOT cosmetic. On About, back_game was the ONLY _LANDMARKS
+    # entry that matched, so when it stopped matching, ui.lost() started
+    # returning True on a perfectly healthy About screen — and lost() means "an
+    # interstitial ate the screen", whose handler is ui.recover(): terminate and
+    # relaunch. Every to_menu() out of About was therefore silently RESTARTING
+    # the app, which hid the Dev Panel button and broke the openDebugTools ->
+    # verifyVictory hand-off. The symptom looked like "the Unity build scoped the
+    # QA unlock to About"; the cause was one stale crop.
+    #
+    # It is not About-only: on 363 the small green-felt back control is SHARED by
+    # About (1.000), the Help page (0.827) and the VICTORY screen (0.992), so one
+    # crop covers all three. A victory_back crop cut from the 353-era
+    # VictoryClean.png used to live here and was deleted — it scored 0.529 on the
+    # live 363 victory screen, i.e. it matched nothing. Screens with a back on a
+    # coloured BAR (Options, More Games, Statistics) are a different control.
+    "about_back":      ("SpiderAboutPage.png", (11, 122, 106, 149)),
+    # Same defect, same build, different bar: the Statistics header's back also
+    # shrank on 363 (glyphs 79x19), and it sits on the DARK RED top bar rather
+    # than About's green felt, so about_back only reaches 0.652 on it. Stats was
+    # the fourth screen where ui.lost() misfired. Note about_back does cover the
+    # HELP screen (0.827) — Help's bar is close enough — so three of the four
+    # misfiring screens are handled by one crop plus a difficulty_easy landmark.
+    "stats_back":      ("StatsPage.png", (19, 120, 106, 147)),
 
     # ── Options rows: the settings controls themselves ────────────
     # Every row on the Options page is <icon> <label> <control>, with the
