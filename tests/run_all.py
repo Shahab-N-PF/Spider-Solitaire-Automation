@@ -39,7 +39,7 @@ import visual  # noqa: E402
 TESTS = [
     "verifyMainMenu",           # foundation: the menu renders at all
     "verifyStatsPage",          # renders + scrolls end to end
-    "verifyOptions",            # sections, scrolling, a live toggle
+    "verifyOptions",            # 4 named rows driven (2 toggles, 2 sliders), then reset
     "verifyHelpPage",           # opens + the body scrolls
     "verifySpiderLogo",         # About via item + logo, links, in-app FAQ
     "verifyMoreGamesBtn",       # in-app cross-promo page

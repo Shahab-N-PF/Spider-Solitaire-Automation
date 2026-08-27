@@ -102,6 +102,11 @@ SHARED = {
     "victory_ranking": ("VictoryScreen", "VictoryClean"),
     "victory_leaderboards": ("VictoryScreen", "VictoryClean"),
     "victory_level_easy": ("VictoryScreen", "VictoryClean"),
+    # Options scrolls under a FIXED top bar, so the two Options captures (the
+    # top of the page and OptionsPageBottom, the same page scrolled to the end)
+    # share that bar. The body rows differ, which is the point of having both.
+    "screen_options": ("OptionsPage", "OptionsPageBottom"),
+    "contact_us": ("OptionsPage", "OptionsPageBottom"),
 }
 
 

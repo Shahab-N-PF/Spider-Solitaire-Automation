@@ -39,7 +39,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `helpers.py` | `launch_app()` (WDA session launch) and `wda_status()`. |
 | `flows.py` | Shared driver: launch/connect + template navigation helpers used by the tests. |
 | `visual.py` | Baseline (visual-regression) comparison: masked SSIM of `log/` captures vs `baselines/`. |
-| `unity_ui.py` | **Unity functional driver.** Drives the Unity build by templates cropped from *Unity's own* rendering (`assets_unity/`), not by blind coordinates and not with the Obj-C `assets/` (which don't match Unity). Navigation, the two look-alike Yes/No dialogs, game-table controls, and pixel-observation helpers. Used by the `tests/verify*.py` suite. |
+| `unity_ui.py` | **Unity functional driver.** Drives the Unity build by templates cropped from *Unity's own* rendering (`assets_unity/`), not by blind coordinates and not with the Obj-C `assets/` (which don't match Unity). Navigation, the two look-alike Yes/No dialogs, game-table controls, the Options screen's toggles + sliders (`opt_*`), and pixel-observation helpers. Used by the `tests/verify*.py` suite. |
 | `scripts/setup.sh` | Create `.venv`, install `requirements.txt`. |
 | `scripts/wda.sh` | Launch + port-forward WDA. Resolves the build as `WDA_PRODUCTS` → in-repo `wda/` → `../sudoku-automation` fallback. |
 | `wda/` | **The committed, signed WebDriverAgent build** (25 MB). Installs only on the 9 UDIDs in its profile; expires ~2027-07-02. `wda/README.md` has the device list and the rebuild route. Marked `binary` in `.gitattributes` so the code signature survives a clone. |
