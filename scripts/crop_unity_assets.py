@@ -177,6 +177,32 @@ CROPS_IP11 = {
     # (-0.007). Trimming to the glyphs (text density 0.20 -> 0.35) gives a worst
     # true match of 0.754 against a worst non-table 0.660: +0.095 of daylight.
     "in_game_menu":    ("InGameMenu.png", (695, 148, 791, 170)),
+
+    # ── Options rows: the settings controls themselves ────────────
+    # Every row on the Options page is <icon> <label> <control>, with the
+    # control right-aligned in a fixed column. These crops are the LABELS: they
+    # are the only part of a row with distinctive art, and unity_ui's
+    # opt_* helpers read the control out of the pixels beside a matched label
+    # rather than at a blind offset from the section header. That matters
+    # because the two control kinds (toggle, slider) look nothing alike and a
+    # test wants to name the row it is exercising.
+    #
+    # Rows above the fold come from OptionsPage.png; the rest from
+    # OptionsPageBottom.png, the same screen scrolled to the end (capture it
+    # with scripts/capture_unity_screens.py or by hand — see tests/README.md).
+    "opt_applause":       ("OptionsPage.png", (135, 326, 465, 364)),
+    "opt_effects":        ("OptionsPage.png", (136, 571, 425, 604)),
+    "opt_auto_mute":      ("OptionsPage.png", (135, 799, 485, 832)),
+    "opt_card_spacing":   ("OptionsPage.png", (136, 1112, 415, 1191)),
+    "opt_card_bouncing":  ("OptionsPage.png", (136, 1365, 415, 1405)),
+    "opt_card_lowering":  ("OptionsPage.png", (136, 1671, 417, 1711)),
+    "opt_advanced":       ("OptionsPageBottom.png", (312, 1509, 515, 1542)),
+    "opt_status_bar":     ("OptionsPageBottom.png", (137, 323, 450, 356)),
+    "opt_card_messages":  ("OptionsPageBottom.png", (138, 549, 530, 588)),
+    "opt_brightness":     ("OptionsPageBottom.png", (135, 770, 404, 810)),
+    "opt_rich_features":  ("OptionsPageBottom.png", (136, 993, 403, 1026)),
+    "opt_use_hearts":     ("OptionsPageBottom.png", (135, 1216, 348, 1248)),
+    "opt_game_center":    ("OptionsPageBottom.png", (136, 1614, 380, 1646)),
 }
 
 PROFILES = {

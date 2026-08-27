@@ -851,6 +851,366 @@ def visit_sub_screen(control: str, screen: str, shot_name: str) -> str:
     return shot
 
 
+# ── Options screen: toggles and sliders ───────────────────────────
+# Every row on the Options page is <icon> <label> <control>, and there are
+# exactly two kinds of control:
+#
+#   toggle  a pill with a knob — knob LEFT is off, knob RIGHT is on
+#   slider  a track with a knob, with "-" and "+" marking the ends below it
+#
+# Both are read the same way: find the row by its LABEL template, then look for
+# the white knob in the control column beside it. That is the only state these
+# controls publish — Unity exposes no accessibility tree, so there is no boolean
+# to query and no value to read. The knob's position IS the setting.
+#
+# Reading it (rather than only diffing pixels before/after) is what turns
+# "something on screen changed" into "the toggle was ON, I tapped it, it is now
+# OFF" — a claim a dead control, a passing animation or an ad cannot satisfy.
+#
+# Geometry measured off an iPhone 11 capture (828x1792) and stored as fractions
+# of the screen, so it rescales with the templates. All four sliders and all
+# eight toggles share one column, verified against both Options captures:
+#   track 513-757 px, toggle pill 602-734 px, "-" 527, "+" 738, marks +43 px.
+OPT_TRACK_L = 0.6196        # slider track, left end
+OPT_TRACK_R = 0.9142        # slider track, right end
+OPT_PILL_C = 0.8068         # toggle pill centre — knob right of it means ON
+OPT_MINUS_X = 0.6365        # the "-" end mark under a slider — a LABEL, not a
+OPT_PLUS_X = 0.8913         # button, and likewise "+" (see slider_drag's note)
+OPT_MARKS_DY = 0.0240       # the end-mark row, below the control's own centre
+OPT_ROW_BAND = 0.022        # how far either side of a label to hunt the knob
+
+# Every row of the Options page, in page order, with the control it carries.
+# All twelve stay listed even though verifyOptions now drives only four of them:
+# opt_row() reads this ORDER to decide which way to scroll for a target, so a
+# trimmed list would make navigation worse, not leaner. It is also the page model
+# a full-inventory check would use again (see opt_scan).
+OPT_ROWS = (
+    ("opt_applause",       "slider", "sounds"),
+    ("opt_effects",        "slider", "sounds"),
+    ("opt_auto_mute",      "toggle", "sounds"),
+    ("opt_card_spacing",   "toggle", "cards"),
+    ("opt_card_bouncing",  "toggle", "cards"),
+    ("opt_card_lowering",  "slider", "interface"),
+    ("opt_status_bar",     "toggle", "interface"),
+    ("opt_card_messages",  "toggle", "interface"),
+    ("opt_brightness",     "slider", "interface"),
+    ("opt_rich_features",  "toggle", "interface"),
+    ("opt_use_hearts",     "toggle", "interface"),
+    ("opt_game_center",    "toggle", "advanced"),
+)
+
+OPT_SECTIONS = ("opt_sounds", "opt_cards", "opt_interface", "opt_advanced")
+
+# Persistence, and the trap in measuring it. The app writes its settings when it
+# goes to the BACKGROUND, not on every change — which is normal, and which makes
+# cold_launch() a misleading way to test it. Measured on build 353:
+#
+#   change -> leave Options -> reopen                       KEPT
+#   change -> Home (background) -> kill -> relaunch         KEPT
+#   change -> kill straight from the foreground -> relaunch LOST
+#
+# The third line is NOT a bug: WDA's terminate kills the app from the foreground,
+# which no real user can do — the app switcher backgrounds an app before you can
+# swipe it away. Read on its own it looks exactly like "the Unity port stopped
+# saving settings", so anything checking persistence must press Home first.
+
+
+def opt_top(swipes: int = 5):
+    """Scroll the Options page back to the top.
+
+    Fixed swipes rather than "scroll until the picture stops changing": each
+    screenshot costs ~0.8 s on this rig against ~0.4 s for a swipe, so watching
+    for the end is several times more expensive than simply over-swiping, and
+    over-swiping a page already at its top does nothing.
+    """
+    for _ in range(swipes):
+        scroll(down=False)
+
+
+def opt_row(label: str, max_swipes: int = 6):
+    """Scroll the Options page to <label> and return its row centre y, or None.
+
+    Options is about three screenfuls long, so a row is reached by scrolling
+    rather than assumed visible. Searches downward first; a row that has already
+    scrolled past is only findable from the top, so a failed pass rewinds and
+    tries once more. six swipes clears the whole page, and keeping that bound
+    tight matters — every swipe that finds nothing still costs a capture.
+
+    Reading MANY rows this way is wasteful; use opt_scan() for that.
+    """
+    frame = _screen_image()
+    pos = find(label, screen=frame)
+    if pos is not None:
+        return _opt_clear_edge(label, pos[1])
+
+    # Not on screen. Which way to scroll is worth ONE capture to answer: OPT_ROWS
+    # is in page order, so whichever rows are visible say whether the target is
+    # above or below. Guessing instead costs a whole sweep in the wrong direction
+    # (~11 s) before anything rewinds.
+    order = [n for n, _k, _s in OPT_ROWS]
+    down = True
+    if label in order:
+        here = [i for i, n in enumerate(order) if find(n, screen=frame)]
+        if here:
+            down = order.index(label) > max(here)
+    for go_down in (down, None):
+        if go_down is None:                 # last resort: rewind and re-search
+            opt_top()
+            go_down = True
+        if scroll_to(label, max_swipes=max_swipes, down=go_down):
+            pos = find(label)
+            if pos is not None:
+                return _opt_clear_edge(label, pos[1])
+    return None
+
+
+def _opt_clear_edge(label: str, cy: int) -> int:
+    """Nudge a row away from the screen edge, so its CONTROL is fully visible.
+
+    scroll_to stops the moment the LABEL matches, which can leave the row at the
+    very bottom — and everything read afterwards sits beside or below the label:
+    opt_knob looks ~0.022 h either side, opt_kind ~0.024 h below. A row at
+    y=1750 on an 828x1792 screen has its end-mark row running off the bottom,
+    where it reads as "no marks" — i.e. a slider silently reported as a
+    toggle. One short scroll costs far less than that class of wrong answer.
+    """
+    _, h = screen_size()
+    lo, hi = 0.10 * h, h - 0.09 * h
+    if lo <= cy <= hi:
+        return cy
+    scroll(down=cy > hi, frac=0.16)
+    pos = find(label)
+    return cy if pos is None else pos[1]
+
+
+def opt_scan(rows=None, screens: int = 6) -> dict:
+    """Walk Options top to bottom once, reading every row on the way.
+
+    Returns {label: (row centre y, "toggle"|"slider")} for each row seen.
+
+    One capture per SCREENFUL rather than per row. A capture costs ~0.5 s on
+    this rig and matching all twelve row labels against it ~0.6 s, so reading the
+    page in one pass is several times cheaper than locating each row on its own —
+    which would additionally have to rewind to the top every time it asked for a
+    row that had already scrolled past.
+
+    Kept deliberately although nothing calls it right now: verifyOptions was
+    narrowed to four named rows, and this is the tool for reading MANY of them —
+    what a full-page inventory check would want again.
+    """
+    rows = rows or OPT_ROWS
+    want = {label for label, _kind, _sect in rows}
+    _, h = screen_size()
+    # A row is only read when its whole control fits on screen: opt_knob looks a
+    # little either side of the label and opt_kind a little BELOW it, so a row
+    # sitting at the very bottom edge would be misread as having no end marks.
+    # Skipping it leaves it in `want` for the next screenful to catch.
+    lo, hi = 0.06 * h, h - 0.05 * h
+    found = {}
+    opt_top()
+    for _ in range(screens):
+        frame = _screen_image()
+        for label in sorted(want):
+            pos = find(label, screen=frame)
+            if pos is None or not (lo <= pos[1] <= hi):
+                continue
+            kind = opt_kind(pos[1], screen=frame)
+            if kind is None:                # band clipped — next screenful
+                continue
+            found[label] = (pos[1], kind)
+            want.discard(label)
+        if not want:
+            break
+        scroll(down=True)
+    return found
+
+
+def opt_knob(cy: int, screen=None):
+    """(centre x, width) of the white knob on the row centred at `cy`, or None.
+
+    The knob is the widest run of near-white pixels in the control column at
+    that row — true of both a toggle's knob and a slider's. Everything else in
+    the column (track, pill, felt) is far from white, so the run is unambiguous.
+
+    `screen` takes a frame already captured by _screen_image(), so a caller
+    reading several rows pays for one capture instead of one per row. Near-white
+    is channel-order agnostic, so BGR-vs-RGB does not matter here.
+    """
+    import numpy as np
+    w, h = screen_size()
+    a = (_screen_image() if screen is None else screen).astype(int)
+    y0, y1 = max(0, int(cy - OPT_ROW_BAND * h)), min(h, int(cy + OPT_ROW_BAND * h))
+    x0, x1 = int(OPT_TRACK_L * w) - 12, int(OPT_TRACK_R * w) + 12
+    sub = a[y0:y1, x0:x1]
+    white = (sub[:, :, 0] > 222) & (sub[:, :, 1] > 222) & (sub[:, :, 2] > 222)
+    # A column counts as knob only if it is white down most of the band, which
+    # rules out the row's white LABEL text bleeding into the window.
+    cols = np.where(white.sum(axis=0) >= max(3, (y1 - y0) // 4))[0]
+    if len(cols) == 0:
+        return None
+    runs = []
+    for c in cols:
+        if runs and c - runs[-1][-1] <= 3:
+            runs[-1].append(c)
+        else:
+            runs.append([c])
+    best = max(runs, key=len)
+    if len(best) < 0.05 * w:            # too narrow to be a knob
+        return None
+    return (best[0] + best[-1]) / 2.0 + x0, len(best)
+
+
+def opt_kind(cy: int, screen=None):
+    """"slider" / "toggle" for the row centred at `cy`, or None if unreadable.
+
+    Told apart by the "-"/"+" end marks, which only a slider has. Knob position
+    cannot do this job: a slider's knob ranges over the whole track and so can
+    sit exactly where a toggle's does. Measured on both Options captures, the
+    two cells hold 20-71 white pixels on every slider and exactly 0 on every
+    toggle.
+    """
+    w, h = screen_size()
+    a = (_screen_image() if screen is None else screen).astype(int)
+    gy = int(cy + OPT_MARKS_DY * h)
+    y0, y1 = gy - 14, gy + 14
+    if y0 < 0 or y1 > h:
+        # The mark row runs off the screen, so "no marks" would be a
+        # measurement artefact rather than a fact about the row. Say so.
+        return None
+    for fx in (OPT_MINUS_X, OPT_PLUS_X):
+        cx = int(fx * w)
+        cell = a[y0:y1, max(0, cx - 20):cx + 20]
+        white = (cell[:, :, 0] > 215) & (cell[:, :, 1] > 215) & (cell[:, :, 2] > 215)
+        if white.sum() < 8:
+            return "toggle"
+    return "slider"
+
+
+def toggle_state(label: str):
+    """True (on) / False (off) / None (row or knob not found)."""
+    cy = opt_row(label)
+    if cy is None:
+        return None
+    knob = opt_knob(cy)
+    if knob is None:
+        return None
+    return knob[0] > OPT_PILL_C * screen_size()[0]
+
+
+def tap_toggle(label: str, settle: float = 1.2):
+    """Tap the toggle on <label>'s row. Returns its state afterwards."""
+    cy = opt_row(label)
+    if cy is None:
+        return None
+    w, _ = screen_size()
+    tap_at((int(OPT_PILL_C * w), int(cy)), settle=settle)
+    return toggle_state(label)
+
+
+def set_toggle(label: str, on: bool, settle: float = 1.2) -> bool:
+    """Put the toggle on <label>'s row into `on`. True if it ends up there."""
+    now = toggle_state(label)
+    if now is None:
+        return False
+    if now == on:
+        return True
+    return tap_toggle(label, settle=settle) == on
+
+
+def slider_value(label: str):
+    """The slider on <label>'s row as 0.0 (min) .. 1.0 (max), or None."""
+    cy = opt_row(label)
+    if cy is None:
+        return None
+    knob = opt_knob(cy)
+    return None if knob is None else _value_from(knob)
+
+
+def _value_from(knob) -> float:
+    """Knob centre -> 0..1. The knob cannot overhang the track, so its own
+    half-width is what the usable travel is short of the track at each end."""
+    cx, kw = knob
+    w = screen_size()[0]
+    lo, hi = OPT_TRACK_L * w + kw / 2.0, OPT_TRACK_R * w - kw / 2.0
+    return max(0.0, min(1.0, (cx - lo) / (hi - lo)))
+
+
+# There is deliberately no "press + / press -" helper. On this build those marks
+# are LABELS, not buttons: they annotate the low and high end of the track, which
+# is also what the row's own caption says ("Move slider to change the volume").
+# Measured before concluding it — 36 points swept across a +/-30 x -25..+40 px
+# grid over both glyphs, 3 taps each, plus a 2 s press-and-hold, plus taps on the
+# track either side of the knob: the value never moved and the whole-screen diff
+# was 0.00000, i.e. the app did not so much as flicker. Dragging the knob is the
+# only interaction a slider has.
+
+
+def slider_drag(label: str, value: float, duration: float = 0.5):
+    """Drag <label>'s slider knob to `value` (0..1). Returns the value reached.
+
+    The extremes are driven a little PAST the track end so the control clamps
+    there — stopping exactly on the end pixel tends to land a step short.
+    """
+    cy = opt_row(label)
+    if cy is None:
+        return None
+    knob = opt_knob(cy)
+    if knob is None:
+        return None
+    w, _ = screen_size()
+    lo, hi = OPT_TRACK_L * w + knob[1] / 2.0, OPT_TRACK_R * w - knob[1] / 2.0
+    target = lo + max(0.0, min(1.0, value)) * (hi - lo)
+    if value <= 0.02:
+        target = OPT_TRACK_L * w - 20
+    elif value >= 0.98:
+        target = OPT_TRACK_R * w + 20
+    swipe((int(knob[0]), int(cy)), (int(target), int(cy)), duration=duration)
+    time.sleep(0.8)
+    return slider_value(label)
+
+
+def slider_set(label: str, value: float, tol: float = 0.03, tries: int = 3):
+    """Drag <label>'s slider to `value` and keep correcting until it sticks.
+
+    One drag lands within ~0.07 of a mid-track target — the knob follows the
+    finger but settles a little short. That is fine for "did it move?", not for
+    landing on a value someone asked for, so this re-drags from wherever the knob
+    ended up. Each correction starts closer, so it converges.
+    """
+    got = slider_drag(label, value)
+    for _ in range(tries - 1):
+        if got is None or abs(got - value) <= tol:
+            break
+        got = slider_drag(label, value)
+    return got
+
+
+def opt_get(label: str, kind: str):
+    """Read <label>'s row without caring which control it carries.
+
+    Returns True/False for a toggle, 0.0..1.0 for a slider, None if the row or
+    its knob could not be found. A caller driving a mixed set of rows (see
+    tests/verifyOptions.py) would otherwise have to branch on `kind` at every
+    single read, and the knowledge of how each kind is read already lives here.
+    """
+    return toggle_state(label) if kind == "toggle" else slider_value(label)
+
+
+def opt_put(label: str, kind: str, value):
+    """Drive <label>'s row to `value`. Returns what it actually ended at.
+
+    The counterpart to opt_get, and the same argument for living here. Note it
+    reports the value REACHED rather than a did-it-work boolean, so a caller can
+    say how far off a control that refused to move ended up.
+    """
+    if kind != "toggle":
+        return slider_set(label, value)
+    now = toggle_state(label)
+    if now is None or now == bool(value):
+        return now
+    return tap_toggle(label)        # already returns the state afterwards
+
+
 # ── gameplay ──────────────────────────────────────────────────────
 def open_picker(timeout: float = 6.0) -> bool:
     """From the menu, tap Play and land on the difficulty picker."""

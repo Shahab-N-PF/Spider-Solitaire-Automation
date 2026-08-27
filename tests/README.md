@@ -153,7 +153,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 |---|---|
 | `verifyMainMenu` | all 7 menu controls + logo render *simultaneously* (polled — a launch toast and sparkle can briefly hide one) |
 | `verifyStatsPage` | Statistics renders, Game Center present, scrolls end to end to "Reset Statistics" (not tapped) |
-| `verifyOptions` | all three sections reachable by scrolling, Contact Us present, and a toggle actually responds |
+| `verifyOptions` | Options opens with Contact Us present, then **four named rows** are *operated*: **Applause Volume** and **Card Lowering** (sliders) each drag to both ends and to mid-track, **Auto Mute Sounds** (ships ON) and **Use Hearts** (ships OFF) each flip and report the new state, and a changed slider value survives leaving the screen and returning. All four are then **reset to fixed values — on failure too** |
 | `verifyHelpPage` | Help opens on "Introduction" and the body scrolls to its footer |
 | `verifySpiderLogo` | About reachable from both the menu item **and the logo**; version, copyright, links; in-app FAQ opens |
 | `verifyMoreGamesBtn` | the in-app cross-promo page opens and returns |
@@ -182,6 +182,52 @@ capture board → deal a row from the stock → board must change
 Undo is only correct if the pixels come back. That catches a class of port bug
 (undo not restoring state) that no screenshot diff would, and it needs no
 accessibility tree.
+
+`verifyOptions` pushes the same idea further. A settings control does not just
+*respond*, it *holds a value* — and on Unity that value is readable, because the
+knob's position **is** the setting:
+
+```
+toggle   knob left = off, knob right = on     (pill 602-734 px at 828 wide)
+slider   knob anywhere along the track        (track 513-757 px)
+```
+
+So the assertion is not "the picture changed after I tapped" — which an
+animation, an ad or a scroll would also satisfy — but *"it read ON, I tapped it,
+it now reads OFF, I tapped again and it reads ON"*. Both toggle directions get
+covered by driving one row that ships ON (Auto Mute Sounds) and one that ships
+OFF (Use Hearts). Each slider is dragged to both ends and to mid-track, and then
+a changed value is checked to survive leaving the screen and returning — the bit
+that says the setting was *applied*, not merely drawn.
+
+The four rows it drives are named in `TARGETS`, listed in **page order** so the
+run is one downward sweep: `ui.opt_row()` has to rewind to the top whenever a
+row has already scrolled past, which is the expensive path.
+
+**Every run ends with those four at fixed values** — Applause Volume ~0.5, Auto
+Mute Sounds ON, Card Lowering ~0.5, Use Hearts OFF — and the reset runs from a
+`finally`, so it happens *on failure too*. That matters more than it sounds:
+every check ends in an assertion that raises, so without it a failed run strands
+a toggle flipped or a slider at maximum for the next test and the next run to
+inherit. Fixed targets rather than "put back what was found" also mean each run
+*starts* from a known state, whatever the last one — or a person poking at the
+phone — left behind. The reset never raises; anything it cannot set it names on
+stdout, and that only fails the test when the run was otherwise passing.
+
+Two things measured while building it, both worth not re-deriving:
+
+* **The "−" and "+" beside a slider are not buttons.** They label the ends of the
+  track. 36 points swept across a grid over both glyphs, 3 taps each, plus a 2 s
+  press-and-hold, plus taps on the track either side of the knob: the value never
+  moved and the whole-screen diff was **0.00000**. Dragging the knob is a
+  slider's only interaction — which is also what the row's own caption says
+  ("Move slider to change the volume").
+* **The app saves settings when it goes to the BACKGROUND, not on every change.**
+  So `cold_launch()` is a misleading way to test persistence: it kills the app
+  from the foreground, which no real user can do (the switcher backgrounds an app
+  before you can swipe it away). Change → Home → kill → relaunch **keeps** the
+  value; change → kill straight from the foreground **loses** it. Read on its own
+  that second result looks exactly like "the Unity port stopped saving settings".
 
 ## Templates and their quality gate
 
