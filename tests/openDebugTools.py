@@ -25,15 +25,24 @@ BEFORE it judges the app: a slow burst makes a negative result meaningless.
 Two behaviours worth knowing, both verified on the device:
   * the gesture TOGGLES — a second 5-tap burst hides the button again, so this
     test fires exactly ONE burst and leaves the Dev Panel showing;
-  * the button, once unlocked, appears on EVERY screen (only the gesture is tied
-    to About) and stays until the app is RESTARTED — no screen scoping involved.
+  * the unlock is scoped to the ABOUT SCREEN on build 363. Measured in a single
+    process with no restart anywhere: gesture on About -> button shows; to_menu()
+    -> gone; return to About without a new gesture -> still gone; expanding the
+    panel first does not save it either. An earlier note here claimed the button
+    "appears on EVERY screen and stays until the app is RESTARTED" — that was
+    true of build 353 and is NOT true now.
 
-That second point is why this test starts with launch_to_menu(force=True) while
-the rest of the suite does not. The suite deliberately stops restarting the app
-between tests, so state survives (tests/verifyVictory.py reuses the unlock this
-test performs). But this test's premise is that the button is hidden until the
-gesture reveals it, and only a restart makes that true — without the force it
-would fail on a re-run, having found its own previous unlock still on screen.
+This test does NOT restart the app. It used to (launch_to_menu(force=True)), to
+guarantee its "the button is hidden" precondition on a re-run. That is no longer
+needed: the unlock dies when you leave About, and step 6 leaves to the menu, so a
+completed run always leaves it hidden. The trade-off, stated: a run that DIES on
+the About screen with the button showing will make the next run fail at step 2.
+Re-running after any such failure needs the app backgrounded once, or the gesture
+repeated to toggle the button off.
+
+Note the second bullet is why tests/verifyVictory.py can no longer reuse this
+unlock: "Complete Game" only acts on an ACTIVE game and must be fired from the
+table, but the panel does not survive the trip there.
 
 Captures log/debug_tools.png (the About screen with the Dev Panel button).
 
@@ -51,30 +60,49 @@ TAPS = 5
 
 
 def run():
-    # 1. About.
-    # force: the premise is a hidden button, which only a restart guarantees.
-    ui.expect(ui.launch_to_menu(force=True), "could not reach the main menu")
+    # 1. About. No restart — attach to the app as it is (see the docstring).
+    ui.expect(ui.launch_to_menu(), "could not reach the main menu")
     ui.expect(ui.tap("menu_about", settle=2.5), "About control not found on the menu")
     ui.expect(ui.at_screen("about"), "tapping About did not open the About screen")
 
-    # 2. Precondition: the button is hidden until the gesture. Without this the
-    #    test would pass on a build that simply always shows it.
-    ui.expect(not ui.is_on("dev_panel"),
-              "the Dev Panel button is already showing on the About screen before "
-              "the gesture — it is supposed to be hidden until unlocked")
-
-    # 3. Five rapid taps on the EMBLEM (not the wordmark — see the docstring).
+    # 2. Locate the EMBLEM (not the wordmark — see the docstring). Needed before
+    #    the precondition, because clearing it uses the same gesture.
     ui.expect(ui.is_on("about_emblem"),
               "the Spider emblem is not on the About screen, so the QA gesture "
               "has nothing to tap")
     x, y = ui.find("about_emblem")
+
+    # 3. Precondition: the button must be hidden before the gesture, or this test
+    #    would pass on a build that simply always shows it.
+    #
+    #    An earlier run can legitimately leave it ON — the unlock persists, which
+    #    is the whole point of the openDebugTools -> verifyVictory hand-off. This
+    #    used to be handled by restarting the app; the test no longer does that,
+    #    so it clears the button the way a user would: the gesture TOGGLES, so one
+    #    burst turns it off. That also exercises the toggle-off direction, which
+    #    nothing else covered.
+    if ui.is_on("dev_panel"):
+        print("  Dev Panel was already unlocked — toggling it off first")
+        ui.expect(ui.rapid_tap((x, y), times=TAPS),
+                  "the tap burst fell back to per-tap WDA calls while trying to "
+                  "clear a previous unlock")
+        ui.expect(not ui.is_on("dev_panel"),
+                  "a second 5-tap burst did not hide the Dev Panel button — the "
+                  "gesture is supposed to toggle")
+
+    ui.expect(not ui.is_on("dev_panel"),
+              "the Dev Panel button is showing on the About screen before the "
+              "gesture and could not be cleared — it is supposed to be hidden "
+              "until unlocked")
+
+    # 4. Five rapid taps on the emblem — the gesture itself.
     fast = ui.rapid_tap((x, y), times=TAPS)
     ui.expect(fast,
               "the tap burst fell back to per-tap WDA calls (~510 ms each), so it "
               "was not a rapid gesture and this result is inconclusive — check "
               "that the WDA /actions endpoint is reachable")
 
-    # 4. The Dev Panel button must now be showing, bottom-right.
+    # 5. The Dev Panel button must now be showing, bottom-right.
     shot = ui.shoot("debug_tools")
     pos = ui.find("dev_panel")
     ui.expect(pos is not None,
@@ -89,11 +117,16 @@ def run():
     print(f"  {TAPS} rapid taps on the About emblem revealed the 'Dev Panel' "
           f"button at {pos} (bottom-right) — see {shot}")
 
-    # The button is deliberately LEFT ON — no toggle-off burst. It is there to
-    # inspect after the run, and tests/verifyVictory.py depends on it: it uses
-    # this unlock instead of repeating the gesture, which works because the suite
-    # no longer restarts the app between tests.
-    ui.to_menu()
+    # 6. Back to the menu, by the screen's own back control. The button is
+    #    deliberately LEFT ON — no toggle-off burst — so it can be inspected
+    #    after the run. (It does not survive this trip on build 363; see the
+    #    docstring. The burst is still not repeated: the gesture toggles.)
+    ui.expect(ui.back(settle=2.0),
+              "the About screen's back control was not found, so there was no "
+              "way off it")
+    ui.expect(ui.on_menu(timeout=6.0),
+              "tapping 'back' on the About screen did not return to the main menu")
+    print("  'back' returned to the main menu, Dev Panel button left ON")
     print("PASS: the hidden QA entry point is present on the About screen")
 
 

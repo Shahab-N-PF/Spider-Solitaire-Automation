@@ -161,9 +161,9 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `openDebugTools` | 5 rapid taps on the About emblem reveal the "Dev Panel" button, bottom-right. Forces a restart first; leaves the panel unlocked for `verifyVictory` |
 | `verifyChooseLook` | Surface/Cards tabs switch, a surface applies (screen changes), × closes to the menu |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
-| `verifyDifficultyLevels` | every level (Easy…Expert) deals a game; per-level failures reported individually |
+| `verifyDifficultyLevels` | **Medium…Expert** each deal a game; per-level failures reported individually. Easy is covered by `verifyPlay` and `verifyVictory`. Runs after `verifyVictory`, which leaves no game paused, so Medium opens with no abandon prompt |
 | `verifyGamePlay` | **deal/undo round trip**, hints respond, and all six drawer actions behave |
-| `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its "new" deals a fresh game |
+| `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
 | `resetStats` | reset link + confirmation chain (destructive, opt-in) |
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
 | `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |

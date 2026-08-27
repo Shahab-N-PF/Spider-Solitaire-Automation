@@ -45,10 +45,21 @@ TESTS = [
     "verifyMoreGamesBtn",       # in-app cross-promo page
     "verifyChooseLook",         # modal tabs + applying a theme
     "verifyPlay",               # picker shows 5 levels, Easy deals
-    "verifyDifficultyLevels",   # all five levels deal
+    # openDebugTools force-restarts the app (its premise is a HIDDEN button), so
+    # it must come before anything that needs the unlock — and the fewer tests
+    # between it and verifyVictory, the fewer chances something restarts the app
+    # and hides the button again.
     "openDebugTools",           # hidden QA entry point (5 taps -> Dev Panel)
     "verifyGamePlay",           # the table actually plays (deal/undo, drawer)
     "verifyVictory",            # the win screen (reached via the QA cheat)
+    # After verifyVictory on purpose, and it depends on that. Safe because
+    # verifyVictory collapses the Dev Panel overlay before it returns: expanded,
+    # that overlay covers the Hard/Bold/Expert rows of the difficulty picker, so
+    # this test could only ever have reached Easy. verifyVictory also leaves NO
+    # game in progress (it wins its game and exits by "back" without dealing
+    # another), which is what lets this test open on Medium with no abandon
+    # prompt to answer.
+    "verifyDifficultyLevels",   # medium..expert deal (Easy is verifyPlay's)
     # Last on purpose: this is the one test whose result depends on the build
     # (the promo strip shipped in 341/343 and is gone again in 353), so it is the
     # most likely to be red. Keeping it at the end means the summary is not led
@@ -125,7 +136,7 @@ REQUIRED = [
     # QA cheat + the victory screen it makes reachable
     "dev_complete_game", "screen_victory", "victory_ranking",
     "victory_leaderboards", "victory_achieve", "victory_help", "victory_new",
-    "victory_stats", "victory_level_easy",
+    "victory_stats", "victory_level_easy", "about_back", "stats_back",
 ]
 
 
