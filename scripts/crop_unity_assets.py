@@ -177,6 +177,23 @@ CROPS_IP11 = {
     # (-0.007). Trimming to the glyphs (text density 0.20 -> 0.35) gives a worst
     # true match of 0.754 against a worst non-table 0.660: +0.095 of daylight.
     "in_game_menu":    ("InGameMenu.png", (695, 148, 791, 170)),
+    # The Statistics header's "Game Center" caption. Cut here rather than derived
+    # from the iPhone 14 set (which is where it used to come from) because build
+    # 363 changed this header and the ip14 reference is still build 343. The
+    # caption shrank and slid toward the screen edge — measured on the iPhone 11,
+    # 828 px wide:
+    #
+    #   Obj-C baseline   x 635-728
+    #   Unity 353        x 629-731,  59 px tall
+    #   Unity 363        x 666-742,  44 px tall
+    #
+    # An INTENDED change, per the port owner, so the template follows it. Note
+    # what that costs: the functional suite locates by sight, so re-cutting makes
+    # verifyStatsPage pass again and simultaneously makes this drift invisible
+    # here — it is the pixel-fidelity reports (compare_unity*.py) that must carry
+    # the finding. Text only, no Game Center icon: the icon is Apple's artwork,
+    # sits ~18 px further right, and can change with iOS rather than with Spider.
+    "game_center":     ("StatsPage.png", (663, 110, 746, 161)),
 
     # ── Options rows: the settings controls themselves ────────────
     # Every row on the Options page is <icon> <label> <control>, with the
