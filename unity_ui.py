@@ -1459,7 +1459,21 @@ def win_game(level: str = "easy", arm: bool = True) -> bool:
 # from the caption. Anchoring to the caption (rather than a fixed point) keeps
 # this correct when the layout shifts between builds.
 TABLE_CAPTIONS = {"undo": "tap_undo", "lower": "tap_lower", "hints": "tap_hints"}
-_CONTROL_DY = 0.044          # caption -> control, as a fraction of screen height
+
+# Caption -> button offset, as a fraction of screen height. Deliberately PER
+# CONTROL, not one shared number, because the three are not built the same way:
+# "tap to undo" and "tap for hints" are captions sitting ABOVE a widget (the
+# last-moved cards, the hint deck) and the widget is the button, but "tap to
+# lower" has no widget — the caption and its little arrow ARE the button, and
+# what sits below them is the score, timer and multiplier, which are inert.
+#
+# This was one shared 0.044 and that made "lower" a no-op. Measured on the
+# iPhone 11, build 363, by tapping four points down that column and sampling the
+# board: the caption itself moves 25.42% of the board, the arrow 40 px below it
+# 25.42%, and the +0.044h point every control used to be sent to moves 0.002% —
+# it lands on the inert score counter. So the control was never actually being
+# driven, and nothing noticed because nothing asserted on it.
+_CONTROL_DY = {"undo": 0.044, "lower": 0.0, "hints": 0.044}
 
 
 def tap_table_control(which: str, settle: float = 1.5) -> bool:
@@ -1468,7 +1482,12 @@ def tap_table_control(which: str, settle: float = 1.5) -> bool:
     if caption is None:
         raise ValueError(f"unknown table control: {which}")
     _, h = screen_size()
-    return tap_near(caption, dy=int(_CONTROL_DY * h), settle=settle)
+    return tap_near(caption, dy=int(_CONTROL_DY[which] * h), settle=settle)
+
+
+# Top bar -> stock-pile centre, as a fraction of screen height. Measured on the
+# iPhone 11 (828x1792): the bar sits at y=160 and the pile at y=297, so 137 px.
+_STOCK_BELOW_BAR = 0.0765
 
 
 def tap_stock(settle: float = 2.5) -> bool:
@@ -1476,11 +1495,22 @@ def tap_stock(settle: float = 2.5) -> bool:
 
     Prefers the stock_pile template; falls back to the pile's position in the
     table layout when that crop isn't available yet.
+
+    That fallback is anchored to the TOP BAR rather than to the screen, because
+    the table has two layouts. "tap to lower" slides the whole playfield down —
+    on the iPhone 11 the bar goes y=160 -> 232 and the stock pile 297 -> 369 —
+    and it is a persistent SETTING that survives leaving the game. A blind screen
+    fraction therefore misses the pile on every run after anyone leaves the table
+    lowered, and reports it as "dealing from the stock did not change the board":
+    a failure a long way from its cause. Anchoring costs one template match and
+    removes the whole class.
     """
     if have("stock_pile") and tap("stock_pile", settle=settle):
         return True
     w, h = screen_size()
-    tap_at((int(w * 0.652), int(h * 0.166)), settle=settle)
+    bar = find("back_game")
+    y = bar[1] + int(_STOCK_BELOW_BAR * h) if bar else int(h * 0.166)
+    tap_at((int(w * 0.652), y), settle=settle)
     return True
 
 
@@ -1523,6 +1553,20 @@ def changed(a, b, min_frac: float = 0.005) -> bool:
 def board_shot(tag: str):
     """Capture just the playing area, for before/after comparisons."""
     return region(shoot(f"_board_{tag}"), board_box())
+
+
+def board_frame():
+    """The playing area as a BGR frame, to hand to find(screen=...).
+
+    The sibling of board_shot(): that one returns a PIL crop for pixel
+    comparison, this one returns the same crop in the form find() matches
+    against — for when a template must not be allowed to answer from chrome
+    OUTSIDE the board. The suit check in tests/verifyGamePlay.py needs exactly
+    that: the bottom "tap to undo" widget draws a red heart whatever suit the
+    deal is using, because it is decorative art rather than part of the game.
+    """
+    x0, y0, x1, y1 = board_box()
+    return _screen_image()[y0:y1, x0:x1]
 
 
 def peak_change_after(action, frames: int = 6, interval: float = 0.3,

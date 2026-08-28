@@ -147,6 +147,9 @@ REQUIRED = [
     "dev_complete_game", "screen_victory", "victory_ranking",
     "victory_leaderboards", "victory_achieve", "victory_help", "victory_new",
     "victory_stats", "victory_level_easy", "about_back", "stats_back",
+    # the card suit pips verifyGamePlay reads to prove "Use Hearts" reached the
+    # dealt cards
+    "card_spade", "card_heart",
 ]
 # Deliberately NOT listed: last_score / screen_last_score / last_score_next and
 # the gc_* Game Center crops. This list gates the OFFLINE suite, and

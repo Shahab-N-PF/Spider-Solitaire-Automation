@@ -162,7 +162,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyChooseLook` | Surface/Cards tabs switch, a surface applies (screen changes), × closes to the menu |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
 | `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
-| `verifyGamePlay` | **deal/undo round trip**, hints respond, and all six drawer actions behave |
+| `verifyGamePlay` | **deal/undo round trip**, **tap-to-lower** drops the playfield and raises it back, hints respond, all six drawer actions behave, and two Options settings are proved to reach the table — **"Use Hearts"** flips the dealt cards from black spades to red hearts and back, and **"Rich Features"** hides and restores the Timer, Score and Multiplier |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
 | `resetStats` | reset link + confirmation chain (destructive, opt-in) |
 | `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
@@ -183,6 +183,74 @@ capture board → deal a row from the stock → board must change
 Undo is only correct if the pixels come back. That catches a class of port bug
 (undo not restoring state) that no screenshot diff would, and it needs no
 accessibility tree.
+
+**"Use Hearts" is the one cross-screen assertion.** Everywhere else the suite
+asks "did this control change the board?". This one asks whether a setting on
+*another page* changes what the game draws: turn it on in Options, come back, and
+the cards on the table already dealt must have gone from black spades to red
+hearts — then back again when it is turned off.
+
+It is read by **template**, not by counting red pixels, because the table is
+already full of red: every card back and the whole stock pile are red in both
+states, and the court cards carry red art either way. Measured inside
+`board_box()`:
+
+| table | `card_spade` | `card_heart` |
+|---|---|---|
+| spades | **1.000** | 0.498 |
+| hearts | 0.614 | **1.000** |
+
+Two things to know before touching it. It only works on **Easy, a one-suit
+game** — that is what makes "no spades remain" sound, and it would be false on
+Medium, which deals spades *and* hearts. And the setting is **persisted**, so the
+check normalises a leftover "on" at the start and restores "off" from a
+`finally`; the bottom "tap to undo" widget is excluded from the read because it
+draws a red heart whatever suit is in play.
+
+**"Rich Features" is read as ink present or absent**, and both of the other
+techniques on this page are wrong for it. There is nothing stable to
+template-match — the timer ticks every second, the score moves as you play, the
+multiplier is per level. And a before/after **pixel diff proves nothing**,
+because the running timer changes that strip every second on its own; it would
+pass with the setting dead.
+
+So the check measures how much of the Timer/Score/Multiplier box is ink rather
+than background, against the box's **own median colour** so a Choose Look surface
+change cannot move the threshold. Measured on build 363: **~12–17% with the
+setting on, 0.00% with it off**, and bare felt anywhere on the table also reads
+0.00% — there is no floor to fight.
+
+The box is anchored to the "tap to lower" caption and located **once, while the
+setting is still on**. That is required, not defensive: the caption is itself one
+of the things Rich Features hides. The test reports that (and the top bar's score
+counter) as an observation rather than a failure — "tap to undo" and "tap for
+hints" survive. It also means a run that left the setting OFF would leave
+`check_lower()` with no caption to find, which is why the restore runs from a
+`finally`.
+
+**"tap to lower" is read from a position, not a pixel diff.** It slides the whole
+playfield down the screen, so the top bar's `back` control *is* the state
+read-out — y=160 raised, y=232 lowered on the iPhone 11, repeatably to the pixel.
+Asserting on that is exact and it says what actually happened ("the playfield
+dropped 72 px"), where a diff percentage only says "something changed".
+
+Two things about that control are worth knowing before touching it:
+
+* **It is a persistent setting, not per-game state.** It survives leaving the
+  game and dealing another. A run that dies with the view down leaves it down for
+  every run after it — and with the view down, a blind coordinate misses the
+  moved stock pile, so the *next* run fails at the deal step with a message about
+  the stock, a mile from the cause. `ui.tap_stock()`'s fallback is therefore
+  anchored to the top bar, and `check_lower()` raises the view before either
+  assertion can throw. The check itself is **exactly two taps — lower, then
+  raise**; the starting state is read from the bar's position rather than probed
+  with a tap, so nothing is done twice just to find out where we are. A third tap
+  happens only in recovery, when a previous run left the view down, and it says
+  so on the line.
+* **The bottom captions vanish for ~4.5s** while the view slides, and when they
+  come back in the *lowered* state `tap_lower` only scores 0.72-0.74 against the
+  0.70 threshold. So the control is located once, while raised, and the same
+  point is tapped twice — it does not move between the two layouts.
 
 `verifyOptions` pushes the same idea further. A settings control does not just
 *respond*, it *holds a value* — and on Unity that value is readable, because the
