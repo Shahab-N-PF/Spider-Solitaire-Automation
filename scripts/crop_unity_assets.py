@@ -289,6 +289,29 @@ CROPS_IP11 = {
     # its own page and ~0.53 on the other's.
     "gc_achievements":   ("GameCenterAchievements.png", (35, 318, 494, 382)),
 
+    # ── card suit pips, for the "Use Hearts" check ────────────────
+    # The big suit symbol on a face-up card. Easy is a ONE-SUIT game, so with
+    # Options' "Use Hearts" off every card is a black spade and with it on every
+    # card is a red heart — which is what tests/verifyGamePlay.py reads off the
+    # table to prove the setting reached the running game.
+    #
+    # Both sources are the SAME DEAL, captured either side of the toggle (ranks
+    # 7,6,K,4,7,A,10,4,9,5 in both), so the crops differ only in the suit. That
+    # also happens to be the proof the setting applies live rather than on the
+    # next deal.
+    #
+    # Cut to the pip alone, clear of the corner glyph above it. Measured inside
+    # board_box(): spade 1.000 / heart 0.498 on a spades table, spade 0.614 /
+    # heart 1.000 on a hearts table — both a long way from the 0.70 threshold,
+    # in the right direction each time. card_spade also scores 0.999 against a
+    # build-353 capture, so it is not build-brittle.
+    #
+    # Note both DO match the ghost tableau art behind the main menu (0.87 / 0.81)
+    # — real cards, wrong screen. Harmless here because the check only ever looks
+    # inside the game table's board_box, but do not reuse these full-screen.
+    "card_spade":        ("GamePlaySpades.png", (16, 536, 78, 600)),
+    "card_heart":        ("GamePlayHearts.png", (16, 536, 78, 600)),
+
     # ── Options rows: the settings controls themselves ────────────
     # Every row on the Options page is <icon> <label> <control>, with the
     # control right-aligned in a fixed column. These crops are the LABELS: they
