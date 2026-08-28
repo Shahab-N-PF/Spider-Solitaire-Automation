@@ -49,6 +49,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `tests/launch_and_shoot.py` | Launch the game + screenshot (start of real flows). |
 | `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. |
 | `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`.** Banner is served, an interstitial fires on leaving a game, the ad never carries the user out of the app, and the app recovers. See `tests/README.md` → *Ads*. |
+| `tests/visitLastScore.py` | **Last Score — ONLINE only, not in `run_all.py`.** The difficulty picker's "LAST SCORE" opens the "Last Won Game Score" ranking view; its forward arrow cycles the period (4 taps = a full round trip); "leaderboards" and "achievements" each open Apple's Game Center sheet and close again. Game Center needs the network + a signed-in Apple account. |
 | `tests/run_all.py` | Run the whole **Unity** functional suite with a preflight (templates, WDA, `DEVICE_UDID`); print a PASS/FAIL summary that labels known Unity port gaps. Full doc: `tests/README.md`. |
 | `scripts/capture_unity_screens.py` | Bootstrap capture: walk Unity by coordinate, screenshot every screen into `log/unity_screens/` (the input the templates are cut from). |
 | `scripts/crop_unity_assets.py` | Cut Unity anchors out of those captures (`--device iphone14｜iphone11`). |
@@ -237,8 +238,9 @@ re-baselining — `baselines/` stay Obj-C):
   an interstitial can open a StoreKit App Store sheet over the app. `ui.lost()` +
   `ui.recover()` (terminate + relaunch — never hunt for the ad's close button)
   keep the suite from wedging, and the failure message names the ad rather than
-  the button. **`tests/verifyAds.py` is the deliberate exception** — it needs the
-  network, so it is not in `run_all.py`; run it on its own.
+  the button. **`tests/verifyAds.py` and `tests/visitLastScore.py` are the deliberate
+  exceptions** — one needs ad traffic, the other needs Game Center, so neither
+  is in `run_all.py`; run them on their own with the network up.
 - **Ads themselves are now a tested axis, and they are hard to escape.** Measured
   on build 353: an interstitial fires on leaving a game (12/12 attempts) and
   renders *inside* the app; a video plays ~15s, then **opens an App Store product

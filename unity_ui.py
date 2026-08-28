@@ -68,9 +68,16 @@ DEFAULT_THRESH = 0.7
 #   re-cut tight to the glyphs (see crop_unity_assets.py) which opened a real
 #   gap: worst true match 0.754 on an iPhone 16 Pro, worst non-table 0.660.
 #   0.72 sits centrally in that gap.
+#   last_score_next — the Last Score screen's forward arrow. A plain triangle
+#   with no internal detail, so it correlates with all sorts of unrelated art:
+#   0.685 on the About screen and 0.655 on the game table, against 1.000 on its
+#   own screen. That is 0.015 of daylight under the default — not a threshold, a
+#   coin toss. 0.85 puts the bar in the middle of the real gap (worst true match
+#   0.941, on the victory screen's identical stepper).
 THRESH = {
     "look_cards_tab": 0.88,
     "in_game_menu": 0.72,
+    "last_score_next": 0.85,
 }
 
 
@@ -109,6 +116,13 @@ SCREENS = {
     "table":      "tap_undo",
     "ingame_menu": "ingame_replay",     # the in-game menu drawer is open
     "victory":    "screen_victory",
+    # "Last Won Game Score", reached from the difficulty picker's bottom-left
+    # label. Anchored on its HEADER because the rest of the screen is the same
+    # ranking view the victory screen draws: screen_victory itself matches here
+    # (0.99), as do victory_ranking / victory_leaderboards / victory_achieve. So
+    # at_screen("victory") is TRUE on this screen — check "last_score" first if
+    # you need to tell the two apart.
+    "last_score": "screen_last_score",
 }
 
 # Main-menu controls (all are also their own on-screen proof).
@@ -168,8 +182,13 @@ REF_POINT_SCALE = float(os.environ.get("UNITY_REF_POINT_SCALE", "2.0"))
 
 # Templates cropped from native iOS UI. Verified on the iPhone 16 Pro: each
 # peaks at exactly the point-density ratio, not the width ratio.
+# Game Center is the third regime and belongs here too: the sheet Spider
+# presents for leaderboards is Apple's own UI, drawn out of process — WDA sees
+# only anonymous XCUIElementTypeOther over it, exactly like the ATT prompt — so
+# it is laid out in points and must be matched as an image.
 NATIVE_UI = {"prompt_abandon", "dialog_yes", "dialog_no", "prompt_tip", "tip_ok",
-             "att_prompt", "att_deny"}
+             "att_prompt", "att_deny", "gc_leaderboards", "gc_achievements",
+             "gc_back"}
 
 _POINT_SCALE = None
 
@@ -787,6 +806,21 @@ def to_menu(max_steps: int = 6) -> bool:
             continue
         if is_on("look_close"):         # the modal closes via x, not back
             tap("look_close", timeout=1.0, settle=1.0)
+            continue
+        # The difficulty picker carries NO back control of any kind — matching
+        # every template against a capture of it turns up the five level labels,
+        # "LAST SCORE" and the logo, and nothing else. Its way out is the Spider
+        # LOGO, which swaps the difficulty arc back for the menu arc.
+        #
+        # Without this branch to_menu() simply fails on the picker, and its
+        # caller launch_to_menu() answers a failed to_menu() by COLD-LAUNCHING —
+        # so any test that ended on the picker silently restarted the app and
+        # took the Dev Panel unlock down with it. menu_logo is safe to use here:
+        # it matches only the menu and picker frames (checked against every
+        # capture in log/unity_screens), and on_menu() has already been ruled out
+        # at the top of this loop.
+        if is_on("difficulty_easy"):
+            tap("menu_logo", timeout=1.0, settle=1.5)
             continue
         if dialog_up(timeout=0.4):      # a stray confirmation blocks navigation
             answer_dialog(False)

@@ -35,6 +35,12 @@ import visual  # noqa: E402
 #   resetStats      — destructive (wipes local statistics); run it deliberately.
 #   verifyHelpShift — needs the device ONLINE, which the rest of the suite
 #                     specifically avoids; run it deliberately.
+#   verifyAds       — needs the device ONLINE by definition (it is the ad axis).
+#   visitLastScore  — its Game Center legs need the device ONLINE and a
+#                     signed-in Apple account. Its first half (the picker's
+#                     "Last Score", the header, the period stepper) would run
+#                     offline fine, but a case that is half-checked in the
+#                     offline suite is worse than one run deliberately online.
 #   verifyFirstLaunch — cold-start check; meaningful mainly after a reinstall.
 TESTS = [
     "verifyMainMenu",           # foundation: the menu renders at all
@@ -142,6 +148,10 @@ REQUIRED = [
     "victory_leaderboards", "victory_achieve", "victory_help", "victory_new",
     "victory_stats", "victory_level_easy", "about_back", "stats_back",
 ]
+# Deliberately NOT listed: last_score / screen_last_score / last_score_next and
+# the gc_* Game Center crops. This list gates the OFFLINE suite, and
+# visitLastScore is not in it — checking its templates here would stop a healthy
+# run over crops nothing in the run touches. That test asserts its own.
 
 
 def main():

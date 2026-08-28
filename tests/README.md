@@ -165,6 +165,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyGamePlay` | **deal/undo round trip**, hints respond, and all six drawer actions behave |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
 | `resetStats` | reset link + confirmation chain (destructive, opt-in) |
+| `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
 | `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |
 
