@@ -232,6 +232,63 @@ CROPS_IP11 = {
     # misfiring screens are handled by one crop plus a difficulty_easy landmark.
     "stats_back":      ("StatsPage.png", (19, 120, 106, 147)),
 
+    # ── Last Score ("Last Won Game Score", the ranking view) ──────
+    # Reached from the DIFFICULTY PICKER's bottom-left label, not from the main
+    # menu — the Obj-C baselines' README calls it "reached from the menu", which
+    # is one screen off for the Unity build.
+    #
+    # Source re-captured on build 363: 353 drew this label ~18 px lower
+    # (y 1450-1482 vs 1433-1454 here), the same downward menu drift that already
+    # forced game_center and about_back to be re-cut.
+    "last_score":        ("DifficultyLevels.png", (90, 1428, 356, 1460)),
+    # The screen's header, and the ONLY thing that identifies this screen: its
+    # ranking BODY is shared with the victory screen, so screen_victory (0.99),
+    # victory_ranking, victory_leaderboards and victory_achieve all match here
+    # too — measured, not assumed. Anchor on the header or you cannot tell a
+    # Last Score screen from a victory screen.
+    #
+    # This crop is also the header-TEXT assertion tests/visitLastScore.py makes.
+    # Unity publishes no accessibility text, so "the header reads Last Won Game
+    # Score" can only be answered by matching the pixels of those words. It
+    # scores 1.000 on its own screen and 0.448 on the next-best capture in the
+    # set, so the words are what is being matched, not the red bar.
+    "screen_last_score": ("LastScore.png", (214, 114, 613, 150)),
+    # The forward arrow beside the "ranking for <period>" line. Tapping it cycles
+    # the period week -> month -> overall -> day -> week, so four taps are a full
+    # round trip back to where you started.
+    #
+    # It is a plain triangle with almost no internal detail, which is the worst
+    # case for template matching: it reaches 0.685 on the About screen and 0.655
+    # on the game table against 1.000 here, i.e. only 0.015 of daylight under the
+    # default 0.7. It therefore carries a raised THRESH in unity_ui.py. The 0.941
+    # it scores on the victory screen is NOT a false positive — that screen
+    # carries the same period stepper.
+    "last_score_next":   ("LastScore.png", (645, 684, 686, 718)),
+
+    # ── Game Center (Apple's own sheet, opened by "leaderboards") ─
+    # NOT Unity content: this is GameKit's leaderboard UI, presented out of
+    # process. WDA sees nothing but anonymous XCUIElementTypeOther over it — the
+    # same blindness as the ATT prompt — so it can only be matched as an image,
+    # and it scales by POINT density, not by Unity's width ratio. Both entries
+    # are therefore listed in unity_ui.NATIVE_UI.
+    #
+    # The sheet's own big header. 1.000 here against 0.442 for the next-best
+    # capture, and only 0.377 against the Game Center DASHBOARD's smaller
+    # "Leaderboards" row — the two do not collide.
+    "gc_leaderboards":   ("GameCenterLeaderboards.png", (38, 320, 482, 382)),
+    # The circular back chevron, top-left of that sheet. 1.000 here, 0.573 next.
+    # Caveat worth knowing: the circle is TRANSLUCENT, so this crop bakes in the
+    # dark red bar that sat behind it. That is safe for the one flow that uses it
+    # (the sheet is always opened from the Last Score screen, whose header is
+    # that bar) and would need re-cutting to be used from anywhere else — the
+    # same trap the iOS alert templates fell into.
+    "gc_back":           ("GameCenterLeaderboards.png", (30, 102, 124, 194)),
+    # The sister sheet, opened by "achievements". Same chrome, same back arrow in
+    # the same place (gc_back scores 1.000 on both) — only the header differs, so
+    # the header is what has to separate them, and it does: each scores 1.000 on
+    # its own page and ~0.53 on the other's.
+    "gc_achievements":   ("GameCenterAchievements.png", (35, 318, 494, 382)),
+
     # ── Options rows: the settings controls themselves ────────────
     # Every row on the Options page is <icon> <label> <control>, with the
     # control right-aligned in a fixed column. These crops are the LABELS: they
