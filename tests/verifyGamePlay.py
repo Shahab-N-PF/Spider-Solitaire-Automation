@@ -42,9 +42,21 @@ DRAWER = ("ingame_replay", "ingame_abandon", "ingame_options",
 
 
 def reach_table():
-    ui.expect(ui.launch_to_menu(), "could not reach the main menu")
-    ui.expect(ui.open_picker(), "the difficulty picker did not open")
-    ui.expect(ui.start_game("easy"), "Easy did not deal a game")
+    """Get to a game table, RESUMING a paused game rather than abandoning it.
+
+    Leaving the table pauses a game instead of ending it, so in a suite run
+    verifyPlay's Easy game is still sitting there when this starts, and the old
+    behaviour — deal a fresh one over it — spent a whole deal to throw that
+    away. ui.resume_or_deal() carries on with an open table, else resumes from
+    the picker, and deals only when there is nothing to come back to.
+
+    Nothing below cares which level dealt the board: every check here is about
+    how the TABLE behaves. The one thing a resumed game could cost is a stock
+    with no cards left, which the deal/undo check needs — in practice this test
+    ENDS by dealing a fresh board through the drawer's "New", so the game it
+    finds on the next run is an untouched one with a full stock.
+    """
+    print(f"  {ui.resume_or_deal('easy')}")
 
 
 def drawer_opens(button, screen, retries=2):
@@ -309,10 +321,8 @@ _STRIP_DX = 0.140
 _STRIP_Y0 = 0.027
 _STRIP_Y1 = 0.074
 
-# Ink bars. Measured on three separate build-363 table captures the strip reads
-# 11.7% with the setting ON, and an equal-sized patch of bare felt anywhere else
-# on the table reads 0.00% — the median comparison leaves no floor at all, so the
-# two states are about as far apart as a measurement gets. The bars sit well
+# Ink bars. With _INK_DELTA below, the strip reads ~10% with the setting ON and
+# 0.00% with it OFF — as far apart as a measurement gets. The bars sit well
 # inside that gap and the run prints every number, so drift shows up as a number
 # moving before it shows up as a failure.
 _INK_ON = 0.015
@@ -327,13 +337,34 @@ def strip_box(anchor):
             int(cx + _STRIP_DX * w), int(cy + _STRIP_Y1 * h))
 
 
+# How far a pixel must sit from the strip's background before it counts as ink.
+#
+# NOT a round number. The table plays a sparkle/glow animation whose edge drifts
+# into the bottom-left of this box, and it is a LIGHT GREEN on green felt — only
+# ~41 units from the background. At the original threshold of 40 that read as
+# 5.72% ink on a strip that was genuinely empty, which is exactly how this check
+# failed the first time it ran inside the full suite (it had passed twice
+# standalone, when the animation happened not to be in that phase).
+#
+# Real text is nowhere near that subtle: white and gold glyphs sit 150-250 units
+# from the felt. Measured across three captures:
+#
+#   threshold      40      60      80     100     120
+#   ON          11.87%  11.37%  11.12%  10.74%  10.29%
+#   OFF          5.72%   3.17%   1.42%   0.26%   0.00%
+#
+# 120 is the first value that reads a truly empty strip as empty, and it still
+# leaves >10% for the text. Anything in 100-150 would do; 120 is central.
+_INK_DELTA = 120
+
+
 def strip_ink(box, tag: str) -> float:
     """Fraction of `box` that is ink rather than background."""
     import numpy as np
     a = np.asarray(ui.region(ui.shoot(f"_strip_{tag}"), box).convert("RGB"),
                    dtype=np.int16)
     bg = np.median(a.reshape(-1, 3), axis=0)
-    return float((np.abs(a - bg).max(axis=2) > 40).mean())
+    return float((np.abs(a - bg).max(axis=2) > _INK_DELTA).mean())
 
 
 def check_rich_features():

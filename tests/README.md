@@ -57,11 +57,16 @@ export DEVICE_UDID=00008030-001C51DA0E80A02E   # THEN enable Airplane Mode
 `run_all.py` preflights the rig (templates present, WDA reachable, `DEVICE_UDID`
 set) and exits 2 with a readable message rather than failing test-by-test.
 
-Not in the default suite, on purpose: **`resetStats.py`** (destructive — wipes
-local statistics), **`verifyHelpShift.py`** (needs the device online, which the
-suite otherwise avoids), **`verifyAds.py`** (same — ads need the network; see
-*Ads* below), **`verifyFirstLaunch.py`** (cold-start check, meaningful mainly
-after a reinstall).
+**The suite is destructive.** It ends with `resetStats`, which permanently wipes
+local statistics on the device (Game Center scores are untouched). That is safe
+where it sits — everything that reads or depends on play history has already run,
+and each run re-earns it — but a full run does leave the device's local stats at
+zero.
+
+Not in the default suite, on purpose: **`verifyHelpShift.py`** (needs the device
+online, which the suite otherwise avoids), **`verifyAds.py`** (same — ads need
+the network; see *Ads* below), and **`visitLastScore.py`** (its Game Center legs
+need the network and a signed-in Apple account).
 
 ## The app is NOT restarted between tests
 
@@ -82,6 +87,15 @@ Two places still want a genuinely fresh app and ask for it explicitly:
   makes that true — without the force it would fail on a re-run by finding its
   own previous unlock still on screen.
 * `ui.cold_launch()` — the recovery path, whose whole job is to discard state.
+* `verifyRelaunch` — a whole test built on the restart, and the only one that
+  asserts the app comes back on the GAME SCREEN rather than the menu. It presses
+  **Home first** (`ui.home()`), then kills the app mid-game and checks the played
+  board is restored. That Home press is the whole difference: measured on build
+  363, backgrounding then killing brings the game screen back at both a 3.5s and
+  a 35s gap, while killing straight from the foreground brings back the **menu**
+  — the app writes its state on backgrounding, and no user can kill a foreground
+  app anyway. It is deliberately **not in `run_all.py`**: the kill would hide the
+  Dev Panel button `verifyVictory` and `verifyDifficultyLevels` depend on.
 
 Consequence for ordering: **`verifyMoreGamesIcons` must stay last** and
 `openDebugTools` must stay ahead of `verifyVictory`. See the next section.
@@ -162,10 +176,12 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyChooseLook` | Surface/Cards tabs switch, a surface applies (screen changes), × closes to the menu |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
 | `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
+| `verifyFirstLaunch` | a **cold start** (terminate, relaunch) reaches the menu with no pop-ups left on screen; on a fresh install it also clears the two one-per-install gates. Runs **first** |
 | `verifyGamePlay` | **deal/undo round trip**, **tap-to-lower** drops the playfield and raises it back, hints respond, all six drawer actions behave, and two Options settings are proved to reach the table — **"Use Hearts"** flips the dealt cards from black spades to red hearts and back, and **"Rich Features"** hides and restores the Timer, Score and Multiplier |
+| `resetStats` | reset link + both confirmations, then back to the menu. **DESTRUCTIVE** — wipes local statistics, so it runs **last** |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
-| `resetStats` | reset link + confirmation chain (destructive, opt-in) |
 | `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
+| `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
 | `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |
 
@@ -282,6 +298,16 @@ inherit. Fixed targets rather than "put back what was found" also mean each run
 *starts* from a known state, whatever the last one — or a person poking at the
 phone — left behind. The reset never raises; anything it cannot set it names on
 stdout, and that only fails the test when the run was otherwise passing.
+
+**Why `MID_TOL` is 0.08 and not tighter.** A drag asking these sliders to move
+less than about **14 px — roughly 0.06 of the track — does not register as a
+drag at all**: the knob moves by 0.000, at swipe durations of 0.5 s, 1.2 s and
+2.0 s alike. That is a gesture-recognition floor, not a slider step, and it means
+no gesture can close a gap smaller than itself. `ui.slider_set()` therefore
+answers a too-short correction by parking the knob at the far end and
+re-approaching, rather than re-issuing a gesture that cannot move anything —
+which is what it used to do, three times over, before reporting the value as if
+the control had refused. Both ends still land **exactly** (0.00 / 1.00).
 
 Two things measured while building it, both worth not re-deriving:
 
@@ -441,17 +467,26 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   cancelled, and `verifyPlay` failed. These are real `UIAlertController`s, so
   `ui.alert_now()` reads their text over WDA and `ui.answer_dialog()` presses
   Yes/No by name; the templates remain only as a fallback.
-* **Two first-launch gates block everything, once per install.** A fresh install
-  shows the **App Tracking Transparency** prompt, then **Terms & Conditions** on
-  the next launch. Every TestFlight build is a fresh install, so the first run on
-  each new build hits them. They need *different* mechanisms, and the difference
-  was measured: ATT is presented **out of process** and is invisible to the
-  session (`/alert/text` 404s while it is plainly on screen), so it is matched as
-  an image (`att_prompt` / `att_deny`, answered "Ask App Not to Track"); T&C is
-  app-presented, so it is matched by alert text (`ui.FIRST_LAUNCH_GATES`) and
-  accepted. `ui.clear_overlays()` does both and only touches alerts it positively
-  recognises as gates, so the game's own confirmations are left to
-  `settle_prompts()`.
+* **Two first-launch gates block everything: Terms & Conditions, then ATT.**
+  Both are matched as **images** — *neither* is visible to WDA, and the earlier
+  claim here that T&C was matched by alert text was wrong. Measured on build 363
+  with a live session while the T&C pop-up was plainly on screen, `/alert/text`
+  returned `""` and `/alert/buttons` `[]`: the app draws it rather than presenting
+  a `UIAlertController`. That branch therefore never fired and the gate was never
+  dismissed — dead code nobody noticed, because no test cold-launched until
+  `verifyFirstLaunch` was added to the suite. ATT is invisible for a different
+  reason: it is presented out of process, so `/alert/text` 404s on it.
+  `ui.clear_overlays()` taps `tc_continue`, then **`att_allow`** — the app wants
+  tracking *granted* before it lets a first launch through, and answering "Ask
+  App Not to Track" does not clear the gate (`att_deny` is kept for reference).
+  It still only touches alerts it positively recognises as gates, so the game's
+  own confirmations are left to `settle_prompts()`.
+* **They come back far more often than "once per install".** The app writes its
+  state when it goes to the **background**, and `cold_launch()` terminates it
+  from the **foreground**, so the "agreed" flag can be lost and both reappear on
+  the next launch. `cold_launch()` therefore sweeps, waits, and sweeps again: the
+  gates arrive in sequence, so one immediate pass can clear T&C and return before
+  ATT has even been drawn.
 * **`/alert/buttons` does not exist on this WDA (15.0.0) — it 404s.** That made
   `helpers.alert_buttons()` return `[]`, which `clear_overlays()` read as "no
   alert", so the whole overlay sweep was dead code. Use `helpers.alert_text()` as
@@ -461,6 +496,18 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   it until answered — it silently swallowed a tap whose template had matched
   fine. `settle_prompts()` checks it first and answers **OK** ("Show Me"
   navigates away to Options).
+* **…and it cannot be template-matched, which cost two levels.** The `prompt_tip`
+  / `tip_ok` crops were cut from a rendering where the card was **dark green with
+  white text**; this build draws it **pale mint with black text**. Against
+  captures where the tip was plainly on screen they scored **0.344** and
+  **0.397** against a 0.70 bar, so the tip branch never fired and the card sat
+  there swallowing the cheat taps — reported as "the cheat did not lead to the
+  victory screen" on **2 of 4** levels, a long way from the cause. The crops are
+  gone. `ui.card_dialog()` finds the card by **shape** — a large, solid,
+  uniformly bright rounded rect — and `ui.card_buttons()` reads its pills, both
+  measured against the picture's own colours so a repainted surface is
+  irrelevant. It handles the **one-button and two-button** forms without being
+  told which to expect, and the **reset-scores** prompt is the same widget.
 * **The Dev Panel overlay hides the menu.** Once expanded it follows you across
   screens and covers the right-hand column — which is where the main menu draws
   its labels, so `ui.on_menu()`/`ui.to_menu()` cannot confirm the menu while it

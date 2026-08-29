@@ -50,6 +50,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. |
 | `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`.** Banner is served, an interstitial fires on leaving a game, the ad never carries the user out of the app, and the app recovers. See `tests/README.md` → *Ads*. |
 | `tests/visitLastScore.py` | **Last Score — ONLINE only, not in `run_all.py`.** The difficulty picker's "LAST SCORE" opens the "Last Won Game Score" ranking view; its forward arrow cycles the period (4 taps = a full round trip); "leaderboards" and "achievements" each open Apple's Game Center sheet and close again. Game Center needs the network + a signed-in Apple account. |
+| `tests/verifyRelaunch.py` | **App-restore check — standalone, not in `run_all.py`.** Gets a game (resuming a paused one rather than dealing over it), plays one move, **presses Home, kills the app on the game screen**, and launches it again after ~3.5s and after ~35s. Both times it must come back on the game screen with **the same board** — matched by correlation (`ui.board_score`), *not* per-pixel: the app does not redraw a restored board identically, and a pixel diff called a provably identical deal 9-12% changed. The Home press is load-bearing: the app writes its state on backgrounding, so a foreground kill brings back the **menu** instead. Excluded from the suite because the kill hides the Dev Panel unlock. |
 | `tests/run_all.py` | Run the whole **Unity** functional suite with a preflight (templates, WDA, `DEVICE_UDID`); print a PASS/FAIL summary that labels known Unity port gaps. Full doc: `tests/README.md`. |
 | `scripts/capture_unity_screens.py` | Bootstrap capture: walk Unity by coordinate, screenshot every screen into `log/unity_screens/` (the input the templates are cut from). |
 | `scripts/crop_unity_assets.py` | Cut Unity anchors out of those captures (`--device iphone14｜iphone11`). |
@@ -162,8 +163,41 @@ the victory screens reachable without playing a game out. Three things about it:
   `close_dev_panel()` first.
 - **A third dialog exists:** a "Did you know?" tip with **OK / Show Me** (not
   Yes/No) lands on the table after a deal and swallows taps until answered — it
-  ate the first cheat attempt. `settle_prompts()` now answers it OK first ("Show
-  Me" navigates away to Options).
+  ate the first cheat attempt. `settle_prompts()` answers it OK first ("Show Me"
+  navigates away to Options).
+- **That tip is found by SHAPE, not by template — and its old crops were never
+  once a match.** `prompt_tip` / `tip_ok` were cut from a rendering where the
+  card was **dark green with white text**; this build draws it **pale mint with
+  black text**, so the two are near photographic negatives. Measured on build
+  363 against captures where the tip was plainly on screen, `prompt_tip` scored
+  **0.344 and 0.397** against a 0.70 bar — `is_on("prompt_tip")` was always
+  False and `settle_prompts()` never saw the tip at all, so it sat there eating
+  the taps aimed at the table. That is what failed **2 of 4 levels** in
+  `verifyDifficultyLevels` as "the cheat did not lead to the victory screen".
+  The crops are **deleted**, not re-cut: the card is translucent (so any crop
+  bakes in what sat behind it), and the tip ships in a **one-button and a
+  two-button** form with different geometry. `ui.card_dialog()` finds it as a
+  large solid bright rounded rect and `ui.card_buttons()` reads its pills, both
+  relative to the picture's own colours, so a repainted surface changes nothing.
+  The **reset-scores** prompt on Statistics is the same widget, and in both the
+  **leftmost** button is the dismissing one (OK before "Show Me", No before Yes).
+- **The Options page glides for over two seconds after a scroll**, and that made
+  every slider read a lottery. `opt_row()` located the label in one capture and
+  `opt_knob()` hunted the knob in the next; drift between the two was measured at
+  **35 px** against a search band of only ±39 px. The bad case is not a miss —
+  it catches *part* of the knob, reports a narrower one, and turns that into a
+  plausible but **wrong number**. That is the whole of the "Card Lowering is a
+  stepped slider that cannot reach mid-track" story: it is not stepped, and
+  0.57 was a mis-measurement. `ui.opt_settled()` waits for the row to stop
+  moving and hands back **the frame it measured in**, so the knob is read from
+  that same frame; the value then repeats **exactly** (spread 0.0000).
+- **A drag shorter than ~14 px (~0.06 of the track) does not register at all**
+  — measured at swipe durations of 0.5 s, 1.2 s and 2.0 s alike, the knob moved
+  by 0.000. So ~0.06 is the resolution a synthetic swipe *has* on these sliders,
+  `slider_set()` answers a too-short correction by parking at the far end and
+  re-approaching instead of re-issuing a gesture that cannot work, and
+  `verifyOptions`' `MID_TOL` is **0.08**. Both ends still land exactly (0.00 /
+  1.00), which is what the end-to-end assertions rest on.
 
 **Why it locates by template, when `compare_unity.py` uses coordinates.** Both
 choices are right for their job. A *pixel comparison* must not find its targets
@@ -194,6 +228,11 @@ re-baselining — `baselines/` stay Obj-C):
   *fragile* (match their own source frame but not another build's capture of the
   same screen — the menu sparkle animation makes this a live risk) or *ambiguous*
   (match a screen they shouldn't). Runs offline. Currently 53/53 clean.
+  **`resume` is not among the 53** and cannot be: the gate matches each crop
+  against saved screen captures, and the picker's Resume ribbon is drawn only
+  while a game is PAUSED, which `capture_unity_screens.py` never leaves it. It
+  was verified on the live device instead (matched on the picker,
+  `ui.resume_game()` reached the table).
 - **Two findings from that gate are baked into the driver:** (1) the menu labels
   stay visible **behind the Choose Look modal**, so `ui.on_menu()` must rule the
   modal out rather than trust a matchable menu label; (2) the Help footer carries
@@ -210,13 +249,24 @@ re-baselining — `baselines/` stay Obj-C):
   test failed as "did not reach the game table". These are real
   `UIAlertController`s: `ui.alert_now()` reads the text, `ui.answer_dialog()`
   presses Yes/No by name, templates are only the fallback.
-- **Two first-launch gates, once per install — and every TestFlight build is a
-  fresh install.** ATT prompt, then Terms & Conditions on the next launch. They
-  need different mechanisms: ATT is presented **out of process** and is invisible
-  to WDA (`/alert/text` 404s on it while the app's own alerts read back fine), so
-  it's image-matched (`att_prompt` / `att_deny`); T&C is app-presented, so it's
-  matched by alert text. `ui.clear_overlays()` handles both and touches only
+- **Two first-launch gates, in this order: Terms & Conditions, then ATT.** Both
+  are **image-matched** — *neither* is visible to WDA. ATT is presented out of
+  process (`/alert/text` 404s on it); the T&C pop-up is drawn by the app rather
+  than presented as a `UIAlertController`, and measured on build 363 with a live
+  session while it was plainly on screen, `/alert/text` returned `""` and
+  `/alert/buttons` `[]`. This file used to claim T&C was matched by alert text —
+  it was not, that branch never fired, and the gate was simply never dismissed.
+  Nothing noticed because no test cold-launched until `verifyFirstLaunch` joined
+  the suite. `ui.clear_overlays()` now taps `tc_continue` then **`att_allow`** —
+  the app wants tracking *granted* before it lets a first launch through;
+  answering "Ask App Not to Track" does not clear the gate. It still touches only
   alerts it positively recognises as gates.
+- **The gates come back far more often than "once per install".** The app writes
+  its state when it goes to the **background**, and `cold_launch()` terminates it
+  from the **foreground**, so the "agreed" flag can be lost and the pair
+  reappears on the next launch. `cold_launch()` therefore sweeps, waits, and
+  sweeps again — the gates arrive in sequence, so one immediate pass can clear
+  T&C and return before ATT has been drawn.
 - **`/alert/buttons` doesn't exist on this WDA (15.0.0) — it 404s.** That made
   `helpers.alert_buttons()` return `[]`, which `clear_overlays()` read as "no
   alert up", so the whole overlay sweep was dead code. `helpers.alert_text()` is
