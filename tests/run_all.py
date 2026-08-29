@@ -68,8 +68,8 @@ TESTS = [
     "verifyStatsPage",          # renders + scrolls end to end
     "verifyOptions",            # 4 named rows driven (2 toggles, 2 sliders), then reset
     "verifyHelpPage",           # opens + the body scrolls
-    "verifySpiderLogo",         # About via item + logo, links, in-app FAQ
-    "verifyMoreGamesBtn",       # in-app cross-promo page
+    "verifySpiderLogo",         # About via item + logo, links, in-app FAQ + its scroll
+    "verifyMoreGamesBtn",       # in-app cross-promo page + its scroll
     "verifyPlay",               # picker shows 5 levels, Easy deals
     # openDebugTools force-restarts the app (its premise is a HIDDEN button), so
     # it must come before anything that needs the unlock — and the fewer tests

@@ -1118,13 +1118,19 @@ def open_menu_item(name: str, settle: float = 2.5) -> bool:
     return True
 
 
-def visit_sub_screen(control: str, screen: str, shot_name: str) -> str:
+def visit_sub_screen(control: str, screen: str, shot_name: str, after=None) -> str:
     """Open a main-menu sub-screen, prove we're on it, capture it, come back.
 
     Checks three things, because "the menu went away" proves nothing on its own:
     a positive anchor unique to the destination is showing (we opened the RIGHT
     screen), the menu is genuinely gone (we actually navigated), and back returns
     to the menu (the screen isn't a dead end). Returns the capture path.
+
+    `after` is an optional callable run while we are still ON the screen, after
+    the capture and before walking back — for a caller that needs to do more
+    there than look at it (verifyMoreGamesBtn scrolls the promo list). It is
+    deliberately not passed the capture: the top-of-page shot is the baselined
+    one, so anything the hook does must happen after it is safely taken.
     """
     expect(launch_to_menu(), f"[{screen}] could not reach the main menu")
     expect(tap(control, settle=2.5), f"[{screen}] menu control not found: {control}")
@@ -1134,6 +1140,8 @@ def visit_sub_screen(control: str, screen: str, shot_name: str) -> str:
     expect(not on_menu(timeout=1.0),
            f"[{screen}] tapping {control} did not leave the main menu")
     shot = shoot(shot_name)
+    if after is not None:
+        after()
     expect(to_menu(), f"[{screen}] could not get back to the main menu")
     return shot
 

@@ -169,8 +169,8 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyStatsPage` | Statistics renders, Game Center present, scrolls end to end to "Reset Statistics" (not tapped) |
 | `verifyOptions` | Options opens with Contact Us present, then **four named rows** are *operated*: **Applause Volume** and **Card Lowering** (sliders) each drag to both ends and to mid-track, **Auto Mute Sounds** (ships ON) and **Use Hearts** (ships OFF) each flip and report the new state, and a changed slider value survives leaving the screen and returning. All four are then **reset to fixed values — on failure too** |
 | `verifyHelpPage` | Help opens on "Introduction" and the body scrolls to its footer |
-| `verifySpiderLogo` | About reachable from both the menu item **and the logo**; version, copyright, links; in-app FAQ opens |
-| `verifyMoreGamesBtn` | the in-app cross-promo page opens and returns |
+| `verifySpiderLogo` | About reachable from both the menu item **and the logo**; version, copyright, links; in-app FAQ opens **and scrolls to its 'submit feedback' footer** |
+| `verifyMoreGamesBtn` | the in-app cross-promo page opens, **scrolls** (one swipe, revealing FreeCell + Spiderette below the fold) and returns |
 | `verifyMoreGamesIcons` | all 5 promo icons present, **each one opens the App Store**, switching back (never killing the app) returns to the menu, and the 5 go to *different* pages. Needs a completed game first — runs last |
 | `openDebugTools` | 5 rapid taps on the About emblem reveal the "Dev Panel" button, bottom-right. Does **not** restart the app (it clears a prior unlock with a toggle-off burst instead), and leaves the button ON for `verifyVictory` and `verifyDifficultyLevels` |
 | `verifyChooseLook` | Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
@@ -429,6 +429,11 @@ Currently **53 templates, 0 fragile, 0 ambiguous**. Two findings from this gate
 are baked into the driver: the menu labels stay visible **behind the Choose Look
 modal** (so `ui.on_menu()` rules the modal out), and the Help footer carries the
 **same** FAQ link as About.
+
+The FAQ page shares a footer link too — its bottom carries the **same 'submit
+feedback' link** as About (`about_feedback`), which is what `verifySpiderLogo`
+scrolls to in order to prove the FAQ's whole body rendered. Like the Help/About
+FAQ link, this is a real shared element, not a template fault.
 
 Refreshing templates for a new Unity build (**not** the same as re-baselining —
 `baselines/` stay Obj-C):
