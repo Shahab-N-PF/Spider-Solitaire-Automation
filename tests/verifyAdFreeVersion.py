@@ -59,6 +59,12 @@ import unity_ui as ui  # noqa: E402
 
 LINK = "about_adfree"
 
+# The paid build this link must land on, as a substring of the App Store page
+# title (ui.store_title() strips the '▻' glyph the store injects into it).
+# Asserted as well as the bundle id: the id only says "an App Store page",
+# and the point of an ad-free link is WHICH product it reaches.
+EXPECTED_TITLE = "Spider Solitaire +"
+
 
 def run():
     # 1-3. Reach About, and prove we are on it rather than merely off the menu.
@@ -102,9 +108,18 @@ def run():
                   f"It went somewhere, but to {went_to}, not "
                   f"{ui.APP_STORE}."))
 
-    # 8. Now the page is worth capturing.
+    # 8. Now the page is worth capturing — and worth NAMING. The bundle id only
+    #    says "an App Store page"; the title says WHICH product, and the whole
+    #    point of an ad-free link is that it lands on this game's paid build
+    #    rather than any other page the store could have shown.
     shot = ui.shoot("AdFreeVersion")
-    print(f"  'ad free version' opened the App Store ({went_to}) — see {shot}")
+    title = ui.store_title()
+    ui.expect(EXPECTED_TITLE.lower() in title.lower(),
+              f"the App Store opened, but on {title!r} rather than a page named "
+              f"{EXPECTED_TITLE!r} — the link reaches the store but not this "
+              f"game's paid build. (An empty title means the page had not "
+              f"rendered, not that the link is wrong.) See {shot}")
+    print(f"  'ad free version' opened the App Store on {title!r} — see {shot}")
 
     # 9-10. Come back. resume() foregrounds Spider without restarting it, so
     #       landing back on ABOUT is what proves the app was not relaunched.

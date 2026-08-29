@@ -49,9 +49,20 @@ Steps:
   3. switching back returns to Spider's menu. Coming back uses ui.resume(),
      which foregrounds the app WITHOUT killing it, so nothing in the run is
      lost. Never terminate to get back;
-  4. the five destinations differ — but only when the store pages actually
-     render. Offline every page is the same "No Internet Connection" screen, so
-     the test says the targets were not verified instead of pretending.
+  4. each icon opens the RIGHT game — checked by the App Store page's NAME,
+     read from its accessibility tree (the store is an ordinary UIKit app, so
+     unlike the game it publishes real text). This only runs when the pages
+     actually render: offline every page is the same "No Internet Connection"
+     screen, so the test says the targets were not verified instead of
+     pretending, and the same-page comparison is what detects that case.
+
+     This used to assert only that the five pages DIFFER from each other, which
+     a swap survives — swap two links and you still have five different pages.
+     The name check is in two halves, and the second is the one that matters:
+     each page must carry its icon's expected name, AND each expected name must
+     match exactly ONE of the five. Without that second half the first is weaker
+     than it looks, because three of the five titles contain "Solitaire" and two
+     contain "Card".
 
 Captures log/more_games_icons.png and log/promo_store_<icon>.png.
 
@@ -73,6 +84,29 @@ PROMO_ICONS = ("promo_solitaire", "promo_sudoku2", "promo_cardgames",
                "promo_freecell", "promo_spiderette")
 
 STORE_BUNDLE = ui.APP_STORE             # where a working promo icon lands
+
+# The App Store name each icon must land on, as a substring of the page title.
+# Measured (titles as ui.store_title() cleans them):
+#
+#   promo_solitaire   Solitaire: Classic Cards
+#   promo_sudoku2     Sudoku - Classic Brain Game
+#   promo_cardgames   Card Games
+#   promo_freecell    FreeCell Solitaire
+#   promo_spiderette  Solitaire Spiderette
+#
+# These are SUBSTRINGS so a version suffix or a tagline change does not break
+# them — but they are picked to be unique, and run() ASSERTS that uniqueness
+# rather than trusting it. That matters more than it looks: three of the five
+# titles contain "Solitaire" and two contain "Card", so an obvious keyword like
+# "solitaire" would pass on the WRONG page. A check that looks strict and is not
+# is worse than no check, because it reads as proof.
+EXPECTED = {
+    "promo_solitaire":  "Solitaire: Classic Cards",
+    "promo_sudoku2":    "Sudoku",
+    "promo_cardgames":  "Card Games",
+    "promo_freecell":   "FreeCell",
+    "promo_spiderette": "Spiderette",
+}
 
 
 def objc_template(name, threshold=0.7):
@@ -129,12 +163,13 @@ def check_redirect(name):
               f"foreground app is {went_to or 'unknown'}. A promo icon that goes "
               f"nowhere is a dead link.")
     shot = ui.shoot(f"promo_store_{name}")
+    title = ui.store_title()            # read BEFORE leaving — it is per-page
 
     ui.expect(ui.resume(), f"[{name}] could not switch back to Spider from the "
                            f"App Store")
     ui.expect(ui.on_menu(timeout=10.0),
               f"[{name}] came back from the App Store but not to the main menu")
-    return shot
+    return shot, title
 
 
 def looks_the_same(a, b, tol=8.0):
@@ -160,6 +195,51 @@ def looks_the_same(a, b, tol=8.0):
     return float(np.abs(band_a.astype("int16") - band_b.astype("int16")).mean()) < tol
 
 
+def check_destinations(names, titles):
+    """Assert each icon opened the page named for it. Raises on failure.
+
+    A function rather than inline code so the SWAP case can be proved
+    offline: hand it a titles dict with two entries exchanged and it must
+    raise. A destination check that has never been shown to fail is not a
+    check.
+    """
+    # The pages loaded, so WHICH page each icon opened is answerable — by
+    # NAME, read out of the App Store's accessibility tree. "The five pages
+    # differ from each other" (all this used to check) would still pass if
+    # two links were SWAPPED, because a swap leaves five different pages.
+    missing = [n for n in names if not titles[n]]
+    ui.expect(not missing,
+              f"the App Store page title could not be read for {missing}, so "
+              f"which game those icons open is unverified. The store publishes "
+              f"a real accessibility tree, so an empty title means the page "
+              f"had not rendered — not that the link is wrong.")
+
+    wrong = [(n, titles[n]) for n in names
+             if EXPECTED[n].lower() not in titles[n].lower()]
+    ui.expect(not wrong,
+              "these promo icons opened the WRONG App Store page: " + "; ".join(
+                  f"{n} opened {t!r} but should carry "
+                  f"{EXPECTED[n]!r}" for n, t in wrong))
+
+    # And each expected name must pick out exactly ONE of the five pages —
+    # otherwise the check above could be satisfied by the wrong page. This is
+    # the half that actually catches a swap.
+    ambiguous = []
+    for n in names:
+        hits = [m for m in names if EXPECTED[n].lower() in titles[m].lower()]
+        if hits != [n]:
+            ambiguous.append((n, EXPECTED[n], hits))
+    ui.expect(not ambiguous,
+              "these expected names no longer identify one page each, so the "
+              "destination check cannot be trusted and EXPECTED needs "
+              "re-picking: " + "; ".join(
+                  f"{e!r} (for {n}) matched {hits}" for n, e, hits in ambiguous))
+
+    for n in names:
+        print(f"    {n} -> {titles[n]}")
+    print(f"  all {len(names)} icons open the RIGHT App Store page, by name")
+
+
 def run():
     ui.expect(ui.launch_to_menu(), "could not reach the main menu")
     ui.sleep(3)                     # the strip animates in after the menu settles
@@ -180,9 +260,9 @@ def run():
 
     # Every icon is a link: tap it, prove it hands off to the App Store, and come
     # back by switching apps (never by killing Spider).
-    stores = {}
+    stores, titles = {}, {}
     for name in PROMO_ICONS:
-        stores[name] = check_redirect(name)
+        stores[name], titles[name] = check_redirect(name)
         print(f"  {name}: opens the App Store, and switching back returns to the menu")
 
     # Do the five go to DIFFERENT places? Only answerable when the store pages
@@ -196,18 +276,69 @@ def run():
               "WHICH game each icon opens was not verified — only that each one "
               "hands off to the App Store. Re-run online to check the targets.")
     else:
-        same = [(a, b) for i, a in enumerate(names) for b in names[i + 1:]
-                if looks_the_same(stores[a], stores[b])]
-        ui.expect(not same,
-                  f"these promo icons opened the SAME App Store page, so at least "
-                  f"one points at the wrong game: {same}")
-        print(f"  all {len(names)} icons open different App Store pages")
+        check_destinations(names, titles)
 
     print(f"PASS: promo icons are present and every one opens the App Store — "
           f"see {shot}")
 
 
+# Real titles as measured on the device (build 363), for the offline self-test.
+MEASURED = {
+    "promo_solitaire":  "Solitaire: Classic Cards",
+    "promo_sudoku2":    "Sudoku - Classic Brain Game",
+    "promo_cardgames":  "Card Games",
+    "promo_freecell":   "FreeCell Solitaire",
+    "promo_spiderette": "Solitaire Spiderette",
+}
+
+
+def selftest():
+    """Prove check_destinations() actually FAILS on a swap. No device needed.
+
+    A destination check that has never been seen to fail is not a check — and
+    this one replaced a weaker test that looked strict, so the burden is real.
+    Run:  ./.venv/bin/python tests/verifyMoreGamesIcons.py --selftest
+    """
+    names = list(PROMO_ICONS)
+    bad = []
+
+    def must(label, titles, catch):
+        try:
+            check_destinations(names, dict(titles))
+            got = "passed"
+        except AssertionError:
+            got = "caught"
+        ok = (got == "caught") == catch
+        print(f"  {'ok ' if ok else 'BAD'} {label:34} {got}")
+        if not ok:
+            bad.append(label)
+
+    must("the measured titles", MEASURED, catch=False)
+    for a, b in (("promo_freecell", "promo_spiderette"),
+                 ("promo_solitaire", "promo_cardgames")):
+        t = dict(MEASURED)
+        t[a], t[b] = MEASURED[b], MEASURED[a]
+        must(f"swap {a.split('_')[1]}/{b.split('_')[1]}", t, catch=True)
+    t = dict(MEASURED); t["promo_sudoku2"] = MEASURED["promo_solitaire"]
+    must("two icons -> the same page", t, catch=True)
+    t = dict(MEASURED); t["promo_freecell"] = ""
+    must("a page that never rendered", t, catch=True)
+    # A suffix rename is NOT a destination change, so it must still pass — the
+    # expected names are substrings precisely so this does not cry wolf. A
+    # rename that DROPS the name (Card Games -> Klondike Deluxe) does fail.
+    t = dict(MEASURED); t["promo_cardgames"] = "Card Games Platinum Deluxe"
+    must("a suffix rename", t, catch=False)
+    t = dict(MEASURED); t["promo_cardgames"] = "Klondike Deluxe"
+    must("a rename that drops the name", t, catch=True)
+
+    print("SELFTEST FAIL: " + ", ".join(bad) if bad
+          else "SELFTEST PASS: the destination check catches every swap")
+    return not bad
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:        # offline proof, no device
+        sys.exit(0 if selftest() else 1)
     try:
         run()
     except Exception as e:  # noqa: BLE001

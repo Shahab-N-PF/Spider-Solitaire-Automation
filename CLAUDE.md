@@ -50,7 +50,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. |
 | `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`.** Banner is served, an interstitial fires on leaving a game, the ad never carries the user out of the app, and the app recovers. See `tests/README.md` → *Ads*. |
 | `tests/visitLastScore.py` | **Last Score — ONLINE only, not in `run_all.py`.** The difficulty picker's "LAST SCORE" opens the "Last Won Game Score" ranking view; its forward arrow cycles the period (4 taps = a full round trip); "leaderboards" and "achievements" each open Apple's Game Center sheet and close again. Game Center needs the network + a signed-in Apple account. |
-| `tests/verifyAdFreeVersion.py` | **Ad-free link — ONLINE only, not in `run_all.py`.** About's "ad free version" does **not** redirect straight out: it raises a No/Yes card ("Tap Yes to proceed to the App Store"), and only **Yes** hands off — to **Spider Solitaire +**, this game's paid build. Asserted on the foreground bundle id (`ui.left_app()`), never on pixels; coming back with `ui.resume()` must land on **About**, which is the proof the app was resumed rather than restarted. |
+| `tests/verifyAdFreeVersion.py` | **Ad-free link — ONLINE only, not in `run_all.py`.** About's "ad free version" does **not** redirect straight out: it raises a No/Yes card ("Tap Yes to proceed to the App Store"), and only **Yes** hands off — to **Spider Solitaire +**, this game's paid build, asserted by name. Asserted on the foreground bundle id (`ui.left_app()`), never on pixels; coming back with `ui.resume()` must land on **About**, which is the proof the app was resumed rather than restarted. |
 | `tests/verifyRelaunch.py` | **App-restore check — standalone, not in `run_all.py`.** Gets a game (resuming a paused one rather than dealing over it), plays one move, **presses Home, kills the app on the game screen**, and launches it again after ~3.5s and after ~35s. Both times it must come back on the game screen with **the same board** — matched by correlation (`ui.board_score`), *not* per-pixel: the app does not redraw a restored board identically, and a pixel diff called a provably identical deal 9-12% changed. The Home press is load-bearing: the app writes its state on backgrounding, so a foreground kill brings back the **menu** instead. Excluded from the suite because the kill hides the Dev Panel unlock. |
 | `tests/verifyChooseLook.py` | **Look/theme check — standalone, not in `run_all.py`.** Switches the Surface/Cards tabs, selects the **6th Surface palette** and the **5th Cards palette**, then opens a game and proves both reached the **game table**: the felt and the card backs are matched on *normalised* colour against the palette tapped in that same run (never a fixed felt value — this test is what repaints it). **Restores the default look** from a `finally`, because the menu's icon controls (`more_games`/`choose_look`/`menu_logo`) bake the felt into their crops and fall to 0.62-0.69 on a repainted surface. |
 | `tests/run_all.py` | Run the whole **Unity** functional suite with a preflight (templates, WDA, `DEVICE_UDID`); print a PASS/FAIL summary that labels known Unity port gaps. Full doc: `tests/README.md`. |
@@ -123,6 +123,19 @@ Full doc: `tests/README.md`.
 now **empty** — no test is expected to fail. Note the build number comes from
 `CFBundleVersion`; the marketing version reads `8.0.0` on every Unity build and
 cannot tell them apart.
+
+**Which game each promo icon opens is now asserted, not just "five different
+pages".** The old check compared the five App Store captures pairwise and
+failed only if two were identical — which a SWAP survives, since swapping two
+links still leaves five different pages. It now reads the store page's NAME
+from its accessibility tree (the App Store is ordinary UIKit, unlike the game)
+and asserts two things: each page carries its icon's expected name, AND each
+expected name matches exactly ONE of the five. The second half is the one that
+catches a swap — three of the five titles contain "Solitaire" and two contain
+"Card", so a looser keyword would pass on the wrong page. The store injects a
+'▻' glyph INTO the title at a varying position ('▻ Solitaire: Classic Cards'
+but 'Card ▻ Games'), so `ui.store_title()` strips it. Proved offline:
+`tests/verifyMoreGamesIcons.py --selftest` shows the check failing on each swap.
 
 **The promo icon strip is NOT a port gap** — this was wrong here for a while, in
 two different ways ("Unity dropped it", then "build 353 regressed it"). The

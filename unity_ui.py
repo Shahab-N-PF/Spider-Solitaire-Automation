@@ -517,6 +517,69 @@ def left_app(timeout: float = 10.0) -> str:
     return active_app()
 
 
+_STORE_MARK = "▻"          # the App Store draws this INSIDE the app's title
+
+
+def store_title(timeout: float = 12.0) -> str:
+    """The app name on the App Store product page we are on, or "".
+
+    Read out of WDA's accessibility tree. The App Store is an ordinary UIKit app
+    — unlike the game, which is one opaque Unity view publishing nothing — so
+    its title is real text, and that is the only reason "which game did this
+    link actually open?" is answerable at all. A screenshot cannot answer it:
+    every one of these pages is the same publisher's same layout.
+
+    Three things measured on this build, each of which breaks a naive read:
+
+      * The title comes back as ONE element even though it WRAPS to two lines on
+        screen, so there is nothing to stitch together.
+      * The store injects a '▻' glyph INTO the title, at a position that
+        varies with the name — '▻ Solitaire: Classic Cards' but
+        'Card ▻ Games'. Exact-matching the raw string would therefore fail
+        for a reason that has nothing to do with the destination, so the glyph is
+        stripped and the whitespace re-normalised here, once, for every caller.
+      * The page takes a moment to render, and reading during it returns the
+        previous screen's text. So this waits for two consecutive identical
+        reads rather than trusting the first non-empty one.
+    """
+    import json
+    import urllib.request
+
+    def once():
+        sid = helpers.current_session()
+        if not sid:
+            return ""
+        try:
+            body = json.dumps({"using": "class name",
+                               "value": "XCUIElementTypeStaticText"}).encode()
+            req = urllib.request.Request(
+                config.WDA_URL + f"/session/{sid}/elements", data=body,
+                headers={"Content-Type": "application/json"})
+            els = json.load(urllib.request.urlopen(req, timeout=8)).get("value") or []
+            for el in els:
+                eid = el.get("ELEMENT") or (list(el.values())[0] if el else None)
+                if not eid:
+                    continue
+                value = json.load(urllib.request.urlopen(
+                    config.WDA_URL + f"/session/{sid}/element/{eid}/attribute/value",
+                    timeout=8)).get("value")
+                if value:
+                    return " ".join(str(value).replace(_STORE_MARK, " ").split())
+        except Exception:  # noqa: BLE001
+            pass
+        return ""
+
+    deadline = time.time() + timeout
+    last = ""
+    while time.time() < deadline:
+        now = once()
+        if now and now == last:
+            return now
+        last = now
+        time.sleep(1)
+    return last
+
+
 def resume(settle: float = 2.5) -> bool:
     """Bring Spider back to the front WITHOUT restarting it.
 
