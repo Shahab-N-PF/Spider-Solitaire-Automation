@@ -1024,6 +1024,18 @@ def back(settle: float = 1.5) -> bool:
                    "stats_back"):
         if have(anchor) and is_on(anchor):
             return tap(anchor, timeout=1.0, settle=settle)
+    # On the game table, fall back to MIRRORING 'menu' across the screen — the
+    # exact inverse of menu_button_pos(). BOTH controls sit on the felt, so a
+    # repainted surface can take either below its bar and which one it takes
+    # depends on the surface: on the tan wood that verifyChooseLook applies,
+    # back_game reads 0.558 while in_game_menu still reads 0.793. Whichever one
+    # survives locates the other, and without this there is no way off the table
+    # on that surface at all.
+    m = find("in_game_menu")
+    if m is not None:
+        w, _ = screen_size()
+        tap_at((w - m[0], m[1]), settle=settle)
+        return True
     return False
 
 
@@ -1553,6 +1565,140 @@ def opt_put(label: str, kind: str, value):
     return tap_toggle(label)        # already returns the state afterwards
 
 
+# Choose Look sits in the LEFT column of the menu, level with Help. It gets an
+# ANCHORED fallback because its own crop is an ICON with the felt showing around
+# it — and this modal is the one thing in the app that repaints the felt, so the
+# crop stops matching exactly when someone has used the feature.
+#
+# Measured on the iPhone 11, build 363, on a menu wearing the tan surface:
+#
+#     text items    menu_play 0.788  menu_options 0.854  menu_help 0.820
+#                   menu_about 0.789                     — all still pass
+#     icon items    choose_look 0.692  more_games 0.659  menu_logo 0.619
+#                   — all BELOW the 0.70 bar
+#
+# and every text item landed within 3 px of where it sits on the default felt,
+# so the layout does not move; only the matching fails. That makes the text the
+# sound anchor and the icons the unsound one. Offset measured from Help.
+_LOOK_FROM_HELP = (-0.490, 0.008)      # fractions of width / height
+
+
+def open_choose_look(settle: float = 3.0) -> bool:
+    """Open the Choose Look modal from the menu. True once its x is showing.
+
+    Tries the template first and falls back to the offset from Help, so the
+    modal stays reachable on a repainted surface — including the surface this
+    very modal just applied, which is what a test needs to put the look back.
+    """
+    if tap("choose_look", timeout=4.0, settle=settle) and seen("look_close", timeout=6.0):
+        return True
+    if not on_menu(timeout=2.0):
+        return False
+    w, h = screen_size()
+    dx, dy = int(_LOOK_FROM_HELP[0] * w), int(_LOOK_FROM_HELP[1] * h)
+    if not tap_near("menu_help", dx=dx, dy=dy, settle=settle):
+        return False
+    return seen("look_close", timeout=6.0)
+
+
+# ── Choose Look: the palette grids ────────────────────────────────
+# Neither tab has a per-swatch template, and neither could usefully have one:
+# the Surface palettes are flat colour fields and the Cards palettes are the
+# card backs themselves, so a crop of one is a crop of the thing being chosen.
+# They are found the way card_dialog() finds the tip — by what they look like
+# against the picture's OWN colours, which also means a repainted panel changes
+# nothing.
+#
+# Hardcoded fractions were tried first and are what limited the old test to the
+# top row: the two tabs do NOT share a column layout (Surface sits at x 136/363/
+# 591, Cards at 161/358/555 on an iPhone 11) and the modal is left-shifted
+# inside the screen, so "three evenly spaced columns" is simply wrong.
+_LOOK_BAND = (0.31, 0.55)   # rows of the screen the grids live in
+_LOOK_OFF = 60              # colour distance from the panel that counts as swatch
+_LOOK_MIN_W = 0.15          # a swatch is at least this fraction of the width
+_LOOK_MIN_H = 0.03          # ... and this fraction of the height
+_LOOK_SOLID = 0.60          # area / bbox area, so text and icons do not qualify
+_LOOK_ROW = 60              # boxes within this many px are the same row
+
+
+def look_swatches(screen=None):
+    """Choose Look palette boxes (x, y, w, h), in READING ORDER.
+
+    Left to right, then down — so the Surface tab returns 9 and the Cards tab
+    returns 6, and index 5 (1-based 6) is the third palette of the middle row.
+    Returns [] when the modal is not open.
+
+    Works on either tab without being told which: both draw the same kind of
+    block against the same dark panel.
+    """
+    import cv2
+    import numpy as np
+    img = _screen_image() if screen is None else screen
+    h, w = img.shape[:2]
+    y0, y1 = int(_LOOK_BAND[0] * h), int(_LOOK_BAND[1] * h)
+
+    # Clip to the panel. The modal is LEFT-SHIFTED — its right edge sits just
+    # inside the close button — so the menu's own felt shows in the strip beside
+    # it, and that strip is a big block of uniform colour that otherwise reads as
+    # a tenth palette. Anchored to the x rather than to a fraction, for the
+    # reason tap_stock() gives: an anchor survives a layout that a fraction does
+    # not.
+    right = w
+    close = find("look_close", screen=img)
+    if close is not None:
+        right = max(int(close[0]), int(0.5 * w))
+    band = img[y0:y1, :right].astype(int)
+
+    # The panel's own colour is whatever most of the band is.
+    panel = np.median(band.reshape(-1, 3), axis=0)
+    off = (np.abs(band - panel).sum(axis=2) > _LOOK_OFF).astype(np.uint8)
+    off = cv2.morphologyEx(off, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    off = cv2.morphologyEx(off, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+
+    _, _, stats, _ = cv2.connectedComponentsWithStats(off, 8)
+    boxes = []
+    for x, y, bw, bh, area in stats[1:]:
+        if bw < _LOOK_MIN_W * w or bh < _LOOK_MIN_H * h:
+            continue
+        if area < _LOOK_SOLID * bw * bh:
+            continue
+        boxes.append((int(x), int(y) + y0, int(bw), int(bh)))
+    boxes.sort(key=lambda b: (b[1] // _LOOK_ROW, b[0]))
+    return boxes
+
+
+def look_colour(box, screen=None):
+    """Mean BGR of a palette's middle, away from its border and its neighbours."""
+    import numpy as np
+    img = _screen_image() if screen is None else screen
+    x, y, w, h = box
+    cx, cy = x + w // 2, y + h // 2
+    rx, ry = max(6, w // 4), max(6, h // 4)
+    patch = img[cy - ry:cy + ry, cx - rx:cx + rx].reshape(-1, 3)
+    return np.asarray(patch, dtype=float).mean(axis=0)
+
+
+def look_pick(n: int, settle: float = 2.5):
+    """Tap the nth Choose Look palette (1-based, reading order).
+
+    Returns its mean BGR colour, which is what a caller compares the game table
+    against later — read from the swatch in this same run rather than from a
+    constant, because this modal is the thing that repaints the felt and the
+    suite's rule is never to threshold against a fixed one.
+
+    None when the grid was not found or n is out of range.
+    """
+    frame = _screen_image()
+    boxes = look_swatches(frame)
+    if not boxes or n < 1 or n > len(boxes):
+        return None
+    box = boxes[n - 1]
+    colour = look_colour(box, frame)
+    x, y, w, h = box
+    tap_at((x + w // 2, y + h // 2), settle=settle)
+    return colour
+
+
 # ── gameplay ──────────────────────────────────────────────────────
 def open_picker(timeout: float = 6.0) -> bool:
     """From the menu, tap Play and land on the difficulty picker."""
@@ -1646,8 +1792,14 @@ def menu_button_pos():
     The fallback earns its keep because 'menu' is white text sitting ON THE FELT,
     so its match score moves with whatever surface Choose Look last applied: it
     measured 0.74-0.84 across surfaces on the same device and the same real
-    table. No fixed threshold survives that. 'back' is artwork rather than text
-    on felt and holds 0.97 regardless, so it is the sounder anchor.
+    table. No fixed threshold survives that.
+
+    This used to add that 'back' is artwork rather than text and "holds 0.97
+    regardless", so it was the sounder anchor. That is NOT true across every
+    surface: on the tan wood palette, back_game reads 0.558 — well under its bar
+    — while in_game_menu reads 0.793. Neither control is reliably the stronger
+    one; they simply fail on different surfaces, which is why back() now carries
+    the mirror in the other direction too.
     """
     pos = find("in_game_menu")
     if pos:

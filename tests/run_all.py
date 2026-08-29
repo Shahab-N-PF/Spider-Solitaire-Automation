@@ -44,6 +44,13 @@ import visual  # noqa: E402
 #                     "Last Score", the header, the period stepper) would run
 #                     offline fine, but a case that is half-checked in the
 #                     offline suite is worse than one run deliberately online.
+#   verifyChooseLook— REPAINTS the table and LEAVES it repainted: the chosen
+#                     surface and card back are saved by the app. Sitting in the
+#                     middle of a suite that reads the table, it makes every
+#                     later failure ask "did that break, or did the felt move
+#                     under it?" — 'menu' is white text ON the felt and scores
+#                     0.74-0.84 across surfaces against a 0.72 bar. Run it alone,
+#                     or last, once everything else has already run.
 #   verifyRelaunch  — KILLS the app mid-game by design (its premise is that the
 #                     game screen comes back after a kill). Anywhere after
 #                     openDebugTools that would hide the Dev Panel button
@@ -63,7 +70,6 @@ TESTS = [
     "verifyHelpPage",           # opens + the body scrolls
     "verifySpiderLogo",         # About via item + logo, links, in-app FAQ
     "verifyMoreGamesBtn",       # in-app cross-promo page
-    "verifyChooseLook",         # modal tabs + applying a theme
     "verifyPlay",               # picker shows 5 levels, Easy deals
     # openDebugTools force-restarts the app (its premise is a HIDDEN button), so
     # it must come before anything that needs the unlock — and the fewer tests
@@ -157,8 +163,14 @@ REQUIRED = [
     "opt_interface", "screen_stats", "game_center", "reset_stats", "screen_help",
     "screen_about", "about_version", "about_faq", "about_help", "about_feedback",
     "about_emblem", "dev_panel", "screen_more_games",
-    "look_surface_tab", "look_cards_tab", "look_close", "screen_surface",
-    "screen_cards",
+    # look_close only. The other Choose Look crops (look_surface_tab,
+    # look_cards_tab, screen_surface, screen_cards) went with verifyChooseLook
+    # when it left TESTS — this list gates the OFFLINE SUITE, and a test outside
+    # it asserts its own templates. look_close STAYS because the suite itself
+    # needs it: ui.on_menu() calls is_on("look_close") on every check to rule out
+    # the Choose Look modal sitting over the menu, and ui.to_menu() taps it to
+    # escape. Without the crop that guard silently disappears.
+    "look_close",
     "dialog_no", "dialog_yes", "prompt_abandon",
     "difficulty_easy", "difficulty_medium", "difficulty_hard", "difficulty_bold",
     "difficulty_expert",
