@@ -186,9 +186,9 @@ REF_POINT_SCALE = float(os.environ.get("UNITY_REF_POINT_SCALE", "2.0"))
 # presents for leaderboards is Apple's own UI, drawn out of process — WDA sees
 # only anonymous XCUIElementTypeOther over it, exactly like the ATT prompt — so
 # it is laid out in points and must be matched as an image.
-NATIVE_UI = {"prompt_abandon", "dialog_yes", "dialog_no", "prompt_tip", "tip_ok",
-             "att_prompt", "att_deny", "gc_leaderboards", "gc_achievements",
-             "gc_back"}
+NATIVE_UI = {"prompt_abandon", "dialog_yes", "dialog_no",
+             "att_prompt", "att_deny", "att_allow", "tc_continue",
+             "gc_leaderboards", "gc_achievements", "gc_back"}
 
 _POINT_SCALE = None
 
@@ -505,6 +505,38 @@ def resume(settle: float = 2.5) -> bool:
     return in_app()
 
 
+def home(settle: float = 2.0) -> bool:
+    """Press Home: send the app to the BACKGROUND, still running. True if it went.
+
+    Needed because terminate() kills the app from the FOREGROUND, and this app —
+    like most — writes its state when it goes to the BACKGROUND. Measured on
+    build 363 with a game in progress and one move played:
+
+        move -> Home -> kill -> relaunch          the GAME SCREEN comes back
+        move -> kill from the foreground          the MAIN MENU comes back
+
+    at both a 3.5s and a 35s gap. So anything checking what the app persists has
+    to press this first, or it measures the harness instead of the app — and no
+    real user can kill a foreground app anyway, because the app switcher
+    backgrounds it before you can swipe it away. The same trap is recorded for
+    settings in the note above opt_top().
+
+    The endpoint is a POST and is NOT session-scoped. On this WDA (15.0.0) both
+    GET /wda/homescreen and POST /session/<sid>/wda/homescreen return 404, which
+    is why tests/launch/live_launch.py's version — a bare urlopen, so a GET —
+    never actually worked and failed silently into its except.
+    """
+    import urllib.request
+    req = urllib.request.Request(config.WDA_URL + "/wda/homescreen", data=b"{}",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=15)
+    except Exception:  # noqa: BLE001
+        return False
+    time.sleep(settle)
+    return not in_app()
+
+
 def terminate(sid: str = None):
     """Best-effort kill, so the next launch is cold."""
     import json
@@ -522,6 +554,49 @@ def terminate(sid: str = None):
         pass
 
 
+# ── network state ─────────────────────────────────────────────────
+# The suite runs OFFLINE on purpose — online, cross-promo interstitials
+# interrupt screen transitions and a blind tap on one can open the App Store
+# over the app. tests/verifyAds.py, tests/verifyHelpShift.py and
+# tests/visitLastScore.py are the deliberate exceptions and need the network up.
+#
+# Setting that used to be a manual step on the phone. These drive it through the
+# iOS Settings app, which — unlike this game — publishes a real accessibility
+# tree, so Airplane Mode can be READ as well as flipped. See helpers' radio
+# section for the two traps (pressing the switch element does nothing; the tap
+# has to land on the control) and for why it is safe to go offline mid-run.
+#
+# The hazard worth repeating: WDA must have been STARTED while the phone was
+# online, because iOS re-verifies the developer certificate over the network at
+# launch. Going offline afterwards is fine; restarting WDA offline is not.
+
+
+def offline() -> bool:
+    """Put the phone in Airplane Mode. True when it ends there."""
+    return helpers.set_network(False)[0]
+
+
+def online(wait: float = 75.0) -> str:
+    """Leave Airplane Mode and wait for Wi-Fi to rejoin. Returns the network name.
+
+    Empty string if it never joined one — which a caller that needs the network
+    should treat as a failure rather than pressing on, since every symptom of
+    "no network" downstream looks like a broken feature instead.
+    """
+    ok, net = helpers.set_network(True, wait=wait)
+    return net if ok else ""
+
+
+def is_offline():
+    """True in Airplane Mode, False out of it, None if it could not be read."""
+    return helpers.airplane_mode()
+
+
+def network() -> str:
+    """What the Wi-Fi row reports — "Off", "Not Connected", or a network name."""
+    return helpers.wifi_status()
+
+
 def cold_launch() -> bool:
     """Terminate + relaunch to a clean menu. The recovery of last resort.
 
@@ -533,6 +608,14 @@ def cold_launch() -> bool:
     terminate(sid)
     time.sleep(1.5)
     launch(force=True)
+    # Sweep, wait, sweep again — the same shape launch_to_menu() uses, and for
+    # the same reason: the first-launch gates arrive in SEQUENCE (Terms &
+    # Conditions, then ATT once that is answered) and not instantly, so a single
+    # immediate pass can clear one and return before the next has been drawn.
+    clear_overlays()
+    if on_menu(6.0):
+        return True
+    time.sleep(2.0)
     clear_overlays()
     return on_menu(10.0)
 
@@ -548,32 +631,44 @@ FIRST_LAUNCH_GATES = ("terms & conditions", "terms and conditions",
 def clear_overlays(rounds: int = 6) -> int:
     """Dismiss whatever is covering the UI. Returns how many were cleared.
 
-    Three kinds, in order:
+    Four kinds. The two first-launch gates arrive in this order:
 
-    1. The App Tracking Transparency prompt, by IMAGE. It is presented out of
-       process, so the session's /alert/* endpoints 404 on it even though it is
-       plainly on screen (helpers has the measurement). It is answered "Ask App
-       Not to Track" — declining grants nothing, and the cross-promo content the
-       tests look at does not depend on it.
-    2. A first-launch gate alert, by its TEXT (FIRST_LAUNCH_GATES) — currently
-       the Terms & Conditions / Privacy Policy notice, which has a single
-       "Continue" button.
-    3. An interstitial cross-promo ad (these appear when the device is online).
+    1. Terms & Conditions / Privacy Policy, by IMAGE (tc_continue). NOT by alert
+       text: despite what this docstring used to claim, WDA CANNOT SEE this
+       pop-up. Measured on build 363 with a live session while it was plainly on
+       screen, /alert/text returned "" and /alert/buttons []. It is drawn by the
+       app, not presented as a UIAlertController, so the text branch below never
+       matched and the gate was never dismissed — dead code that went unnoticed
+       because nothing in the suite cold-launched until verifyFirstLaunch was
+       added to it. flows.py (the Obj-C driver) had this right all along.
+    2. The App Tracking Transparency prompt, also by IMAGE — that one is
+       presented out of process, so /alert/* 404s on it (helpers has the
+       measurement). It is answered "Allow": the app wants tracking granted
+       before it will let the first launch through.
+    3. A first-launch gate that IS a real alert, by its TEXT
+       (FIRST_LAUNCH_GATES). Nothing on this build takes this path; it is kept
+       as a cheap fallback in case a later build presents one properly.
+    4. An interstitial cross-promo ad (these appear when the device is online).
 
     Only alerts positively recognised as gates are accepted. The game's own
     confirmations are WDA-visible alerts too, and the right answer depends on
     which one it is (abandon wants Yes, the rules offer wants No), so anything
     unrecognised is left for settle_prompts() / answer_dialog() to judge.
 
-    Both gates are once per install — but every TestFlight build is a fresh
-    install, so the first run on each new build hits them.
+    Both gates are nominally once per install, but they come back far more often
+    than that: the app writes its state when it goes to the BACKGROUND, and a
+    cold launch terminates it from the FOREGROUND, so the "agreed" flag can be
+    lost and the pair reappears on the next launch. Every TestFlight build is
+    also a fresh install.
     """
     cleared = 0
     sid = helpers.current_session()
     for _ in range(rounds):
         did = False
-        if is_on("att_prompt"):                 # image-only; WDA cannot see it
-            did = tap("att_deny", settle=1.5)
+        if is_on("tc_continue"):                # in-app; WDA cannot see it
+            did = tap("tc_continue", settle=2.0)
+        if not did and is_on("att_prompt"):     # out of process; WDA 404s on it
+            did = tap("att_allow", settle=1.5)
         if not did and sid:
             text = helpers.alert_text(sid).lower()
             if text and any(g in text for g in FIRST_LAUNCH_GATES):
@@ -710,6 +805,137 @@ def answer_dialog(yes: bool, timeout: float = 4.0) -> bool:
     return tap(key, timeout=timeout, settle=1.5)
 
 
+# ── the Unity card dialog ─────────────────────────────────────────
+# Spider draws two of its confirmations itself instead of presenting a
+# UIAlertController: the "Did you know?" tip on the game table, and "Would you
+# like to reset local scores?" on Statistics. Both are the same widget — a pale,
+# translucent rounded card carrying one or two pill buttons along its bottom —
+# and WDA sees nothing of either, so they have to be read out of the picture.
+#
+# They cannot be TEMPLATE-matched, and the crops that used to try (`prompt_tip`,
+# `tip_ok`) are gone. Those were cut from a rendering where the card was DARK
+# GREEN with WHITE text; this build draws it pale mint with BLACK text, so the
+# two are near photographic negatives. Measured on build 363 against captures
+# where the tip was plainly on screen, `prompt_tip` scored 0.344 and 0.397
+# against a 0.70 bar: it never matched, is_on("prompt_tip") was always False,
+# and settle_prompts() therefore never saw the tip at all. The card then
+# swallowed every tap aimed at the table underneath — which is how two of the
+# four levels in verifyDifficultyLevels failed as "the cheat did not lead to the
+# victory screen", a long way from the real cause.
+#
+# They were deleted rather than re-cut, for two reasons that would outlive a
+# re-cut: the card is translucent, so any crop bakes in whatever sat behind it
+# when it was taken (the same trap already documented for prompt_abandon), and
+# the tip comes in a one-button and a two-button variant whose button geometry
+# differs.
+#
+# What IS stable is the shape: a large, solid, uniformly bright rounded rect,
+# much brighter than the screen behind it, with darker pills inset along its
+# bottom. Both are measured against the picture's OWN colours rather than fixed
+# values, so a repainted surface — verifyChooseLook applies one, and runs before
+# verifyDifficultyLevels — moves card and pills together and changes nothing.
+#
+# Measured on an iPhone 11, build 363:
+#   card    x94..734, y710..1110 (tip, two buttons) / y688..1132 (tip, one)
+#   card bg BGR (230,242,172)   pill BGR (199,211,141)   felt BGR (109,131,2)
+# The pill is exactly 31 units darker than the card in every channel, and the
+# gap between two pills reads as card colour — which is what separates the
+# one-button variant from the two-button one without knowing which to expect.
+CARD_W = (0.50, 0.97)       # card width, as a fraction of the screen
+CARD_H = (0.12, 0.50)       # card height, likewise
+CARD_SOLID = 0.85           # area / bbox area; a rounded rect measures ~0.97
+CARD_LIFT = 150             # how far the card's sum-of-BGR sits above the
+                            # screen median — felt to card is ~400, so this has
+                            # a wide margin either side
+PILL_DROP = (40, 200)       # pill depth below the card's own colour. The upper
+                            # bound is what keeps the black TEXT (~500 down)
+                            # from being read as part of the button.
+
+
+def card_dialog(screen=None):
+    """Bounding box (x, y, w, h) of the Unity card dialog, or None."""
+    import cv2
+    import numpy as np
+    img = _screen_image() if screen is None else screen
+    h, w = img.shape[:2]
+    med = float(np.median(img.reshape(-1, 3), axis=0).sum())
+    lit = (img.astype(int).sum(axis=2) - med > CARD_LIFT).astype(np.uint8)
+    # Close over the button pills and the text, so the card comes back as ONE
+    # component rather than a ring of background around its own contents.
+    lit = cv2.morphologyEx(lit, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    _, _, stats, _ = cv2.connectedComponentsWithStats(lit, 8)
+    best = None
+    for x, y, bw, bh, area in stats[1:]:
+        if not (CARD_W[0] * w <= bw <= CARD_W[1] * w):
+            continue
+        if not (CARD_H[0] * h <= bh <= CARD_H[1] * h):
+            continue
+        if area < CARD_SOLID * bw * bh:     # rules out the card TABLEAU, which
+            continue                        # is the right size but full of gaps
+        if best is None or area > best[4]:
+            best = (x, y, bw, bh, area)
+    return None if best is None else tuple(int(v) for v in best[:4])
+
+
+def card_buttons(screen=None, box=None):
+    """Centres of the card dialog's pill buttons, ordered LEFT TO RIGHT.
+
+    Empty when no card is up. One entry for the single-button tip, two for the
+    two-button tip (OK, Show Me) and for the reset-scores prompt (No, Yes).
+    """
+    import cv2
+    import numpy as np
+    img = _screen_image() if screen is None else screen
+    if box is None:
+        box = card_dialog(img)
+    if box is None:
+        return []
+    x, y, w, h = box
+    # The card's own colour, read from its left margin — plain card at every
+    # height, clear of both the text and the pills.
+    margin = img[y + int(0.10 * h):y + int(0.90 * h), x + 6:x + 30]
+    card = float(np.median(margin.reshape(-1, 3), axis=0).sum())
+    drop = card - img[y:y + h, x:x + w].astype(int).sum(axis=2)
+    pill = ((drop > PILL_DROP[0]) & (drop < PILL_DROP[1])).astype(np.uint8)
+    pill = cv2.morphologyEx(pill, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    _, _, stats, _ = cv2.connectedComponentsWithStats(pill, 8)
+    found = []
+    for bx, by, bw, bh, _a in stats[1:]:
+        if bw < 0.15 * w or bh < 0.08 * h:
+            continue
+        if by + bh / 2.0 < 0.45 * h:        # buttons live in the lower half
+            continue
+        found.append((int(x + bx + bw // 2), int(y + by + bh // 2)))
+    return sorted(found)
+
+
+def card_up(timeout: float = 0.0) -> bool:
+    """True while a Unity card dialog is on screen."""
+    deadline = time.time() + timeout
+    while True:
+        if card_dialog() is not None:
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.2)
+
+
+def answer_card(index: int = 0, settle: float = 1.2) -> bool:
+    """Press one of the card dialog's buttons by position. False if none found.
+
+    `index` is left-to-right, so 0 is the DISMISSING answer in every instance
+    measured on this build: OK before "Show Me" on the tip, No before Yes on the
+    reset-scores prompt. Nothing here assumes that — a caller that wants the
+    right-hand button asks for index 1 — but it is why settle_prompts() can take
+    the leftmost without having to read the card's title.
+    """
+    buttons = card_buttons()
+    if not buttons or index >= len(buttons):
+        return False
+    tap_at(buttons[index], settle=settle)
+    return True
+
+
 def settle_prompts(max_rounds: int = 4) -> list:
     """Answer the known game dialogs correctly; return what was handled.
 
@@ -719,7 +945,11 @@ def settle_prompts(max_rounds: int = 4) -> list:
     A third kind also lands on the table: a "Did you know?" tip with OK / Show Me
     (not Yes/No). It is answered OK — "Show Me" navigates away to Options — and
     it is checked FIRST, because it blocks taps on everything underneath it until
-    it is dismissed.
+    it is dismissed. It is drawn by the app rather than presented as an alert, so
+    it is found by SHAPE (card_dialog) rather than by template or by alert text;
+    see that function for why both of the other two routes fail on it. The tip
+    also ships in a one-button and a two-button form, and taking the leftmost
+    button answers OK in both.
 
     Classification prefers the alert's own TEXT (read over WDA), which names the
     dialog exactly. Only if WDA cannot see it does this fall back to the image
@@ -728,8 +958,8 @@ def settle_prompts(max_rounds: int = 4) -> list:
     """
     handled = []
     for _ in range(max_rounds):
-        if is_on("prompt_tip"):             # tip card, OK / Show Me
-            if tap("tip_ok", settle=1.2):
+        if card_dialog() is not None:       # the in-app tip card, OK / Show Me
+            if answer_card(0, settle=1.2):  # leftmost = OK in both variants
                 handled.append("tip:ok")
                 continue
         # WAIT for a dialog to render, THEN classify it. The order matters: an
@@ -857,6 +1087,9 @@ def launch_to_menu(force: bool = False) -> bool:
 
 def blocking() -> str:
     """Best-effort description of what is covering the screen, for failure text."""
+    if is_on("tc_continue"):
+        return ("the Terms & Conditions gate is up (image-matched — WDA cannot "
+                "see this one)")
     if is_on("att_prompt"):
         return "the App Tracking Transparency prompt is up (image-matched)"
     sid = helpers.current_session()
@@ -1128,12 +1361,58 @@ def opt_kind(cy: int, screen=None):
     return "slider"
 
 
+def opt_settled(label: str, tries: int = 4, tol: int = 3):
+    """(row centre y, the frame it was measured in) for <label>, page settled.
+
+    (None, None) if the row never appears. Scrolls it into view first, then
+    waits for it to stop moving before answering.
+
+    Why this exists, and why it hands back the FRAME as well. The Options page
+    keeps gliding for over two seconds after a swipe — measured on build 363,
+    the visible band was still changing 2.1 s after the scroll ended. Every read
+    here used to cost a PAIR of captures: opt_row() located the label in frame
+    A, and opt_knob() then hunted the knob in frame B. When the page moved
+    between the two, the y taken from A no longer pointed at the row in B — and
+    opt_knob only searches +/- OPT_ROW_BAND, about 39 px on this screen, either
+    side of it.
+
+    Measured drift between two consecutive reads was 35 px, which lands right on
+    that edge — and that is the nasty case. Rather than miss the knob and return
+    None, opt_knob catches PART of it, reports a narrower knob, and _value_from
+    turns the narrower knob into a plausible-looking but WRONG number.
+
+    That is what failed the Card Lowering check in verifyOptions: it read 0.57
+    against a 0.50 +/- 0.05 target, which looked exactly like a stepped slider
+    that could not reach mid-track. It is not stepped. With the page settled the
+    same knob reads (634.5, 74) and 0.4971 on every attempt, same-frame and
+    fresh-frame alike.
+
+    Handing back the frame closes the hole for good: the caller reads the knob
+    out of the very frame the row was found in, so however far the page glides
+    afterwards, the two measurements still agree with each other. It costs no
+    extra captures in the normal case — two frames is exactly what the old
+    opt_row + opt_knob pair already took.
+    """
+    if opt_row(label) is None:
+        return None, None
+    last, frame = None, None
+    for _ in range(tries):
+        frame = _screen_image()
+        pos = find(label, screen=frame)
+        if pos is None:
+            return None, None
+        if last is not None and abs(pos[1] - last) <= tol:
+            return pos[1], frame
+        last = pos[1]
+    return last, frame
+
+
 def toggle_state(label: str):
     """True (on) / False (off) / None (row or knob not found)."""
-    cy = opt_row(label)
+    cy, frame = opt_settled(label)
     if cy is None:
         return None
-    knob = opt_knob(cy)
+    knob = opt_knob(cy, screen=frame)
     if knob is None:
         return None
     return knob[0] > OPT_PILL_C * screen_size()[0]
@@ -1141,7 +1420,7 @@ def toggle_state(label: str):
 
 def tap_toggle(label: str, settle: float = 1.2):
     """Tap the toggle on <label>'s row. Returns its state afterwards."""
-    cy = opt_row(label)
+    cy, _frame = opt_settled(label)
     if cy is None:
         return None
     w, _ = screen_size()
@@ -1161,10 +1440,10 @@ def set_toggle(label: str, on: bool, settle: float = 1.2) -> bool:
 
 def slider_value(label: str):
     """The slider on <label>'s row as 0.0 (min) .. 1.0 (max), or None."""
-    cy = opt_row(label)
+    cy, frame = opt_settled(label)
     if cy is None:
         return None
-    knob = opt_knob(cy)
+    knob = opt_knob(cy, screen=frame)
     return None if knob is None else _value_from(knob)
 
 
@@ -1193,10 +1472,10 @@ def slider_drag(label: str, value: float, duration: float = 0.5):
     The extremes are driven a little PAST the track end so the control clamps
     there — stopping exactly on the end pixel tends to land a step short.
     """
-    cy = opt_row(label)
+    cy, frame = opt_settled(label)
     if cy is None:
         return None
-    knob = opt_knob(cy)
+    knob = opt_knob(cy, screen=frame)
     if knob is None:
         return None
     w, _ = screen_size()
@@ -1211,18 +1490,39 @@ def slider_drag(label: str, value: float, duration: float = 0.5):
     return slider_value(label)
 
 
-def slider_set(label: str, value: float, tol: float = 0.03, tries: int = 3):
+# The shortest drag this control will accept. Measured on build 363: a swipe
+# that asks the knob to move less than about 14 px — roughly 0.06 of the usable
+# track — does not register as a drag at all and the knob does not move by so
+# much as a pixel. It is a gesture-recognition floor, not a slider step: the
+# same no-op was measured at swipe durations of 0.5 s, 1.2 s and 2.0 s alike,
+# and re-approaching the target from the far end lands with its own error of
+# 0.02..0.07. So ~0.06 is simply the resolution a synthetic swipe HAS on this
+# control, and asking a caller to land inside +/- 0.05 asks for the impossible.
+#
+# This matters because the old code did not know it. slider_set() answered a
+# near miss by re-issuing the identical short drag, which could not move
+# anything, up to three times — so a knob that landed 0.07 out stayed exactly
+# 0.07 out and the value was reported as if the control had refused to move.
+SLIDER_MIN_DRAG = 0.06
+
+
+def slider_set(label: str, value: float, tol: float = 0.06, tries: int = 4):
     """Drag <label>'s slider to `value` and keep correcting until it sticks.
 
     One drag lands within ~0.07 of a mid-track target — the knob follows the
-    finger but settles a little short. That is fine for "did it move?", not for
-    landing on a value someone asked for, so this re-drags from wherever the knob
-    ended up. Each correction starts closer, so it converges.
+    finger but settles a little short — so this re-drags from wherever the knob
+    ended up.
+
+    A correction shorter than SLIDER_MIN_DRAG cannot register, and repeating it
+    is pure waste; the only way to resample is to park the knob at the far end
+    and come back, making the approach long enough to be seen as a drag.
     """
     got = slider_drag(label, value)
     for _ in range(tries - 1):
         if got is None or abs(got - value) <= tol:
             break
+        if abs(got - value) < SLIDER_MIN_DRAG:
+            slider_drag(label, 0.0 if value >= 0.5 else 1.0)
         got = slider_drag(label, value)
     return got
 
@@ -1281,6 +1581,54 @@ def resume_game(timeout: float = 12.0) -> bool:
         return False
     settle_prompts()
     return at_screen("table", timeout)
+
+
+def resume_or_deal(level: str = "easy") -> str:
+    """Get to a game table WITHOUT ever abandoning a game. Returns how, for logs.
+
+    Three ways in, cheapest first:
+
+    1. already on the table — carry on with it;
+    2. the picker's red "Resume" ribbon, drawn only while a game is paused —
+       tap it and that board comes back. Leaving the table PAUSES a game rather
+       than ending it, so a run that follows another run almost always has one
+       waiting, and dealing over it was a whole deal spent for nothing;
+    3. only when there is genuinely nothing to come back to, deal `level`.
+
+    launch() comes FIRST and is not optional: reading the screen needs an
+    attached device, and on the first call in a fresh process nothing has
+    attached one yet — checking the table before it fails with airtest's
+    "No devices added.". It attaches without restarting, so whatever is on
+    screen survives it.
+
+    CAVEAT — THE RIBBON DOES NOT SAY WHICH LEVEL IS PAUSED. Resuming can
+    therefore hand back a Medium game to a caller that asked for Easy. That is
+    fine for every caller today, because they assert how the TABLE behaves and
+    not which level dealt it. Anything that needs a specific level — as
+    verifyDifficultyLevels does — must call open_picker() + start_game() itself
+    and not this.
+    """
+    launch()
+    if at_table(timeout=3.0):
+        return "carried on with the game already on the table"
+
+    expect(launch_to_menu(), "could not reach the main menu")
+    expect(open_picker(), "the difficulty picker did not open")
+
+    # resume_game() returns False when the ribbon is not on screen, which is
+    # exactly "no game is paused" — a real check, not a silent skip. It also
+    # returns False when the template is MISSING, which is not the same thing at
+    # all and is how this went unnoticed before: resume.png did not exist, so
+    # every resume silently became a deal.
+    if resume_game():
+        return "resumed the paused game from the picker"
+    if not have("resume"):
+        print("    (no 'resume' template — a paused game cannot be spotted, so "
+              "this dealt instead of resuming)")
+
+    expect(start_game(level), f"{level} did not deal a game")
+    expect(at_table(), "a game was dealt but the table anchor is not showing")
+    return f"no game was waiting — dealt a fresh {level} game"
 
 
 def at_table(timeout: float = 6.0) -> bool:
@@ -1514,6 +1862,72 @@ def tap_stock(settle: float = 2.5) -> bool:
     return True
 
 
+# ── pointing at a card ────────────────────────────────────────────
+# Ten tableau columns across the width. There is no template that could match a
+# card: every one of them is a different rank and suit, and assets_unity's
+# card_spade / card_heart are suit PIPS used to answer "which suit is in play",
+# not positions. So a card is found the way card_dialog() finds the tip — by
+# what it looks like relative to the rest of the picture.
+_COLUMNS = 10
+_COL_INSET = 0.20      # trimmed off each side of a column's band
+_CARD_WHITE = 200      # a face-up card's face is near-white in every channel
+_CARD_FILL = 0.50      # a row counts as card only if half its band is white
+_TABLEAU_TOP = 0.13    # below the top bar: past the stock / foundation row
+_TABLEAU_BOTTOM = 0.74 # fallback floor when the caption row can't be located
+_CAPTION_CLEAR = 0.03  # keep this far above the "tap to undo" caption
+_CARD_INSET = 0.02     # tap this far above the card's bottom edge
+
+
+def bottom_card(col: int, screen=None):
+    """Tap point on the face-up card at the foot of tableau column `col`.
+
+    0 is the leftmost column, 9 the rightmost. Returns None when no card face is
+    found there — the caller's cue to try another column rather than tap a blind
+    coordinate.
+
+    The last card of a column is the only FACE-UP one, so it is found as
+    NEAR-WHITE. Reading it off the picture's own colours rather than against a
+    fixed felt value means a repainted surface (Choose Look) changes nothing,
+    and the face-down cards above it, which show patterned backs, do not answer.
+
+    Both ends of the row it searches are ANCHORED, not screen fractions:
+
+    * the top to the bar (find("back_game")), for the reason tap_stock()
+      documents — "tap to lower" slides the whole playfield down and is a
+      persistent setting, so a blind fraction misses on every run after anyone
+      leaves the table lowered;
+    * the bottom to the "tap to undo" caption, because the undo and hints
+      widgets draw REAL CARDS in the bottom-left and bottom-right corners —
+      exactly under columns 0 and 9, the two this is normally asked for. Without
+      that floor the widget's card is the lowest white thing in the band and
+      gets tapped instead of the tableau.
+    """
+    img = _screen_image() if screen is None else screen
+    h, w = img.shape[:2]
+
+    band = w / _COLUMNS
+    xa = int(col * band + _COL_INSET * band)
+    xb = int((col + 1) * band - _COL_INSET * band)
+    if xb - xa < 2:
+        return None
+
+    bar = find("back_game", screen=img)
+    top = (bar[1] if bar else int(h * 0.09)) + int(_TABLEAU_TOP * h)
+    cap = find("tap_undo", screen=img)
+    bottom = (cap[1] - int(_CAPTION_CLEAR * h)) if cap else int(_TABLEAU_BOTTOM * h)
+    if bottom - top < 2:
+        return None
+
+    white = (img[top:bottom, xa:xb] >= _CARD_WHITE).all(axis=2)
+    need = _CARD_FILL * (xb - xa)
+    rows = white.sum(axis=1)
+    for i in range(len(rows) - 1, -1, -1):
+        if rows[i] >= need:
+            y = top + i - int(_CARD_INSET * h)
+            return ((xa + xb) // 2, max(y, top))
+    return None
+
+
 def board_box():
     """Crop box over the playing area only.
 
@@ -1567,6 +1981,50 @@ def board_frame():
     """
     x0, y0, x1, y1 = board_box()
     return _screen_image()[y0:y1, x0:x1]
+
+
+# How far the board may be re-drawn and still be recognised as the same game.
+# The app does NOT redraw a restored board identically: measured on build 363,
+# the same game after a kill and relaunch came back one pixel over in one case
+# and with visibly wider card spacing in another. Those are layout differences,
+# not game differences, and a per-pixel comparison calls them a 9-12% change —
+# which is why board_score() correlates instead of subtracting.
+_BOARD_SCALES = (0.90, 0.94, 0.97, 1.0, 1.03, 1.06, 1.10)
+
+
+def board_score(board, screen=None) -> float:
+    """How well a previously captured board matches what is on screen now.
+
+    `board` is a BGR crop from board_frame(). Returns TM_CCOEFF_NORMED, so 1.0
+    is identical and anything under ~0.8 is a different picture.
+
+    This answers "is this the same GAME?", which is not the same question as "is
+    this the same PICTURE?" — and only the first one matters after a relaunch.
+    Measured on build 363:
+
+        the same game, restored after a kill      0.950, 0.975
+        a DIFFERENT deal                          0.774, 0.791
+        the difficulty picker / the main menu     0.279, 0.276
+
+    so a bar of 0.90 sits in open space. A per-pixel diff cannot draw that line:
+    on the same two frames it read 9.07% and 11.58% against a 1% bar, because
+    every card edge lands a pixel off after a redraw.
+
+    The scale sweep is what absorbs the card-spacing change, the same trick
+    find() uses to carry one template across devices.
+    """
+    import cv2
+    img = _screen_image() if screen is None else screen
+    best = -1.0
+    for s in _BOARD_SCALES:
+        n = board if s == 1.0 else cv2.resize(
+            board, (int(board.shape[1] * s), int(board.shape[0] * s)),
+            interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
+        if n.shape[0] > img.shape[0] or n.shape[1] > img.shape[1]:
+            continue
+        res = cv2.matchTemplate(img, n, cv2.TM_CCOEFF_NORMED)
+        best = max(best, float(cv2.minMaxLoc(res)[1]))
+    return best
 
 
 def peak_change_after(action, frames: int = 6, interval: float = 0.3,

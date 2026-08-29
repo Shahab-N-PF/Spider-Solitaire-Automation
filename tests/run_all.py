@@ -28,11 +28,14 @@ import config  # noqa: E402
 import unity_ui  # noqa: E402
 import visual  # noqa: E402
 
-# Order: cheap navigation checks first (if the menu is broken everything else is
-# noise), then the heavier gameplay tests.
+# Order: a cold start, then cheap navigation checks (if the menu is broken
+# everything else is noise), then the heavier gameplay tests, and finally the
+# destructive one.
+#
+# NOTE THE SUITE IS NOW DESTRUCTIVE: it ends by wiping local statistics. That is
+# deliberate — see the resetStats entry at the bottom of TESTS.
 #
 # Not in the suite, on purpose:
-#   resetStats      — destructive (wipes local statistics); run it deliberately.
 #   verifyHelpShift — needs the device ONLINE, which the rest of the suite
 #                     specifically avoids; run it deliberately.
 #   verifyAds       — needs the device ONLINE by definition (it is the ad axis).
@@ -41,8 +44,19 @@ import visual  # noqa: E402
 #                     "Last Score", the header, the period stepper) would run
 #                     offline fine, but a case that is half-checked in the
 #                     offline suite is worse than one run deliberately online.
-#   verifyFirstLaunch — cold-start check; meaningful mainly after a reinstall.
+#   verifyRelaunch  — KILLS the app mid-game by design (its premise is that the
+#                     game screen comes back after a kill). Anywhere after
+#                     openDebugTools that would hide the Dev Panel button
+#                     verifyVictory and verifyDifficultyLevels depend on, and the
+#                     only clean slot left costs more than running it alone does.
 TESTS = [
+    # First because it is the only test that starts from a TERMINATED app rather
+    # than walking back from wherever the last one left off — so it both checks
+    # the cold-start path and hands every later test a known-clean state. On a
+    # fresh install it also clears the two one-per-install gates (Terms &
+    # Conditions, then the ATT prompt); on a normal launch there are no pop-ups
+    # and it simply confirms a cold start reaches the menu.
+    "verifyFirstLaunch",        # cold start -> menu, no pop-ups left on screen
     "verifyMainMenu",           # foundation: the menu renders at all
     "verifyStatsPage",          # renders + scrolls end to end
     "verifyOptions",            # 4 named rows driven (2 toggles, 2 sliders), then reset
@@ -75,6 +89,14 @@ TESTS = [
     # most likely to be red. Keeping it at the end means the summary is not led
     # by an expected failure, and a rig problem shows up before it.
     "verifyMoreGamesIcons",     # promo strip — build-dependent (341/343 yes, 353 no)
+    # LAST, and destructive: it permanently wipes local statistics on the device
+    # (Game Center scores are untouched). Everything that reads or depends on
+    # play history has already run by this point — verifyStatsPage renders the
+    # page, verifyDifficultyLevels banks four wins, and verifyMoreGamesIcons
+    # needs at least one completed game to draw the promo strip. Each run
+    # re-earns all of that before it gets here, so wiping at the end leaves the
+    # next run's ordering intact rather than breaking it.
+    "resetStats",               # reset link + both confirmations (DESTRUCTIVE)
 ]
 
 # Tests that are currently EXPECTED to fail because the Unity port dropped the
@@ -137,7 +159,7 @@ REQUIRED = [
     "about_emblem", "dev_panel", "screen_more_games",
     "look_surface_tab", "look_cards_tab", "look_close", "screen_surface",
     "screen_cards",
-    "dialog_no", "dialog_yes", "prompt_abandon", "prompt_tip", "tip_ok",
+    "dialog_no", "dialog_yes", "prompt_abandon",
     "difficulty_easy", "difficulty_medium", "difficulty_hard", "difficulty_bold",
     "difficulty_expert",
     "back_game", "in_game_menu", "tap_undo", "tap_lower", "tap_hints",
@@ -150,9 +172,20 @@ REQUIRED = [
     # the card suit pips verifyGamePlay reads to prove "Use Hearts" reached the
     # dealt cards
     "card_spade", "card_heart",
+    # the two first-launch gates verifyFirstLaunch has to clear (both by image —
+    # WDA can see neither)
+    "tc_continue", "att_prompt", "att_allow",
 ]
-# Deliberately NOT listed: last_score / screen_last_score / last_score_next and
-# the gc_* Game Center crops. This list gates the OFFLINE suite, and
+# Deliberately NOT listed: "resume", the difficulty picker's ribbon that
+# verifyGamePlay uses to carry on with a paused game instead of dealing over it.
+# That is an OPTIMISATION with a working fallback — ui.resume_or_deal() deals
+# when the ribbon is not there, and says so on stdout — so a missing crop should
+# cost one deal, not block the whole suite in preflight. (It is also the one
+# template the offline gate cannot check: the ribbon is only drawn while a game
+# is PAUSED, which capture_unity_screens.py never leaves it.)
+#
+# Also deliberately NOT listed: last_score / screen_last_score / last_score_next
+# and the gc_* Game Center crops. This list gates the OFFLINE suite, and
 # visitLastScore is not in it — checking its templates here would stop a healthy
 # run over crops nothing in the run touches. That test asserts its own.
 

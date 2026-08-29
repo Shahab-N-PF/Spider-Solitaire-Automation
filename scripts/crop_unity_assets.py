@@ -45,6 +45,13 @@ CROPS = {
     "difficulty_hard":    ("DifficultyLevels.png", (826, 1735, 1000, 1822)),
     "difficulty_bold":    ("DifficultyLevels.png", (817, 1884, 982, 1973)),
     "difficulty_expert":  ("DifficultyLevels.png", (834, 2049, 1078, 2143)),
+    # "resume" — the picker's red Resume ribbon — is deliberately NOT cut here.
+    # It is drawn only while a game is PAUSED, and capture_unity_screens.py
+    # walks a clean app, so DifficultyLevels.png never contains it. The
+    # committed crop came from an iPhone 11 picker captured with a game left in
+    # progress: log/picker_paused.png, box (520, 1428) - (720, 1518). To re-cut
+    # it for a new build, leave a game part-played, open Play, screenshot, and
+    # crop the ribbon.
 
     # ── game table ────────────────────────────────────────────────
     "back_game":     ("Play.png", (58, 244, 230, 305)),
@@ -125,6 +132,20 @@ CROPS_IP11 = {
     # The anchor is Apple's own ATT artwork, which is identical in every app.
     "att_prompt":      ("ATTPrompt.png", (146, 586, 300, 732)),
     "att_deny":        ("ATTPrompt.png", (240, 1055, 590, 1112)),
+    # "Allow" — the button clear_overlays() actually presses. The app wants
+    # tracking GRANTED before it lets a first launch through; answering "Ask App
+    # Not to Track" (att_deny, kept for reference) does not clear the gate.
+    "att_allow":       ("ATTPrompt.png", (367, 1185, 461, 1221)),
+    # The OTHER first-launch gate: "To use Spider you must agree to our Terms &
+    # Conditions...", with a single "Continue". It has to be matched as an image
+    # because WDA CANNOT SEE IT — measured on build 363 with a live session while
+    # it was on screen, /alert/text returned "" and /alert/buttons []. It is drawn
+    # by the app, not presented as a UIAlertController.
+    #
+    # Cut tight to the blue glyphs: the card is translucent mint over the menu's
+    # green felt, so a looser crop would bake the menu in behind it — the same
+    # trap the iOS alert templates fell into.
+    "tc_continue":     ("TermsGate.png", (341, 1064, 486, 1100)),
     # The Spider logo on the ABOUT screen (smaller than the menu's, so it needs
     # its own crop — template matching is scale-sensitive).
     "about_logo":      ("SpiderAboutPage.png", (303, 398, 524, 512)),
@@ -167,8 +188,9 @@ CROPS_IP11 = {
     # over the game table with OK / Show Me. "Show Me" navigates away to Options,
     # so the only safe answer is OK. It blocks taps until answered — it is what
     # swallowed the first attempt at the Complete Game cheat.
-    "prompt_tip":      ("TipDialog.png", (150, 758, 395, 810)),
-    "tip_ok":          ("TipDialog.png", (150, 992, 385, 1052)),
+    # No "prompt_tip"/"tip_ok" here on purpose. That dialog is drawn by the app,
+    # is translucent, and comes in one- and two-button forms; it is found by
+    # shape instead — see unity_ui.card_dialog().
     # The in-game top bar's "menu" word, re-cut TIGHT to the glyphs. The derived
     # crop carried a wide margin of felt, and felt is the worst thing to include:
     # it changes with the Choose Look surface and with whatever cards sit behind

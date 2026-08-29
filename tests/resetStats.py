@@ -8,8 +8,15 @@ is written to survive the app adding or dropping a step rather than hardcoding
 two.
 
 DESTRUCTIVE: this permanently clears local statistics on the device (Game Center
-scores are untouched, per the dialog). It is therefore NOT part of the default
-run_all.py suite — run it deliberately.
+scores are untouched, per the dialog).
+
+It runs LAST in tests/run_all.py, which is what makes that safe: everything that
+reads or depends on play history has already run — verifyStatsPage renders the
+page, verifyDifficultyLevels banks four wins, and verifyMoreGamesIcons needs at
+least one completed game before the promo strip is drawn at all. Each run
+re-earns that before reaching here, so wiping at the end leaves the next run's
+ordering intact. Note the consequence: a full suite run now ends with the
+device's local statistics at zero.
 
 Run:  ./.venv/bin/python tests/resetStats.py
 """

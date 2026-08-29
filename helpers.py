@@ -130,6 +130,222 @@ def alert_tap(session_id: str, label: str = None, base_url: str = None) -> bool:
         return False
 
 
+# ── device radios (Airplane Mode / Wi-Fi) ──────────────────────────
+# The suite wants the phone OFFLINE (adverts otherwise interrupt screen
+# transitions), while tests/verifyAds.py, tests/verifyHelpShift.py and
+# tests/visitLastScore.py want it online. That used to be a manual step on the
+# phone; these drive it.
+#
+# It works because iOS **Settings is an ordinary app**, so WDA reads its real
+# accessibility tree — unlike the game, which is one opaque Unity view with
+# nothing published at all. Airplane Mode is a genuine switch in that tree:
+#
+#   XCUIElementTypeSwitch name="com.apple.settings.airplaneMode" value="1"
+#
+# so its state can be READ rather than assumed, and only tapped when it is
+# actually wrong.
+#
+# Two things measured on this rig (iPhone 11, iOS 26.5, WDA 15.0.0) that the
+# obvious implementation gets wrong:
+#
+#   * **/element/<id>/click does nothing to this switch.** It returns success and
+#     the value stays exactly as it was. The element's rect covers the whole
+#     table row, and pressing the row is not pressing the control. A coordinate
+#     tap on the toggle itself does work, so that is what this does — derived
+#     from the element's own rect, not hardcoded, so it holds on other iPhones.
+#   * **Toggling radios does not break the connection.** WDA is reached over the
+#     USB cable via iproxy, not over Wi-Fi, so the session survives going
+#     offline. This would not be safe on a WiFi-paired device (the iPhone 7).
+#
+# The ONE hazard, and it is the same one CLAUDE.md records: WDA must be STARTED
+# while the phone is online, because iOS re-verifies the developer certificate
+# over the network at launch. These helpers are safe because they never restart
+# WDA — but a run that goes offline and then tries to relaunch WDA will fail.
+SETTINGS_BUNDLE = "com.apple.Preferences"
+AIRPLANE_SWITCH = "com.apple.settings.airplaneMode"
+WIFI_ROW = "com.apple.settings.wifi"
+
+# How far in from the row's RIGHT edge the switch control sits, in points.
+# Measured: the Airplane Mode row spans x 20..394 and the toggle answers at
+# x=355, i.e. 39 points short of the trailing edge. Points are device
+# independent, so this does not need scaling per phone.
+_SWITCH_INSET = 39
+
+
+def _wda_get(path: str, base_url: str = None, timeout: int = 15):
+    base_url = base_url or config.WDA_URL
+    return json.load(urllib.request.urlopen(base_url + path, timeout=timeout))
+
+
+def _element(sid: str, name: str, base_url: str = None, timeout: float = 0.0):
+    """Element id of the accessibility element called `name`, or None.
+
+    `timeout` polls rather than asking once. Settings does not draw instantly
+    after being foregrounded, and a single-shot lookup taken in that window
+    reports the row as absent — which read as "the switch is unreadable"
+    immediately after every toggle.
+    """
+    import time
+    deadline = time.time() + timeout
+    while True:
+        try:
+            r = _wda_post(f"/session/{sid}/element",
+                          {"using": "name", "value": name}, base_url)
+            el = (r.get("value") or {}).get("ELEMENT")
+            if el:
+                return el
+        except Exception:                   # noqa: BLE001 — not on screen (yet)
+            pass
+        if time.time() >= deadline:
+            return None
+        time.sleep(0.4)
+
+
+def _attr(sid: str, el: str, attr: str, base_url: str = None):
+    try:
+        return _wda_get(f"/session/{sid}/element/{el}/attribute/{attr}",
+                        base_url).get("value")
+    except Exception:                       # noqa: BLE001
+        return None
+
+
+def _open_settings(base_url: str = None) -> str:
+    """Foreground Settings at its ROOT page and return the session id.
+
+    Settings resumes wherever it was last left, which can be a sub-page with no
+    Airplane Mode row on it. So this launches, looks for the switch, and only if
+    it is missing pays for a terminate + relaunch to force the root page.
+    """
+    sid = launch_app(SETTINGS_BUNDLE, base_url, timeout=60)
+    if _element(sid, AIRPLANE_SWITCH, base_url, timeout=6.0) is None:
+        try:
+            _wda_post(f"/session/{sid}/wda/apps/terminate",
+                      {"bundleId": SETTINGS_BUNDLE}, base_url)
+        except Exception:                   # noqa: BLE001
+            pass
+        sid = launch_app(SETTINGS_BUNDLE, base_url, timeout=60, force=True)
+        _element(sid, AIRPLANE_SWITCH, base_url, timeout=_ROW_TIMEOUT)
+    return sid
+
+
+# How long to keep looking for a row before calling it absent. Generous on
+# purpose: the Settings ROOT PAGE REBUILDS when the phone comes online — the
+# Apple Account row and any "finish setting up your iPhone" follow-up rows load
+# in and reflow the list — and a lookup landing inside that rebuild finds
+# nothing. That is an intermittent, and it bit exactly one sequence: going
+# online and then straight back offline. The first fix re-opened Settings on
+# every miss, which created a fresh WDA session each time and eventually timed
+# WDA out; waiting is both cheaper and what the situation actually calls for.
+_ROW_TIMEOUT = 15.0
+
+
+def _read_airplane(sid: str, base_url: str = None):
+    """True/False/None — the switch's state, using an already-open Settings."""
+    el = _element(sid, AIRPLANE_SWITCH, base_url, timeout=_ROW_TIMEOUT)
+    if el is None:
+        return None
+    value = _attr(sid, el, "value", base_url)
+    return None if value is None else str(value) in ("1", "true", "True")
+
+
+def _read_wifi(sid: str, base_url: str = None, timeout: float = _ROW_TIMEOUT) -> str:
+    """The Wi-Fi row's state — "Off", "Not Connected", or a network name."""
+    el = _element(sid, WIFI_ROW, base_url, timeout=timeout)
+    label = _attr(sid, el, "label", base_url) if el else None
+    if not label:
+        return ""
+    # The row's label reads "Wi-Fi, <state>".
+    return label.split(",", 1)[1].strip() if "," in label else label.strip()
+
+
+def _tap_airplane(sid: str, want: bool, base_url: str = None,
+                  settle: float = 4.0, timeout: float = 45.0) -> bool:
+    """Drive the switch to `want` using an already-open Settings. True if it got there."""
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        el = _element(sid, AIRPLANE_SWITCH, base_url, timeout=_ROW_TIMEOUT)
+        if el is None:
+            return False
+        if (str(_attr(sid, el, "value", base_url)) in ("1", "true", "True")) == want:
+            return True
+        rect = _attr(sid, el, "rect", base_url) or {}
+        if not rect:
+            return False
+        x = int(rect["x"] + rect["width"] - _SWITCH_INSET)
+        y = int(rect["y"] + rect["height"] / 2)
+        try:
+            _wda_post(f"/session/{sid}/wda/tap", {"x": x, "y": y}, base_url)
+        except Exception:                   # noqa: BLE001
+            return False
+        time.sleep(settle)
+    return _read_airplane(sid, base_url) == want
+
+
+def network_state(base_url: str = None) -> dict:
+    """{"airplane": True/False/None, "wifi": "Off"|"Not Connected"|<network>}.
+
+    One Settings visit for both, because a visit is not cheap — see set_network.
+    """
+    sid = _open_settings(base_url)
+    try:
+        return {"airplane": _read_airplane(sid, base_url),
+                "wifi": _read_wifi(sid, base_url)}
+    finally:
+        launch_app(base_url=base_url, timeout=60)
+
+
+def set_network(online: bool, base_url: str = None, wait: float = 75.0,
+                restore: bool = True):
+    """Take the device online (True) or offline (False). -> (ok, network name).
+
+    `ok` is whether Airplane Mode ended in the right state; the name is the
+    Wi-Fi network it joined, "" when going offline or when it never associated.
+
+    ONE Settings visit does the whole job — toggle, verify, and the wait for
+    Wi-Fi to come back — and the game is foregrounded once at the end. That
+    matters more than it looks: an earlier version built this out of separate
+    public calls that each opened Settings and each handed the screen back, so a
+    single online/offline cycle cost about ten app switches. WDA slowed under
+    that until lookups were timing out and the toggle reported failure while the
+    setting itself was fine. Chattiness was the bug, not the logic.
+
+    `restore` foregrounds the game afterwards WITHOUT restarting it, so in-app
+    state survives a mid-suite network change.
+    """
+    import time
+    sid = _open_settings(base_url)
+    time.sleep(1.5)                         # let the view finish arriving before
+                                            # any tap: WDA can see the switch
+                                            # while it is still sliding in, and a
+                                            # tap aimed at that rect hits nothing
+    try:
+        ok = _tap_airplane(sid, not online, base_url)
+        net = ""
+        if ok and online:
+            deadline = time.time() + wait
+            while time.time() < deadline:
+                net = _read_wifi(sid, base_url, timeout=6.0)
+                if net and net.lower() not in ("off", "not connected"):
+                    break
+                time.sleep(2.0)
+            if net.lower() in ("off", "not connected"):
+                net = ""
+        return ok, net
+    finally:
+        if restore:
+            launch_app(base_url=base_url, timeout=60)
+
+
+def airplane_mode(base_url: str = None):
+    """True if the device is in Airplane Mode, False if not, None if unreadable."""
+    return network_state(base_url)["airplane"]
+
+
+def wifi_status(base_url: str = None) -> str:
+    """What the Wi-Fi row reports — "Off", "Not Connected", or a network name."""
+    return network_state(base_url)["wifi"]
+
 # ── "tap the positive option" heuristic ────────────────────────────
 # Affirmative labels (priority order) and declining labels (exact, so short
 # words like "No"/"OK" don't match inside other words). Case-insensitive.

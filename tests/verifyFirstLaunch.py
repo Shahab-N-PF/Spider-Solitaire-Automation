@@ -7,12 +7,16 @@ menu. `ui.clear_overlays()` clears whatever is present — the ATT prompt throug
 WDA's alert API (it is a system alert, so it has real buttons WDA can read), and
 any interstitial by its close control — and this asserts the menu is reached.
 
+It runs FIRST in tests/run_all.py. It is the only test that starts from a
+TERMINATED app rather than walking back from wherever the previous test left
+off, so it both checks the cold-start path and hands every later test a known
+state to begin from.
+
 IMPORTANT — to actually exercise the pop-up path you must be on a first launch:
 reinstall the app, or reset App Tracking (Settings > Privacy & Security >
 Tracking) and clear the app's "agreed to terms" state. On a normal launch there
-are no pop-ups and this simply confirms a cold start reaches the menu, which is
-still worth having: it is the only test that starts from a terminated app rather
-than walking back from wherever the previous test left off.
+are no pop-ups and this simply confirms a cold start reaches the menu — still
+worth having, for the reason above.
 
 Captures log/first_launch.png.
 

@@ -43,7 +43,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import unity_ui as ui  # noqa: E402
 
 MID = 0.5           # "~mid" for both sliders
-MID_TOL = 0.05      # how close to a fixed slider target counts as arrived
+# How close to a fixed slider target counts as arrived. It is 0.08 rather than
+# something tighter because that is the resolution a synthetic swipe HAS on
+# these sliders: a drag asking for less than ~0.06 of the track does not
+# register as a drag at all, so the knob can be left up to about one such step
+# from any target and no further gesture can close the gap. See
+# unity_ui.SLIDER_MIN_DRAG for the measurement. The ends are exempt from this —
+# both sliders hit 0.00 and 1.00 exactly, which is what check_slider asserts.
+MID_TOL = 0.08
 
 # The rows this test drives, and the value each is left at. Listed in PAGE
 # ORDER, which is what keeps the run cheap: ui.opt_row() has to rewind to the
