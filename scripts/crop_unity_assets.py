@@ -92,6 +92,7 @@ CROPS = {
     "about_version":  ("SpiderAboutPage.png", (452, 1258, 672, 1324)),
     "about_faq":      ("SpiderAboutPage.png", (230, 2067, 1064, 2130)),
     "about_help":     ("SpiderAboutPage.png", (575, 1809, 715, 1871)),
+    "about_adfree":   ("SpiderAboutPage.png", (418, 1937, 873, 1999)),
     "about_feedback": ("SpiderAboutPage.png", (386, 2326, 902, 2388)),
 
     # ── more games (cross-promo) ──────────────────────────────────

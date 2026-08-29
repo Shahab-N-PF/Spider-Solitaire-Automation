@@ -51,6 +51,10 @@ import visual  # noqa: E402
 #                     under it?" — 'menu' is white text ON the felt and scores
 #                     0.74-0.84 across surfaces against a 0.72 bar. Run it alone,
 #                     or last, once everything else has already run.
+#   verifyAdFreeVersion — the hand-off works offline, but the whole point of the
+#                     test is the App Store page it lands on, and offline that is
+#                     the same "No Internet Connection" screen for every link. A
+#                     screenshot of that proves nothing, so run it online.
 #   verifyRelaunch  — KILLS the app mid-game by design (its premise is that the
 #                     game screen comes back after a kill). Anywhere after
 #                     openDebugTools that would hide the Dev Panel button

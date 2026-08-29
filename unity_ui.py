@@ -492,6 +492,31 @@ def in_app() -> bool:
     return active_app() == config.BUNDLE_ID
 
 
+APP_STORE = "com.apple.AppStore"        # where an outbound link should land
+
+
+def left_app(timeout: float = 10.0) -> str:
+    """Wait for a hand-off out of the game; return the app we landed in.
+
+    The hand-off is not instant, so this polls rather than looking once. What it
+    polls is the foreground BUNDLE ID, because a screenshot cannot tell you which
+    app you are looking at — an App Store page and an in-app store mock-up are
+    the same pixels to a template.
+
+    Returns Spider's own id when it never left, which is a real answer rather
+    than an error: that is exactly what a dead link looks like. Callers should
+    report the id they got, not just "not the App Store" — the difference
+    between "the link did nothing" and "the link opened the wrong thing" is the
+    whole diagnosis.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not in_app():
+            break
+        time.sleep(1)
+    return active_app()
+
+
 def resume(settle: float = 2.5) -> bool:
     """Bring Spider back to the front WITHOUT restarting it.
 

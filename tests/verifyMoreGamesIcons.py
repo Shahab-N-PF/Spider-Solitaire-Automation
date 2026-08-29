@@ -72,7 +72,7 @@ from airtest.core.cv import Template  # noqa: E402
 PROMO_ICONS = ("promo_solitaire", "promo_sudoku2", "promo_cardgames",
                "promo_freecell", "promo_spiderette")
 
-STORE_BUNDLE = "com.apple.AppStore"     # where a working promo icon lands
+STORE_BUNDLE = ui.APP_STORE             # where a working promo icon lands
 
 
 def objc_template(name, threshold=0.7):
@@ -123,11 +123,7 @@ def check_redirect(name):
                    f"again to tap it")
     ui.tap_at(pos, settle=4.0)
 
-    for _ in range(10):             # the hand-off is not instant
-        if not ui.in_app():
-            break
-        ui.sleep(1)
-    went_to = ui.active_app()
+    went_to = ui.left_app()
     ui.expect(went_to == STORE_BUNDLE,
               f"[{name}] tapping the icon did not open the App Store — the "
               f"foreground app is {went_to or 'unknown'}. A promo icon that goes "

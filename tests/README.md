@@ -65,8 +65,11 @@ zero.
 
 Not in the default suite, on purpose: **`verifyHelpShift.py`** (needs the device
 online, which the suite otherwise avoids), **`verifyAds.py`** (same — ads need
-the network; see *Ads* below), and **`visitLastScore.py`** (its Game Center legs
-need the network and a signed-in Apple account).
+the network; see *Ads* below), **`visitLastScore.py`** (its Game Center legs
+need the network and a signed-in Apple account), and
+**`verifyAdFreeVersion.py`** (the hand-off works offline, but the App Store page
+it lands on is the point, and offline that is the same "No Internet Connection"
+screen for every link).
 
 ## The app is NOT restarted between tests
 
@@ -184,6 +187,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
 | `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |
+| `verifyAdFreeVersion` | About's **"ad free version"** link raises a **No/Yes card** ("Tap Yes to proceed to the App Store"), and answering **Yes** hands off to the App Store — asserted on the foreground **bundle id**, not pixels. Switching back with `ui.resume()` returns to **About**, which is what proves the app was resumed and not restarted. The page it lands on is **Spider Solitaire +**, this game's paid build (online, opt-in) |
 
 ### The assertion worth knowing about
 
@@ -425,7 +429,7 @@ A suite that locates by template is only as good as its templates, so
 * **AMBIGUOUS** — also matches a screen it shouldn't, which would let an
   assertion pass on the wrong screen.
 
-Currently **53 templates, 0 fragile, 0 ambiguous**. Two findings from this gate
+Currently **54 templates, 0 fragile, 0 ambiguous**. Two findings from this gate
 are baked into the driver: the menu labels stay visible **behind the Choose Look
 modal** (so `ui.on_menu()` rules the modal out), and the Help footer carries the
 **same** FAQ link as About.
