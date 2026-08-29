@@ -6,6 +6,8 @@ foregrounds that app). Use these alongside Airtest, which then drives whatever
 is on screen (snapshot / touch / image matching).
 """
 import json
+import subprocess
+import sys
 import urllib.request
 
 import config
@@ -62,6 +64,73 @@ def wda_status(base_url: str = None, timeout: int = 15) -> dict:
     """Return WDA /status (raises if WDA is not reachable)."""
     base_url = base_url or config.WDA_URL
     return json.load(urllib.request.urlopen(base_url + "/status", timeout=timeout))["value"]
+
+
+# ── device / app identity ──────────────────────────────────────────
+# For assertions about text the app writes ABOUT its environment — the feedback
+# mail's subject names the build and the hardware it came from.
+#
+# Read LIVE, never written into a test as constants. That subject is different
+# on every device by design, so a test carrying "26.5" is a test that works on
+# one phone until the next iOS update. Reading them here is what lets
+# tests/submitFeedback.py run unchanged on the iPhone 14 Pro Max and 16 Pro.
+#
+# WDA cannot supply the model: /wda/device/info answers "iPhone" for every
+# iPhone, too generic to assert anything with. `ideviceinfo` gives the
+# identifier the app actually prints (iPhone12,1), and libimobiledevice is
+# already a documented dependency of this repo.
+#
+# All three fail SOFT, returning "", because a missing tool must read as "this
+# could not be checked" at the call site rather than crashing a test whose
+# subject is something else entirely.
+
+def os_version(base_url: str = None) -> str:
+    """The device's iOS version, e.g. "26.5". "" if unreadable."""
+    try:
+        return str(wda_status(base_url)["os"]["version"])
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def device_model(udid: str = None) -> str:
+    """The device's model IDENTIFIER, e.g. "iPhone12,1". "" if unreadable.
+
+    Note this is not the marketing name: iPhone12,1 is sold as "iPhone 11".
+    The app prints the identifier, so that is what tests compare against.
+    """
+    cmd = ["ideviceinfo", "-k", "ProductType"]
+    udid = udid or config.DEVICE_UDID
+    if udid:
+        cmd[1:1] = ["-u", udid]
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=20).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def app_info(bundle_id: str = None, udid: str = None):
+    """(display name, version) for an installed app, or ("", "") if unreadable.
+
+    e.g. ("Spider", "8.0.0"). The DISPLAY NAME matters as much as the version:
+    the feedback subject says "Spider", while config.GAME_NAME is "Spider
+    Solitaire" — a test asserting GAME_NAME would fail on a correct app.
+    """
+    bundle_id = bundle_id or config.BUNDLE_ID
+    cmd = [sys.executable, "-m", "tidevice"]
+    udid = udid or config.DEVICE_UDID
+    if udid:
+        cmd += ["--udid", udid]
+    cmd += ["applist"]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        for line in out.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[0] == bundle_id:
+                return " ".join(parts[1:-1]), parts[-1]
+    except Exception:  # noqa: BLE001
+        pass
+    return "", ""
 
 
 # ── iOS native alerts (Terms & Conditions, notifications, …) ────────

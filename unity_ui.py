@@ -580,6 +580,177 @@ def store_title(timeout: float = 12.0) -> str:
     return last
 
 
+MAIL = "com.apple.mobilemail"           # where "submit feedback" lands
+
+
+def _mail_elements(kind: str):
+    """(element id, name, value, rect) for every element of `kind` in Mail."""
+    import json
+    import urllib.request
+    sid = helpers.current_session()
+    if not sid:
+        return []
+    out = []
+    try:
+        body = json.dumps({"using": "class name", "value": kind}).encode()
+        req = urllib.request.Request(
+            config.WDA_URL + f"/session/{sid}/elements", data=body,
+            headers={"Content-Type": "application/json"})
+        for el in json.load(urllib.request.urlopen(req, timeout=10)).get("value") or []:
+            eid = el.get("ELEMENT") or (list(el.values())[0] if el else None)
+            if not eid:
+                continue
+            got = {}
+            for attr in ("name", "value"):
+                try:
+                    got[attr] = json.load(urllib.request.urlopen(
+                        config.WDA_URL + f"/session/{sid}/element/{eid}/attribute/{attr}",
+                        timeout=8)).get("value")
+                except Exception:  # noqa: BLE001
+                    got[attr] = None
+            out.append((eid, got["name"], got["value"]))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+def _tap_named(kind: str, name: str) -> bool:
+    """Tap the Mail element called `name` at its rect centre. False if absent.
+
+    Taps the CENTRE rather than calling /element/<id>/click, because click is not
+    reliable on every iOS control — it returns success and does nothing on the
+    Settings Airplane switch (see helpers.py). A coordinate tap derived from the
+    element's own rect works everywhere and is still not a hardcoded position.
+    """
+    import json
+    import urllib.request
+    sid = helpers.current_session()
+    for eid, got_name, _value in _mail_elements(kind):
+        if got_name != name:
+            continue
+        try:
+            rect = json.load(urllib.request.urlopen(
+                config.WDA_URL + f"/session/{sid}/element/{eid}/rect",
+                timeout=8)).get("value") or {}
+            x = int(rect["x"] + rect["width"] / 2)
+            y = int(rect["y"] + rect["height"] / 2)
+            body = json.dumps({"actions": [{
+                "type": "pointer", "id": "f1",
+                "parameters": {"pointerType": "touch"},
+                "actions": [{"type": "pointerMove", "duration": 0, "x": x, "y": y},
+                            {"type": "pointerDown", "button": 0},
+                            {"type": "pause", "duration": 100},
+                            {"type": "pointerUp", "button": 0}]}]}).encode()
+            req = urllib.request.Request(
+                config.WDA_URL + f"/session/{sid}/actions", data=body,
+                headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10)
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+    return False
+
+
+def mail_draft(timeout: float = 12.0) -> dict:
+    """{"subject": ..., "to": ...} of the open Mail draft; empty strings if none.
+
+    Mail is an ordinary UIKit app, so its compose sheet publishes a real
+    accessibility tree and the draft can be READ rather than guessed at from
+    pixels — which matters because the subject is different on every device by
+    design, so there is nothing to compare a screenshot against.
+
+    Both fields carry formatting characters that are not part of the address:
+    the To field reads '\\u200eTo:\\ufffccardgames@peoplefun.com', so the label,
+    the left-to-right mark and the object-replacement character are stripped
+    here rather than in every caller.
+    """
+    deadline = time.time() + timeout
+    draft = {"subject": "", "to": ""}
+    while time.time() < deadline:
+        for _eid, name, value in _mail_elements("XCUIElementTypeTextView"):
+            if name == "subjectField" and value:
+                draft["subject"] = str(value).strip()
+        for _eid, name, value in _mail_elements("XCUIElementTypeTextField"):
+            if name == "toField" and value:
+                cleaned = str(value).replace("‎", "").replace("￼", "")
+                draft["to"] = cleaned.split("To:", 1)[-1].strip()
+        if draft["subject"]:
+            return draft
+        time.sleep(1)
+    return draft
+
+
+def mail_discard(timeout: float = 10.0) -> bool:
+    """Throw the open draft away. True once the composer is gone.
+
+    NEVER sends. The compose sheet's two top controls are 'Mail.cancelSendButton'
+    (the X, top-left) and 'Mail.sendButton' (the blue arrow, top-right) — both
+    addressed BY NAME here precisely so a coordinate slip cannot hit the wrong
+    one. Cancelling raises a sheet offering Delete Draft / Save Draft; this takes
+    Delete, so a run leaves nothing behind in the user's Mail app.
+    """
+    if not _tap_named("XCUIElementTypeButton", "Mail.cancelSendButton"):
+        return not mail_draft(timeout=2.0)["subject"]        # already gone?
+    time.sleep(2)
+    _tap_named("XCUIElementTypeButton", "Mail.compose.popoverAlert.deleteDraft")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not mail_draft(timeout=1.0)["subject"]:
+            return True
+        time.sleep(1)
+    return False
+
+
+# Where iOS draws the "◀ <app>" back-to-app breadcrumb, as fractions of the
+# capture. Measured on an iPhone 11 (828x1792) with Mail in front: the crumb
+# occupies x 25-118, y 67-85 px, so its "◀ Sp" end sits at (0.055, 0.042).
+#
+# Deliberately aimed at the LEFT end rather than the text's centre: the crumb is
+# as wide as the app's NAME, so a centre would drift with the name and a longer
+# one would push the target off where a shorter one sits. The arrow end does not
+# move.
+#
+# It has to be a position, because this is the one control on screen that is NOT
+# in any app's accessibility tree — SpringBoard draws it over the foreground app,
+# so Mail's own hierarchy (queried in full: 101k characters of it) contains no
+# status bar, no breadcrumb and no "Spider". Nor is it template-matchable with
+# any confidence: the status bar takes the colour of whatever app is behind it,
+# grey under Mail and white under the App Store, so a crop bakes in a background
+# that changes.
+_CRUMB = (0.055, 0.042)
+
+
+def tap_back_to_app(settle: float = 3.0, timeout: float = 10.0) -> bool:
+    """Return to the game by tapping the "◀ Spider" crumb. True once back.
+
+    This is the route a PERSON takes out of Mail or the App Store, and it is not
+    the same thing as resume(): resume() asks WDA to foreground the app, which
+    can relaunch it, while the crumb is iOS's own task switch. So this is the
+    honest way to test "and then the user goes back to the game".
+
+    Returns False rather than raising if the tap does not land, so a caller can
+    say which step failed. Never terminates.
+
+    IT REFUSES TO TAP IF THE GAME IS ALREADY IN FRONT, and that guard is not
+    theoretical. The crumb is BIDIRECTIONAL — it names whichever app you came
+    from — so with Spider in front and Mail behind it reads "◀ Mail", and tapping
+    the same point sends you OUT of the game instead of back into it. Measured:
+    from Spider, this tap landed in com.apple.mobilemail. Without the guard a
+    caller that was already home would be thrown out by the very call meant to
+    bring it back.
+    """
+    if in_app():
+        return True
+    w, h = screen_size()
+    tap_at((int(w * _CRUMB[0]), int(h * _CRUMB[1])), settle=settle)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if in_app():
+            return True
+        time.sleep(1)
+    return in_app()
+
+
 def resume(settle: float = 2.5) -> bool:
     """Bring Spider back to the front WITHOUT restarting it.
 

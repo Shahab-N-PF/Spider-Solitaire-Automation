@@ -55,6 +55,11 @@ import visual  # noqa: E402
 #                     test is the App Store page it lands on, and offline that is
 #                     the same "No Internet Connection" screen for every link. A
 #                     screenshot of that proves nothing, so run it online.
+#   submitFeedback  — opens a real MAIL DRAFT, so it needs a Mail account
+#                     configured on the device. Without one iOS shows "No Mail
+#                     Accounts" instead of a composer and the suite would fail
+#                     for an environment reason, not a build one. (It never
+#                     sends, and deletes the draft from a finally.)
 #   verifyRelaunch  — KILLS the app mid-game by design (its premise is that the
 #                     game screen comes back after a kill). Anywhere after
 #                     openDebugTools that would hide the Dev Panel button

@@ -11,9 +11,12 @@ The About screen carries five links, and verifySpiderLogo follows only the FAQ
 one, because that one stays in-app; its docstring says the others are not tapped
 since they would "strand the suite outside the game". verifyMoreGamesIcons
 answered that objection — it taps five promo icons, proves each hands off to the
-App Store, and comes back with ui.resume(), which foregrounds Spider WITHOUT
-killing it, so in-app state survives. This applies the same route to a link on
-About.
+App Store, and comes back without killing the app, so in-app state survives.
+This applies the same route to a link on About — but returns the way a PERSON
+does, by tapping the "◀ Spider" crumb iOS draws in the status bar, rather than
+asking WDA to foreground the app. Note that crumb is BIDIRECTIONAL: it names
+whichever app you came from, so ui.tap_back_to_app() refuses to tap when the
+game is already in front, or it would throw the run OUT of the game.
 
 **The link does not go straight out.** It raises a confirmation card first —
 "Would you like to take a look at the Ad free version? / Tap Yes to proceed to
@@ -121,10 +124,15 @@ def run():
               f"rendered, not that the link is wrong.) See {shot}")
     print(f"  'ad free version' opened the App Store on {title!r} — see {shot}")
 
-    # 9-10. Come back. resume() foregrounds Spider without restarting it, so
-    #       landing back on ABOUT is what proves the app was not relaunched.
-    ui.expect(ui.resume(),
-              "could not switch back to Spider from the App Store")
+    # 9-10. Come back the way a PERSON does: tap the "◀ Spider" crumb iOS draws
+    #       in the status bar, rather than asking WDA to foreground the app.
+    #       Landing back on ABOUT is then what proves the app was never
+    #       relaunched — the App Store is an overlay Spider survives underneath.
+    ui.expect(ui.tap_back_to_app(),
+              "tapping the '◀ Spider' breadcrumb in the status bar did not bring "
+              "the game back from the App Store. That crumb is drawn by iOS, not "
+              "by the store, so it has no accessibility entry to fall back on — "
+              f"check the top-left of {shot} for it.")
     ui.expect(ui.at_screen("about", timeout=10.0),
               "came back from the App Store but not to the About screen — if "
               "this is the main menu, the app was RESTARTED rather than resumed, "

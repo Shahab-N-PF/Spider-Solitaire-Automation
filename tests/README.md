@@ -69,7 +69,9 @@ the network; see *Ads* below), **`visitLastScore.py`** (its Game Center legs
 need the network and a signed-in Apple account), and
 **`verifyAdFreeVersion.py`** (the hand-off works offline, but the App Store page
 it lands on is the point, and offline that is the same "No Internet Connection"
-screen for every link).
+screen for every link), and
+**`submitFeedback.py`** (it opens a real mail draft, so it needs a Mail account
+configured on the device — it never sends, and deletes the draft afterwards).
 
 ## The app is NOT restarted between tests
 
@@ -188,6 +190,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
 | `verifyAds` | banner served, interstitial fires on leaving a game, the ad never leaves the app, and the app recovers (online, opt-in) |
 | `verifyAdFreeVersion` | About's **"ad free version"** link raises a **No/Yes card** ("Tap Yes to proceed to the App Store"), and answering **Yes** hands off to the App Store — asserted on the foreground **bundle id**, not pixels. Switching back with `ui.resume()` returns to **About**, which is what proves the app was resumed and not restarted. The page it lands on is asserted by name to be **Spider Solitaire +**, this game's paid build (online, opt-in) |
+| `submitFeedback` | About's **"submit feedback"** raises a Cancel / **Write Email** alert (identified by its TEXT), and Write Email opens **Mail** with a draft. Its **subject** is read from Mail's accessibility tree and must name the **game, app version, device model and iOS version** — each read off the device in the same run, never hardcoded, so it holds on any handset. **Never sends**: the X and the send arrow are addressed by name, and the draft is deleted from a `finally` (online/opt-in, needs a Mail account) |
 
 ### The assertion worth knowing about
 
