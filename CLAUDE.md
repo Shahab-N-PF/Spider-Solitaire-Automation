@@ -36,9 +36,10 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | Path | Purpose |
 |---|---|
 | `config.py` | Game identity (`GAME_NAME`, `BUNDLE_ID`) + WDA URL / device URI. Env-overridable. |
-| `helpers.py` | `launch_app()` (WDA session launch) and `wda_status()`. |
-| `flows.py` | Shared driver: launch/connect + template navigation helpers used by the tests. |
-| `visual.py` | Baseline (visual-regression) comparison: masked SSIM of `log/` captures vs `baselines/`. |
+| `helpers.py` | `launch_app()` (WDA session launch), `wda_status()`, the Airplane-Mode/Wi-Fi radio control (`set_network`, `network_state`), and the live device/app identity readers `os_version()` / `device_model()` / `app_info()` that `submitFeedback` asserts the feedback subject against. |
+| `flows.py` | **The Obj-C driver** — launch/connect + template navigation, ~30 helpers against the `assets/` crops. No longer used by the `verify*.py` suite (that was converted to `unity_ui.py`); its live callers are `tests/compare_unity.py` and `scripts/capture_unity_screens.py`. This, plus `assets/`, is what Obj-C functional testing would be rebuilt on. |
+| `driver.py` | **Dormant — imported by nothing.** A build-aware dispatcher meant to run one test against BOTH builds, resolving each action per build (`PROFILES`) after classifying the installed app with `detect_build()` — a WDA accessibility-tree probe, since Unity's tree is opaque and UIKit's is not (`BUILD=objc｜unity` overrides it). Never finished: wired for the menu + Options only. **Kept deliberately** — deleting it costs no coverage today, but `detect_build()` is the piece worth having back if the Obj-C build returns. Do not mistake it for the Obj-C driver; that is `flows.py`. |
+| `visual.py` | Baseline (visual-regression) comparison: **masked exact-pixel** diff of `log/` captures vs `baselines/`, per-screen `max_diff` in `SPECS`. Not SSIM — that was too tolerant and missed shifts (see the Visual regression section below). |
 | `unity_ui.py` | **Unity functional driver.** Drives the Unity build by templates cropped from *Unity's own* rendering (`assets_unity/`), not by blind coordinates and not with the Obj-C `assets/` (which don't match Unity). Navigation, the two look-alike Yes/No dialogs, game-table controls, the Options screen's toggles + sliders (`opt_*`), and pixel-observation helpers. Used by the `tests/verify*.py` suite. |
 | `scripts/setup.sh` | Create `.venv`, install `requirements.txt`. |
 | `scripts/wda.sh` | Launch + port-forward WDA. Resolves the build as `WDA_PRODUCTS` → in-repo `wda/` → `../sudoku-automation` fallback. |
