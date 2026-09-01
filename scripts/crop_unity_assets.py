@@ -165,6 +165,11 @@ CROPS_IP11 = {
     # what makes the victory screens reachable without playing a game out.
     # Source: log/unity_screens/SpiderAboutDevPanelOpen.png (About + panel open).
     "dev_complete_game": ("SpiderAboutDevPanelOpen.png", (592, 1234, 824, 1280)),
+    # "Max Debugger" — the row directly BELOW Complete Game. The panel's rows
+    # are 64 px apart, and its buttons are clipped by the right screen edge, so
+    # this stops at the same x as its neighbour rather than chasing text that
+    # is not drawn. Source: log/unity_screens/SpiderAboutDevPanelOpen.png.
+    "dev_max_debugger": ("SpiderAboutDevPanelOpen.png", (592, 1298, 824, 1344)),
     # The victory screen, now reachable via that cheat. Anchored on the
     # "current / rank / best" header rather than the won/abandoned counters or the
     # score block, which change with every win. Kept left of x=587 so the Dev

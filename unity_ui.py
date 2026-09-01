@@ -583,8 +583,14 @@ def store_title(timeout: float = 12.0) -> str:
 MAIL = "com.apple.mobilemail"           # where "submit feedback" lands
 
 
-def _mail_elements(kind: str):
-    """(element id, name, value, rect) for every element of `kind` in Mail."""
+def _ax_elements(kind: str):
+    """(element id, name, value) for every element of `kind` in the FOREGROUND app.
+
+    Not Mail-specific despite where it started: it reads whatever app is in
+    front, which is what makes it work for Mail's draft, the App Store, and
+    MAX's mediation debugger alike. The game itself publishes nothing — that
+    is Unity — so this is only ever useful on native UI drawn over or beside it.
+    """
     import json
     import urllib.request
     sid = helpers.current_session()
@@ -614,8 +620,187 @@ def _mail_elements(kind: str):
     return out
 
 
+def _ax_first(kind: str, name: str, timeout: float = 20.0):
+    """Element id of the FIRST `kind` element called `name`, or None.
+
+    Asks WDA for that ONE element with a predicate instead of listing every
+    element of the class and filtering here. That is not a micro-optimisation:
+    MAX's mediation debugger renders a table of every ad network, and
+    enumerating its StaticTexts TIMED OUT at 15s, which _ax_elements() reports
+    as "no elements" — so a screen that was plainly up read as absent. A
+    predicate query on the same screen answers immediately.
+
+    The `kind` filter is applied here rather than in the predicate, and it is
+    LOAD-BEARING: MAX's debugger page carries a static text reading "Select Live
+    Network", and so does the navigation bar of the window that row opens. An
+    earlier version of this ignored `kind` entirely, so on_window() matched the
+    row on the OLD screen and reported the new window as open when it was not.
+    """
+    import json
+    import urllib.request
+    sid = helpers.current_session()
+    if not sid:
+        return None
+    escaped = name.replace("'", "\\'")
+    body = json.dumps({"using": "predicate string",
+                       "value": f"name == '{escaped}'"}).encode()
+    try:
+        req = urllib.request.Request(
+            config.WDA_URL + f"/session/{sid}/elements", data=body,
+            headers={"Content-Type": "application/json"})
+        for el in json.load(urllib.request.urlopen(req, timeout=timeout)).get("value") or []:
+            eid = el.get("ELEMENT") or (list(el.values())[0] if el else None)
+            if not eid:
+                continue
+            if kind:                    # the CLASS matters, not just the name
+                try:
+                    got = json.load(urllib.request.urlopen(
+                        config.WDA_URL + f"/session/{sid}/element/{eid}/attribute/type",
+                        timeout=8)).get("value")
+                except Exception:  # noqa: BLE001
+                    continue
+                if got != kind:
+                    continue
+            return eid
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _tap_point(x: int, y: int) -> bool:
+    """Tap a WDA POINT coordinate (not a capture-space one) via W3C actions.
+
+    Two coordinate spaces meet here and mixing them is silent, not loud. WDA
+    reports element rects in POINTS (414x896 on an iPhone 11) while tap_at() and
+    every template match work in CAPTURE PIXELS (828x1792) — _point_scale() is
+    the 2.0 between them. An earlier tap_text() handed a point-space rect centre
+    to tap_at(), so every tap landed at HALF the intended position: it reported
+    success, hit empty table, and the window it was supposed to open never did.
+
+    Anything derived from an element rect must come through here.
+    """
+    import json
+    import urllib.request
+    sid = helpers.current_session()
+    if not sid:
+        return False
+    body = json.dumps({"actions": [{
+        "type": "pointer", "id": "f1",
+        "parameters": {"pointerType": "touch"},
+        "actions": [{"type": "pointerMove", "duration": 0, "x": int(x), "y": int(y)},
+                    {"type": "pointerDown", "button": 0},
+                    {"type": "pause", "duration": 100},
+                    {"type": "pointerUp", "button": 0}]}]}).encode()
+    try:
+        req = urllib.request.Request(
+            config.WDA_URL + f"/session/{sid}/actions", data=body,
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _ax_rect(name: str, kind: str = "XCUIElementTypeStaticText",
+             visible_only: bool = True, timeout: float = 20.0):
+    """Rect of the element called `name`, or None. Visible ones only by default.
+
+    VISIBILITY IS THE POINT. MAX's debugger publishes rows that are scrolled out
+    of view, and the rects it reports for them are nonsense — "Select Live
+    Network" read y=102 while off screen, and "AppLovin" read y=-409. Tapping
+    either would hit the wrong thing. The `visible` attribute is the only
+    reliable signal that a row is actually drawn and therefore tappable, so it is
+    checked per element rather than trusted from the rect.
+    """
+    import json
+    import urllib.request
+    sid = helpers.current_session()
+    if not sid:
+        return None
+    escaped = name.replace("'", "\\'")
+    body = json.dumps({"using": "predicate string",
+                       "value": f"name == '{escaped}'"}).encode()
+    try:
+        req = urllib.request.Request(
+            config.WDA_URL + f"/session/{sid}/elements", data=body,
+            headers={"Content-Type": "application/json"})
+        for el in json.load(urllib.request.urlopen(req, timeout=timeout)).get("value") or []:
+            eid = el.get("ELEMENT") or (list(el.values())[0] if el else None)
+            if not eid:
+                continue
+            def attr(a):
+                return json.load(urllib.request.urlopen(
+                    config.WDA_URL + f"/session/{sid}/element/{eid}/attribute/{a}",
+                    timeout=8)).get("value")
+            if kind and attr("type") != kind:
+                continue
+            if visible_only and attr("visible") is not True:
+                continue
+            rect = attr("rect") or {}
+            if rect:
+                return rect
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def tap_text(name: str, kind: str = "XCUIElementTypeStaticText",
+             settle: float = 2.5) -> bool:
+    """Tap the VISIBLE native element called `name`. False if it is not on screen.
+
+    For native UI drawn over the game — MAX's debugger and its sub-screens. The
+    game's own controls are not here: Unity publishes nothing, which is what
+    every template in assets_unity/ exists for.
+    """
+    rect = _ax_rect(name, kind)
+    if not rect:
+        return False
+    ok = _tap_point(rect["x"] + rect["width"] / 2, rect["y"] + rect["height"] / 2)
+    if ok:
+        time.sleep(settle)
+    return ok
+
+
+def scroll_to_text(name: str, max_swipes: int = 10,
+                   kind: str = "XCUIElementTypeStaticText") -> bool:
+    """Scroll a native list until `name` is actually VISIBLE. True once it is.
+
+    Not the same as "present": the row is in the accessibility tree the whole
+    time, off screen, with a rect that cannot be tapped. Measured on the
+    debugger, ONE swipe brings the Ads section into view.
+
+    ONE DIRECTION ONLY. If the target is ABOVE the current viewport this scrolls
+    further away from it and returns False — measured on a debugger left scrolled
+    past the Ads section, where 8 swipes never found a row that was just above.
+    Callers that cannot guarantee starting at the top should reopen the list
+    rather than rely on this.
+    """
+    for _ in range(max_swipes):
+        if _ax_rect(name, kind):
+            return True
+        scroll(down=True)
+    return _ax_rect(name, kind) is not None
+
+
+def on_window(title: str, timeout: float = 8.0) -> bool:
+    """True while a native window with this NAVIGATION BAR title is up.
+
+    The bar is the discriminator, not a label: after "Select Live Network" is
+    tapped, BOTH the old page's row and the new page's heading are static texts
+    reading "Select Live Network", so only the navigation bar tells the two
+    screens apart.
+    """
+    deadline = time.time() + timeout
+    while True:
+        if _ax_first("XCUIElementTypeNavigationBar", title, timeout=8.0):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(1)
+
+
 def _tap_named(kind: str, name: str) -> bool:
-    """Tap the Mail element called `name` at its rect centre. False if absent.
+    """Tap the element of `kind` called `name` at its rect centre. False if absent.
 
     Taps the CENTRE rather than calling /element/<id>/click, because click is not
     reliable on every iOS control — it returns success and does nothing on the
@@ -625,30 +810,17 @@ def _tap_named(kind: str, name: str) -> bool:
     import json
     import urllib.request
     sid = helpers.current_session()
-    for eid, got_name, _value in _mail_elements(kind):
-        if got_name != name:
-            continue
-        try:
-            rect = json.load(urllib.request.urlopen(
-                config.WDA_URL + f"/session/{sid}/element/{eid}/rect",
-                timeout=8)).get("value") or {}
-            x = int(rect["x"] + rect["width"] / 2)
-            y = int(rect["y"] + rect["height"] / 2)
-            body = json.dumps({"actions": [{
-                "type": "pointer", "id": "f1",
-                "parameters": {"pointerType": "touch"},
-                "actions": [{"type": "pointerMove", "duration": 0, "x": x, "y": y},
-                            {"type": "pointerDown", "button": 0},
-                            {"type": "pause", "duration": 100},
-                            {"type": "pointerUp", "button": 0}]}]}).encode()
-            req = urllib.request.Request(
-                config.WDA_URL + f"/session/{sid}/actions", data=body,
-                headers={"Content-Type": "application/json"})
-            urllib.request.urlopen(req, timeout=10)
-            return True
-        except Exception:  # noqa: BLE001
-            return False
-    return False
+    eid = _ax_first(kind, name)
+    if not eid:
+        return False
+    try:
+        rect = json.load(urllib.request.urlopen(
+            config.WDA_URL + f"/session/{sid}/element/{eid}/rect",
+            timeout=8)).get("value") or {}
+        return _tap_point(rect["x"] + rect["width"] / 2,
+                          rect["y"] + rect["height"] / 2)
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def mail_draft(timeout: float = 12.0) -> dict:
@@ -667,10 +839,10 @@ def mail_draft(timeout: float = 12.0) -> dict:
     deadline = time.time() + timeout
     draft = {"subject": "", "to": ""}
     while time.time() < deadline:
-        for _eid, name, value in _mail_elements("XCUIElementTypeTextView"):
+        for _eid, name, value in _ax_elements("XCUIElementTypeTextView"):
             if name == "subjectField" and value:
                 draft["subject"] = str(value).strip()
-        for _eid, name, value in _mail_elements("XCUIElementTypeTextField"):
+        for _eid, name, value in _ax_elements("XCUIElementTypeTextField"):
             if name == "toField" and value:
                 cleaned = str(value).replace("‎", "").replace("￼", "")
                 draft["to"] = cleaned.split("To:", 1)[-1].strip()
@@ -749,6 +921,59 @@ def tap_back_to_app(settle: float = 3.0, timeout: float = 10.0) -> bool:
             return True
         time.sleep(1)
     return in_app()
+
+
+# ── MAX Mediation Debugger (the Dev Panel's "Max Debugger") ───────
+# AppLovin MAX's own debug overlay, opened from the Dev Panel. It is NATIVE
+# UIKit drawn over the Unity view — the foreground app stays com.fingerarts.Spider
+# — so unlike the game itself it publishes a real accessibility tree and can be
+# READ rather than matched. Measured on build 363 it lists Bundle ID, App
+# Version, OS, Account, Mediation Provider, OM SDK / MAX SDK / Plugin / Ad Review
+# / Unity versions, and the ad networks below them.
+#
+# Its on-screen title is TRUNCATED to "MAX Mediation Debug..." but the
+# accessibility name carries the whole string, which is exactly why the title is
+# read as text here instead of cropped as a template.
+MAX_DEBUGGER = "MAX Mediation Debugger"
+
+
+def on_max_debugger(timeout: float = 12.0) -> bool:
+    """True once MAX's mediation debugger overlay is up.
+
+    Identified by its TITLE, read from the accessibility tree with a targeted
+    predicate query. A pixel check would be far weaker — the overlay is a plain
+    white table whose contents differ per device and per SDK version, so there is
+    nothing stable to crop — and the title is the one string that is always
+    there. Note the on-screen title is TRUNCATED to "MAX Mediation Debug..."
+    while the accessibility name carries the whole of it, which is precisely why
+    this reads text rather than matching the header.
+    """
+    deadline = time.time() + timeout
+    while True:
+        if _ax_first("XCUIElementTypeStaticText", MAX_DEBUGGER, timeout=8.0):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(1)
+
+
+def close_max_debugger(timeout: float = 10.0) -> bool:
+    """Dismiss the debugger with its own Done button. True once it is gone.
+
+    Done is addressed BY NAME, not by position — the overlay also carries a
+    "Share" button in the same bar, and a coordinate slip there would open a
+    share sheet on top of everything.
+    """
+    if not on_max_debugger(timeout=1.0):
+        return True
+    if not _tap_named("XCUIElementTypeButton", "Done"):
+        return False
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not on_max_debugger(timeout=1.0):
+            return True
+        time.sleep(1)
+    return False
 
 
 def resume(settle: float = 2.5) -> bool:
