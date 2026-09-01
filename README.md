@@ -118,9 +118,18 @@ Run a subset, or a single test standalone:
 Opt-in, deliberately out of the suite:
 
 ```bash
-./.venv/bin/python tests/resetStats.py         # DESTRUCTIVE: wipes local statistics
-./.venv/bin/python tests/verifyHelpShift.py    # needs the device ONLINE
-./.venv/bin/python tests/preflight_offline.py  # assert Airplane Mode before a run
+./.venv/bin/python tests/resetStats.py           # DESTRUCTIVE: wipes local statistics
+./.venv/bin/python tests/preflight_offline.py    # assert Airplane Mode before a run
+# these need the device ONLINE — the suite otherwise runs offline to keep ads out
+./.venv/bin/python tests/verifyHelpShift.py      # Contact Us opens the support flow
+./.venv/bin/python tests/verifyAds.py            # MAX Mediation Debugger (brings itself online)
+./.venv/bin/python tests/verifyAdFreeVersion.py  # About's ad-free link -> App Store
+./.venv/bin/python tests/visitLastScore.py       # Last Score + Game Center (needs an Apple account)
+# needs a Mail account on the device; never sends, deletes the draft afterwards
+./.venv/bin/python tests/submitFeedback.py       # the feedback draft names build + handset
+# standalone, kept out of the suite for reasons of their own (see tests/README.md)
+./.venv/bin/python tests/verifyRelaunch.py       # kill + relaunch restores the board
+./.venv/bin/python tests/verifyChooseLook.py     # surface/card palettes reach the table
 ```
 
 Refresh the Unity templates after a build that restyles a control (this is **not**

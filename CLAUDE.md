@@ -49,9 +49,9 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `tests/connect_check.py` | Smoke test: connect + screenshot. |
 | `tests/launch_and_shoot.py` | Launch the game + screenshot (start of real flows). |
 | `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. |
-| `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`.** Banner is served, an interstitial fires on leaving a game, the ad never carries the user out of the app, and the app recovers. See `tests/README.md` → *Ads*. |
+| `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`. Chunks 1-2 of a rebuild around the Dev Panel's "Max Debugger".** Brings the device online itself (`ui.online()`), opens the Dev Panel (unlocking it if needed — `open_dev_panel()` covers both branches), and opens **MAX's Mediation Debugger**, which is native UIKit over the Unity view and so is asserted on its TITLE read from the accessibility tree. Its table is big enough that enumerating elements by class times out, so lookups use predicate queries (`ui._ax_first`). Then scrolls to the debugger's **Ads** section, opens **Select Live Network** and selects **AppLovin** — confirmed by the *checkmark* button that exists only once a network is picked. **Ends two screens deep on purpose**, so a re-run unwinds the leftover overlays first (back out of the window, then Done) rather than cold-launching, which would re-lock the Dev Panel. Two traps baked in: rows scrolled out of view keep UNTAPPABLE rects, so scrolling waits on `visible`, not presence; and "AppLovin" also appears under the debugger's *Completed SDK Integrations*, so the window is confirmed by its NAVIGATION BAR before the name is looked up. The banner / interstitial checks it replaced are in git history, findings kept in the docstring. |
 | `tests/visitLastScore.py` | **Last Score — ONLINE only, not in `run_all.py`.** The difficulty picker's "LAST SCORE" opens the "Last Won Game Score" ranking view; its forward arrow cycles the period (4 taps = a full round trip); "leaderboards" and "achievements" each open Apple's Game Center sheet and close again. Game Center needs the network + a signed-in Apple account. |
-| `tests/verifyAdFreeVersion.py` | **Ad-free link — ONLINE only, not in `run_all.py`.** About's "ad free version" does **not** redirect straight out: it raises a No/Yes card ("Tap Yes to proceed to the App Store"), and only **Yes** hands off — to **Spider Solitaire +**, this game's paid build, asserted by name. Asserted on the foreground bundle id (`ui.left_app()`), never on pixels; coming back with `ui.resume()` must land on **About**, which is the proof the app was resumed rather than restarted. |
+| `tests/verifyAdFreeVersion.py` | **Ad-free link — ONLINE only, not in `run_all.py`.** About's "ad free version" does **not** redirect straight out: it raises a No/Yes card ("Tap Yes to proceed to the App Store"), and only **Yes** hands off — to **Spider Solitaire +**, this game's paid build, asserted by name. Asserted on the foreground bundle id (`ui.left_app()`), never on pixels. Comes back the way a PERSON does — tapping the `◀ Spider` crumb iOS draws in the status bar (`ui.tap_back_to_app()`), not a programmatic resume — and must land on **About**, which is the proof the app was resumed rather than restarted. |
 | `tests/submitFeedback.py` | **Feedback mail — standalone, not in `run_all.py`** (needs a Mail account). About's "submit feedback" raises a Cancel / **Write Email** alert, which opens **Mail** (`com.apple.mobilemail`) with a draft. The **subject** — `Spider 8.0.0 feedback (iPhone12,1, iOS 26.5 al/al) us` — is READ from Mail's accessibility tree and must name the game, version, model and iOS version, each derived live (`helpers.os_version` / `device_model` / `app_info`), never hardcoded. **Never sends**; deletes the draft from a `finally`. |
 | `tests/verifyRelaunch.py` | **App-restore check — standalone, not in `run_all.py`.** Gets a game (resuming a paused one rather than dealing over it), plays one move, **presses Home, kills the app on the game screen**, and launches it again after ~3.5s and after ~35s. Both times it must come back on the game screen with **the same board** — matched by correlation (`ui.board_score`), *not* per-pixel: the app does not redraw a restored board identically, and a pixel diff called a provably identical deal 9-12% changed. The Home press is load-bearing: the app writes its state on backgrounding, so a foreground kill brings back the **menu** instead. Excluded from the suite because the kill hides the Dev Panel unlock. |
 | `tests/verifyChooseLook.py` | **Look/theme check — standalone, not in `run_all.py`.** Switches the Surface/Cards tabs, selects the **6th Surface palette** and the **5th Cards palette**, then opens a game and proves both reached the **game table**: the felt and the card backs are matched on *normalised* colour against the palette tapped in that same run (never a fixed felt value — this test is what repaints it). **Restores the default look** from a `finally`, because the menu's icon controls (`more_games`/`choose_look`/`menu_logo`) bake the felt into their crops and fall to 0.62-0.69 on a repainted surface. |
@@ -245,11 +245,16 @@ re-baselining — `baselines/` stay Obj-C):
   *fragile* (match their own source frame but not another build's capture of the
   same screen — the menu sparkle animation makes this a live risk) or *ambiguous*
   (match a screen they shouldn't). Runs offline. Currently 54/54 clean.
-  **`resume` is not among the 53** and cannot be: the gate matches each crop
-  against saved screen captures, and the picker's Resume ribbon is drawn only
-  while a game is PAUSED, which `capture_unity_screens.py` never leaves it. It
-  was verified on the live device instead (matched on the picker,
-  `ui.resume_game()` reached the table).
+  **Three templates are NOT among the 54 and cannot be**, because the gate reads
+  `iphone14/assets_unity/` and matches each crop against saved ip14 captures:
+  `resume` (the picker's Resume ribbon is drawn only while a game is PAUSED, and
+  `capture_unity_screens.py` never leaves it that way) and the `dev_*` crops
+  (`dev_panel`, `dev_complete_game`, `dev_max_debugger`) — their only source
+  frame is the iPhone-11 capture `log/unity_screens/SpiderAboutDevPanelOpen.png`,
+  so they live in the shared set only and the ip14 build dirs have no Dev Panel
+  capture to test them against. All were verified on the live device instead —
+  `dev_max_debugger` matches at (708, 1321), one 64 px row below
+  `dev_complete_game` at (708, 1257), and `tests/verifyAds.py` drives it.
 - **Two findings from that gate are baked into the driver:** (1) the menu labels
   stay visible **behind the Choose Look modal**, so `ui.on_menu()` must rule the
   modal out rather than trust a matchable menu label; (2) the Help footer carries
@@ -292,6 +297,19 @@ re-baselining — `baselines/` stay Obj-C):
   `ui.active_app()` for anything that hands off (the promo icons open the App
   Store), and `ui.resume()` to come back — it foregrounds Spider **without**
   restarting it, so in-app state survives. Never terminate to get back.
+- **There are two ways back, and they test different things.** `ui.resume()`
+  asks WDA to foreground the app; `ui.tap_back_to_app()` taps the `◀ Spider`
+  crumb iOS draws in the status bar, which is what a *player* actually taps, so
+  it is the one the hand-off tests use. **That crumb is BIDIRECTIONAL** — it
+  names whichever app you came from, so from inside Spider it reads `◀ Mail`
+  and tapping it throws the run back OUT (measured: `Spider →
+  com.apple.mobilemail`). `tap_back_to_app()` therefore refuses to tap when the
+  game is already in front.
+- **Which screen you come back to depends on what you left to.** The App Store
+  is an overlay Spider survives underneath, so `verifyAdFreeVersion` can demand
+  it lands back on **About**. Mail is a whole second app, and coming back from it
+  lands on the **main menu** — that is CONFIRMED EXPECTED, not a defect, so
+  `submitFeedback` reports where it landed instead of demanding About.
 - **No accessibility state to read**, so "did the control do anything?" is
   answered by comparing captures before/after. `test_gameplay` uses that for a
   genuine logic check: deal a row from the stock → the board must change → undo →
