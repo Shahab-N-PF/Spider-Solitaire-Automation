@@ -64,8 +64,9 @@ and each run re-earns it — but a full run does leave the device's local stats 
 zero.
 
 Not in the default suite, on purpose: **`verifyHelpShift.py`** (needs the device
-online, which the suite otherwise avoids), **`verifyAds.py`** (same — ads need
-the network; see *Ads* below), **`visitLastScore.py`** (its Game Center legs
+online, which the suite otherwise avoids), **`verifyAds.py`** and
+**`triggerAdPoints.py`** (same — ads need the network; see *Ads* below),
+**`visitLastScore.py`** (its Game Center legs
 need the network and a signed-in Apple account), and
 **`verifyAdFreeVersion.py`** (the hand-off works offline, but the App Store page
 it lands on is the point, and offline that is the same "No Internet Connection"
@@ -188,7 +189,8 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
 | `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
-| `verifyAds` | **chunks 1-2 of a rebuild:** brings the device **online itself**, opens the **Dev Panel** (unlocking it with the 5-tap emblem gesture if needed — both branches are one idempotent call), opens **MAX's Mediation Debugger**, scrolls to its **Ads** section, opens **Select Live Network** and selects **AppLovin**, proved by the checkmark that only exists once something is picked. **Ends two screens deep on purpose** so the next chunk continues from there; the run unwinds a previous run's overlays on the way in. All lookups read the accessibility tree (native UIKit over Unity), never pixels. The banner/interstitial checks it replaced are in git history; their findings are kept in the docstring (online, opt-in) |
+| `verifyAds` | **chunks 1-3 of a rebuild:** brings the device **online itself**, opens the **Dev Panel** (unlocking it with the 5-tap emblem gesture if needed — both branches are one idempotent call), opens **MAX's Mediation Debugger**, and scrolls to its **Ads** section. The row reads **Select Live Network** when empty but changes to **Live Network** once a network is persisted, so the test accepts either label; it opens that row and selects **AppLovin** only when needed, proved by the picker's checkmark. Then closes those overlays, **resumes a paused game or deals Easy**, waits ~30s, taps back, and walks the interstitial chain — StoreKit product-sheet X, then the ad's own X — landing back on the **game table**. **Ends on the table on purpose** so a later chunk continues from there; a re-run expands the Dev Panel from the table rather than walking to the menu (back from the table fires another interstitial). Never cold-launches: that re-locks the Dev Panel and drops the AppLovin selection. The skip glyph is never tapped. The banner checks this replaced are in git history (online, opt-in) |
+| `triggerAdPoints` | **Online-only trigger/cooldown coverage:** verifies all five observed rules — under 30s on the table then Options produces no ad; over 30s then Help produces an ad; over 30s then Complete Game produces an ad on Victory; New within 30s of closing that Victory ad produces no ad; and New after more than 30s on Victory produces an ad. Entry ads are valid cooldown-expiry events and are closed before the table clock starts; one inherited-cooldown ad on the first Options attempt gets one clean retry. The shared closer always handles StoreKit X before the ad's own X and captures an unmatched creative before failing. `--part cooldown` and `--part victory` run the two groups independently. Never cold-launches (standalone, not in `run_all`) |
 | `verifyAdFreeVersion` | About's **"ad free version"** link raises a **No/Yes card** ("Tap Yes to proceed to the App Store"), and answering **Yes** hands off to the App Store — asserted on the foreground **bundle id**, not pixels. It comes back the way a PLAYER does — tapping the `◀ Spider` crumb iOS draws in the status bar (`ui.tap_back_to_app()`), not a programmatic resume — and lands on **About**, which is what proves the app was resumed and not restarted. The page it lands on is asserted by name to be **Spider Solitaire +**, this game's paid build (online, opt-in) |
 | `submitFeedback` | About's **"submit feedback"** raises a Cancel / **Write Email** alert (identified by its TEXT), and Write Email opens **Mail** with a draft. Its **subject** is read from Mail's accessibility tree and must name the **game, app version, device model and iOS version** — each read off the device in the same run, never hardcoded, so it holds on any handset. **Never sends**: the X and the send arrow are addressed by name, and the draft is deleted from a `finally`. Returns by tapping the `◀ Spider` crumb, and lands on the **main menu** rather than About — Mail is a whole second app, unlike the App Store overlay, so that is EXPECTED and the test reports where it landed instead of demanding About (online/opt-in, needs a Mail account) |
 
@@ -549,20 +551,21 @@ The rest of the suite runs offline to keep ads *out*. This one test runs online
 to check they are still there, because ads are revenue and a port that broke
 them is a regression nothing else here would see.
 
-**It is being rebuilt in chunks, and chunks 1-2 are what exists today.** The
+**It is being rebuilt in chunks, and chunks 1-3 are what exists today.** The
 earlier version watched banners and interstitials from the outside; the rebuild
-drives **AppLovin MAX's own Mediation Debugger** instead, reached through the
-Dev Panel. The reason is that the debugger is native UIKit drawn over the Unity
-view, so it publishes a real accessibility tree — every assertion is READ text,
-not matched pixels, which is exactly what ad creatives can never offer.
+drives **AppLovin MAX's own Mediation Debugger** first, then walks a real
+leave-game interstitial with AppLovin pinned. The debugger is native UIKit
+drawn over the Unity view, so it publishes a real accessibility tree — every
+assertion there is READ text, not matched pixels.
 
-What chunks 1-2 assert, in order:
+What chunks 1-3 assert, in order:
 
 1. the device is brought **online by the test itself** (`ui.online()`), rather
    than demanded — a cheap no-op when it is already online;
 2. the **Dev Panel** opens, whether or not it was already unlocked
    (`ui.open_dev_panel()` covers both branches in one idempotent call: if it is
-   locked, go to About and fire the 5 rapid taps on the spider emblem);
+   locked, go to About and fire the 5 rapid taps on the spider emblem; if the
+   button is already showing — including on the game table — just expand it);
 3. the panel offers **Max Debugger** — asserted *before* it is tapped, so "the
    panel did not open" and "the button is gone" stay separate failures;
 4. tapping it opens **MAX's Mediation Debugger**, confirmed by its full title in
@@ -571,13 +574,27 @@ What chunks 1-2 assert, in order:
 6. **Select Live Network** opens its own window;
 7. **AppLovin** is selected there, proved by the **checkmark** button that does
    not exist until something is picked — the row's own text reads the same
-   either way, so the text alone would prove nothing.
+   either way, so the text alone would prove nothing;
+8. those overlays close. A first run opened the debugger from About, so it
+   walks to the **main menu** without `launch_to_menu()` (from the debugger
+   that would cold-launch) and then reaches a game — **resume** if one is
+   paused, otherwise deal Easy. A re-run that opened the debugger from the
+   table is already there and must not tap back yet. An interstitial that
+   eats the picker is cleared with `ui.ad_free()`, never `ui.recover()`;
+9. after ~30s on the table, **back** *may* open an in-app interstitial
+    (still `com.fingerarts.Spider`). If it does not, the same ad fires on
+    the **next resume or new deal** — that is expected, not a miss;
+10. the video is left alone until the **StoreKit product-sheet X** appears
+    (`ui.tap_store_close()` — native Close, then `ad_store_close` if a crop
+    exists). The skip glyph is never tapped;
+11. closing that sheet reveals the **ad's own X** (`ui.tap_ad_close()`), and
+    tapping it returns to the **game table**.
 
-**The run ENDS there, two screens deep, on purpose**, so the next chunk carries
-on from that screen. The cost is that a re-run starts behind those overlays, so
-the run unwinds them on the way in — back out of the Select Live Network window,
-then close the debugger. Cold-launching instead would **re-lock the Dev Panel**,
-and every re-run would then silently exercise only the unlock branch.
+**The run ENDS on the table, on purpose**, so a later chunk carries on from
+that screen. A re-run therefore starts on the table (or behind leftover
+debugger overlays). It expands the Dev Panel from wherever it is; it does
+**not** tap back off the table to reach the menu. Cold-launching would
+**re-lock the Dev Panel** and drop the AppLovin selection.
 
 Three things measured on build 363 that shape the code:
 
@@ -623,11 +640,19 @@ because the later chunks build on them:
   close-or-wait and gives up honestly rather than pretending.
 
 **Ads intercept navigation, not just the moment you are testing.** Measured
-while probing the next chunk: an interstitial fired *while* `resume_or_deal()`
-was working the difficulty picker, so the picker tap was answered by an ad and
+while probing chunk 3: an interstitial fired *while* `resume_or_deal()` was
+working the difficulty picker, so the picker tap was answered by an ad and
 `start_game()` failed with "easy did not deal a game" — app still Spider,
 `ui.lost()` True, neither menu nor table. This is the same hazard `run_all.py`
-avoids by running offline. A test that must run online has to absorb it: clear
-with `ui.ad_free()` first (it keeps the app running) and fall back to
-`ui.recover()` only as a last resort — `recover()` cold-launches, which re-locks
-the Dev Panel and drops the AppLovin selection, throwing away chunks 1-2's setup.
+avoids by running offline. Online tests treat that interstitial as an expected
+enter event, close the StoreKit-X → ad-X chain, and continue without a
+relaunch. They never call `ui.recover()` — `recover()` cold-launches, which
+re-locks the Dev Panel and drops the AppLovin selection, throwing away chunks
+1-2's setup.
+
+Another observed path is distinct from the game-leave result: Back from the
+game can show an ad and its second X can return the user to the **main menu**.
+If the user remains on that menu for more than 30 seconds, the next
+`resume_or_deal()` (resume or new deal) can show another interstitial. That
+menu dwell is a separate trigger/cooldown path, not a duplicate of the first
+game-leave ad.

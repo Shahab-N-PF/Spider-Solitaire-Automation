@@ -122,7 +122,10 @@ Opt-in, deliberately out of the suite:
 ./.venv/bin/python tests/preflight_offline.py    # assert Airplane Mode before a run
 # these need the device ONLINE — the suite otherwise runs offline to keep ads out
 ./.venv/bin/python tests/verifyHelpShift.py      # Contact Us opens the support flow
-./.venv/bin/python tests/verifyAds.py            # MAX Mediation Debugger (brings itself online)
+./.venv/bin/python tests/verifyAds.py            # MAX debugger + leave-game interstitial (brings itself online)
+./.venv/bin/python tests/triggerAdPoints.py      # interstitial trigger points + 30s cooldown rules
+./.venv/bin/python tests/triggerAdPoints.py --part cooldown  # short/long table rules only
+./.venv/bin/python tests/triggerAdPoints.py --part victory   # Complete Game/Victory rules only
 ./.venv/bin/python tests/verifyAdFreeVersion.py  # About's ad-free link -> App Store
 ./.venv/bin/python tests/visitLastScore.py       # Last Score + Game Center (needs an Apple account)
 # needs a Mail account on the device; never sends, deletes the draft afterwards
