@@ -188,6 +188,8 @@ REF_POINT_SCALE = float(os.environ.get("UNITY_REF_POINT_SCALE", "2.0"))
 # it is laid out in points and must be matched as an image.
 NATIVE_UI = {"prompt_abandon", "dialog_yes", "dialog_no",
              "att_prompt", "att_deny", "att_allow", "tc_continue",
+             "tc_terms_link", "tc_privacy_link", "tc_terms_page",
+             "tc_privacy_page", "tc_web_close",
              "gc_leaderboards", "gc_achievements", "gc_back"}
 
 _POINT_SCALE = None
@@ -1055,9 +1057,13 @@ def terminate(sid: str = None):
 # launch. Going offline afterwards is fine; restarting WDA offline is not.
 
 
-def offline() -> bool:
-    """Put the phone in Airplane Mode. True when it ends there."""
-    return helpers.set_network(False)[0]
+def offline(restore: bool = True) -> bool:
+    """Enable Airplane Mode and turn Wi-Fi off. True when both succeed.
+
+    `restore=False` leaves Settings in front so a caller can deliberately
+    relaunch Spider instead of merely foregrounding the existing process.
+    """
+    return helpers.set_network(False, restore=restore)[0]
 
 
 def online(wait: float = 75.0) -> str:
@@ -1115,7 +1121,8 @@ FIRST_LAUNCH_GATES = ("terms & conditions", "terms and conditions",
 def clear_overlays(rounds: int = 6) -> int:
     """Dismiss whatever is covering the UI. Returns how many were cleared.
 
-    Four kinds. The two first-launch gates arrive in this order:
+    Four kinds. The two first-launch gates normally arrive in this order (a
+    separately reset tracking permission can put ATT first):
 
     1. Terms & Conditions / Privacy Policy, by IMAGE (tc_continue). NOT by alert
        text: despite what this docstring used to claim, WDA CANNOT SEE this

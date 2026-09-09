@@ -147,6 +147,21 @@ CROPS_IP11 = {
     # green felt, so a looser crop would bake the menu in behind it — the same
     # trap the iOS alert templates fell into.
     "tc_continue":     ("TermsGate.png", (341, 1064, 486, 1100)),
+    # The two underlined links on that same card. verifyFirstLaunch writes its
+    # live bootstrap frame at log/first_launch_terms_gate.png before Continue
+    # consumes the card, so these use ../ to reach it from this profile's
+    # log/unity_screens source directory.
+    "tc_terms_link":   ("../first_launch_terms_gate.png",
+                        (303, 769, 626, 812)),
+    "tc_privacy_link": ("../first_launch_terms_gate.png",
+                        (333, 864, 563, 907)),
+    # Unique destination headings. Keeping these distinct is what makes a
+    # swapped pair of links fail instead of merely proving that both open a
+    # peoplefun.com page.
+    "tc_terms_page":   ("../first_launch_terms_page.png",
+                        (235, 914, 594, 978)),
+    "tc_privacy_page": ("../first_launch_privacy_page.png",
+                        (250, 785, 580, 850)),
     # The Spider logo on the ABOUT screen (smaller than the menu's, so it needs
     # its own crop — template matching is scale-sensitive).
     "about_logo":      ("SpiderAboutPage.png", (303, 398, 524, 512)),

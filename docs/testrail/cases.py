@@ -1,8 +1,8 @@
 """Manual TestRail cases for the Unity build of Spider.
 
 Written for a person on the phone, not for Airtest. One case per behaviour
-a tester can fail independently. Obvious Back-to-menu / Opens-from-menu
-steps are left out — they are already part of doing the nearby case.
+a tester can fail independently. Includes the Back-to-menu and Opens-from-menu
+cases.
 
     ./.venv/bin/python scripts/export_testrail_csv.py
 """
@@ -58,6 +58,37 @@ CASES = [
            "clear the gate.",
            "The prompt goes away and you can reach the main menu."),
       ]),
+    C("FL-04", "Launch - Terms & Conditions link opens the terms page",
+      f"{S} > Launch",
+      [
+          ("Delete Spider and reinstall it, or otherwise reset it so the "
+           "Terms & Conditions card is on screen. Do not tap Continue yet.",
+           "The card shows links for Terms & Conditions and Privacy Policy."),
+          ("Tap the Terms & Conditions link.",
+           "A terms web page opens, not the Privacy Policy page."),
+          ("If Accept All Cookies appears, tap it and wait for the cookie "
+           "banner to disappear.",
+           "The banner is gone and the Terms of Service heading is fully "
+           "visible."),
+          ("Close the page or tap Back.",
+           "The Terms & Conditions card is still there. Do not tap "
+           "Continue yet."),
+      ],
+      priority="High"),
+    C("FL-05", "Launch - Privacy Policy link opens the privacy page",
+      f"{S} > Launch",
+      [
+          ("On the same Terms & Conditions card, tap Privacy Policy.",
+           "A privacy web page opens, not the Terms & Conditions page."),
+          ("If Accept All Cookies appears, tap it and wait for the cookie "
+           "banner to disappear.",
+           "The banner is gone and the Privacy Notice heading is fully "
+           "visible."),
+          ("Close the page or tap Back.",
+           "The Terms & Conditions card is still there. Continue is "
+           "checked separately in FL-02."),
+      ],
+      priority="High"),
 
     # ── Main Menu ─────────────────────────────────────────────────────
     C("MM-01", "Main Menu - All eight controls are visible",
@@ -71,6 +102,13 @@ CASES = [
       priority="High"),
 
     # ── Statistics ────────────────────────────────────────────────────
+    C("ST-01", "Statistics - Opens from the main menu",
+      f"{S} > Statistics",
+      [
+          ("From the main menu, tap Stats.",
+           "The Statistics screen opens. The header reads Statistics. "
+           "The main menu is gone."),
+      ]),
     C("ST-03", "Statistics - Page scrolls down to Reset Statistics",
       f"{S} > Statistics",
       [
@@ -80,8 +118,20 @@ CASES = [
            "Reset Statistics is at the bottom. If you cannot reach it, "
            "the lower difficulty blocks did not render."),
       ]),
+    C("ST-04", "Statistics - Back returns to the main menu",
+      f"{S} > Statistics",
+      [
+          ("From Statistics, tap Back.",
+           "The main menu is showing."),
+      ]),
 
     # ── Options ───────────────────────────────────────────────────────
+    C("OP-01", "Options - Opens from the main menu",
+      f"{S} > Options",
+      [
+          ("From the main menu, tap Options.",
+           "The Options screen opens. The main menu is gone."),
+      ]),
     C("OP-03", "Options - Applause Volume moves to min, max, and middle",
       f"{S} > Options",
       [
@@ -133,6 +183,12 @@ CASES = [
       priority="High"),
 
     # ── Help ──────────────────────────────────────────────────────────
+    C("HP-01", "Help - Opens on Introduction",
+      f"{S} > Help",
+      [
+          ("From the main menu, tap Help.",
+           "Help opens with the Introduction heading. The main menu is gone."),
+      ]),
     C("HP-02", "Help - Rules scroll down to the FAQ link",
       f"{S} > Help",
       [
@@ -142,8 +198,20 @@ CASES = [
            "A frequently asked questions link appears at the bottom. "
            "A header with an empty body fails."),
       ]),
+    C("HP-03", "Help - Back returns to the main menu",
+      f"{S} > Help",
+      [
+          ("From Help, tap Back.",
+           "The main menu is showing."),
+      ]),
 
     # ── About ─────────────────────────────────────────────────────────
+    C("AB-01", "About - Opens from the About menu item",
+      f"{S} > About",
+      [
+          ("From the main menu, tap About.",
+           "The About screen opens. You can see the copyright line."),
+      ]),
     C("AB-03", "About - Version and links are on the page",
       f"{S} > About",
       [
@@ -188,6 +256,12 @@ CASES = [
           ("On the More Games page, swipe the list of games up once.",
            "FreeCell and Spiderette come into view. The back button and "
            "instruction line at the top stay put."),
+      ]),
+    C("MG-03", "More Games - Back returns to the main menu",
+      f"{S} > More Games",
+      [
+          ("From the More Games page, tap Back.",
+           "The main menu is showing."),
       ]),
 
     # ── Play ──────────────────────────────────────────────────────────
@@ -381,6 +455,13 @@ CASES = [
            "other level."),
       ],
       priority="High"),
+    C("VI-04", "Victory - Back returns to the main menu",
+      f"{S} > Victory",
+      [
+          ("On Victory, tap the screen's own Back control — not New.",
+           "The main menu is showing. Leaving by Back leaves no game "
+           "in progress."),
+      ]),
 
     # ── Difficulty ────────────────────────────────────────────────────
     C("DL-01", "Difficulty - Medium starts and can be completed",
@@ -718,6 +799,12 @@ CASES = [
            "Game Center opens, headed Achievements."),
           ("Tap back and dismiss the sheet.",
            "Last Score is showing again."),
+      ]),
+    C("LS-05", "Last Score - Back returns to the main menu",
+      f"{S} > Last Score",
+      [
+          ("From Last Score, tap Back until you reach the menu.",
+           "The main menu is showing."),
       ]),
 
     # ── App Store / Mail ──────────────────────────────────────────────

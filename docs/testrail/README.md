@@ -1,11 +1,11 @@
 # Manual TestRail cases — Unity build
 
 Cases a **person** can run on the phone. One case per behaviour, written as
-Tap / Wait / Check. The automated `tests/verify*.py` files are unchanged.
+Tap / Wait / Check. The Automation column is Manual even where an automated
+test covers the same behaviour.
 
-**85 cases.** Obvious Back-to-menu / Opens-from-menu / “the link is there”
-cases are left out — a tester already does those while running the nearby
-check.
+**96 cases.** Back-to-menu and Opens-from-menu cases are included.
+“The link is there” / harness-cleanup cases stay out.
 
 | File | Role |
 |---|---|
@@ -72,5 +72,5 @@ The export omits **Preconditions**, **References**, **Network**, and **Suite**.
 
 ## How the list is split
 
-A case is something a tester can fail on its own. Back, “the screen opened”,
-and “the button is there” are not separate cases.
+A case is something a tester can fail on its own. Back-to-menu and
+Opens-from-menu are separate cases. “The button is there” is not.

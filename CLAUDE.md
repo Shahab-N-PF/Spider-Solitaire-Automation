@@ -48,7 +48,7 @@ rendering (`unity_ui.py` + `assets_unity/`). See `tests/README.md`.
 | `scripts/update_baselines.py` | Promote the latest `log/` screenshots to `baselines/`. |
 | `tests/connect_check.py` | Smoke test: connect + screenshot. |
 | `tests/launch_and_shoot.py` | Launch the game + screenshot (start of real flows). |
-| `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. |
+| `tests/verify*.py`, `tests/openDebugTools.py`, `tests/resetStats.py` | **Unity functional test cases** (first-launch T&C / Privacy links, main menu, play, difficulties, gameplay, options, stats, help, more games, logo/about, choose look, promo icons + their App Store links, QA entry point, victory). Each runs standalone and drives `unity_ui.py`. `verifyFirstLaunch` walks both policy links only when the one-time card is up, then presses Home, enables Airplane Mode, turns Wi-Fi off, force-relaunches Spider, and leaves the suite on the menu. |
 | `tests/verifyAds.py` | **Ad coverage — ONLINE only, not in `run_all.py`. Chunks 1-3 of a rebuild around the Dev Panel's "Max Debugger".** Brings the device online itself (`ui.online()`), opens the Dev Panel (unlocking it if needed — `open_dev_panel()` expands from the current screen once unlocked, including the table), and opens **MAX's Mediation Debugger**, which is native UIKit over the Unity view and so is asserted on its TITLE read from the accessibility tree. Its table is big enough that enumerating elements by class times out, so lookups use predicate queries (`ui._ax_first`). Then scrolls to the debugger's **Ads** section. The row reads **Select Live Network** when empty and changes to **Live Network** when a choice is persisted, so the test searches for either label; it selects **AppLovin** only when needed and confirms the picker checkmark. Closes those overlays, resumes or deals a game, waits ~30s, taps back, and walks the interstitial chain (StoreKit X, then the ad's own X) back onto the **game table**. If back does not show the ad, it fires on the next resume or new deal — that is expected. **Ends on the table on purpose**, so a re-run must not `launch_to_menu()` from there (that fires another interstitial and `to_menu()` answers with a cold launch that re-locks the Dev Panel). Two debugger traps: rows scrolled out of view keep UNTAPPABLE rects, so scrolling waits on `visible`, not presence; and "AppLovin" also appears under *Completed SDK Integrations*, so the window is confirmed by its NAVIGATION BAR before the name is looked up. The skip glyph is never tapped. Banner-era findings stay in the docstring. |
 | `tests/triggerAdPoints.py` | **Interstitial trigger/cooldown coverage — ONLINE only, not in `run_all.py`.** Verifies the original five table/Victory rules plus global cooldown after a Help ad, long-table Back, short/long main-menu dwell before entry, and long-table FAQ. Entry ads are valid cooldown-expiry events and are closed before the table clock starts; one inherited-cooldown ad on the first Options attempt gets one clean retry. The shared closer always handles StoreKit X before the ad's own X, saving `log/ad_unmatched.png` before an unmatched-X failure. `--part cooldown`, `--part victory`, `--part menu`, and `--part destinations` run the groups independently. Never cold-launches. |
 | `tests/visitLastScore.py` | **Last Score — ONLINE only, not in `run_all.py`.** The difficulty picker's "LAST SCORE" opens the "Last Won Game Score" ranking view; its forward arrow cycles the period (4 taps = a full round trip); "leaderboards" and "achievements" each open Apple's Game Center sheet and close again. Game Center needs the network + a signed-in Apple account. |
@@ -272,7 +272,9 @@ re-baselining — `baselines/` stay Obj-C):
   test failed as "did not reach the game table". These are real
   `UIAlertController`s: `ui.alert_now()` reads the text, `ui.answer_dialog()`
   presses Yes/No by name, templates are only the fallback.
-- **Two first-launch gates, in this order: Terms & Conditions, then ATT.** Both
+- **Two first-launch gates, normally Terms & Conditions, then ATT.** A separately
+  reset tracking permission can put ATT first; `verifyFirstLaunch` clears only
+  that prompt and waits for T&C so it does not accidentally skip the links. Both
   are **image-matched** — *neither* is visible to WDA. ATT is presented out of
   process (`/alert/text` 404s on it); the T&C pop-up is drawn by the app rather
   than presented as a `UIAlertController`, and measured on build 363 with a live
@@ -284,6 +286,20 @@ re-baselining — `baselines/` stay Obj-C):
   the app wants tracking *granted* before it lets a first launch through;
   answering "Ask App Not to Track" does not clear the gate. It still touches only
   alerts it positively recognises as gates.
+- **The first-launch test follows both policy links before Continue.** Terms &
+  Conditions and Privacy Policy must each open its own page and close back to
+  the card. If the native **Accept All Cookies** button appears, the test taps
+  it, waits until the banner is gone, and only then writes the full-page
+  capture; the second page may inherit the cookie choice and show no banner.
+  Their optional crops (`tc_terms_link` / `tc_terms_page` and
+  `tc_privacy_link` / `tc_privacy_page`) are deliberately outside
+  `run_all.REQUIRED`: normal launches do not show the card. A fresh card with
+  missing crops saves `log/first_launch_terms_gate.png` and fails by name, but
+  cleanup still accepts the gates and hands later tests an offline main menu.
+  After accepting, `verifyFirstLaunch` presses Home before enabling Airplane
+  Mode and turning Wi-Fi off, so the app has written the agreement state. It
+  then force-relaunches Spider rather than resuming the existing process; the
+  suite starts genuinely offline even if iOS remembered Wi-Fi as enabled.
 - **The gates come back far more often than "once per install".** The app writes
   its state when it goes to the **background**, and `cold_launch()` terminates it
   from the **foreground**, so the "agreed" flag can be lost and the pair

@@ -233,6 +233,7 @@ def alert_tap(session_id: str, label: str = None, base_url: str = None) -> bool:
 SETTINGS_BUNDLE = "com.apple.Preferences"
 AIRPLANE_SWITCH = "com.apple.settings.airplaneMode"
 WIFI_ROW = "com.apple.settings.wifi"
+WIFI_SWITCH = "Wi‑Fi"  # U+2011 non-breaking hyphen, as Settings publishes it
 
 # How far in from the row's RIGHT edge the switch control sits, in points.
 # Measured: the Airplane Mode row spans x 20..394 and the toggle answers at
@@ -264,6 +265,29 @@ def _element(sid: str, name: str, base_url: str = None, timeout: float = 0.0):
             if el:
                 return el
         except Exception:                   # noqa: BLE001 — not on screen (yet)
+            pass
+        if time.time() >= deadline:
+            return None
+        time.sleep(0.4)
+
+
+def _typed_element(sid: str, name: str, kind: str, base_url: str = None,
+                   timeout: float = 0.0):
+    """Element id matching both name and accessibility type."""
+    import time
+    deadline = time.time() + timeout
+    escaped = name.replace("'", "\\'")
+    while True:
+        try:
+            r = _wda_post(
+                f"/session/{sid}/element",
+                {"using": "predicate string",
+                 "value": f"name == '{escaped}' AND type == '{kind}'"},
+                base_url)
+            el = (r.get("value") or {}).get("ELEMENT")
+            if el:
+                return el
+        except Exception:                   # noqa: BLE001
             pass
         if time.time() >= deadline:
             return None
@@ -327,6 +351,47 @@ def _read_wifi(sid: str, base_url: str = None, timeout: float = _ROW_TIMEOUT) ->
     return label.split(",", 1)[1].strip() if "," in label else label.strip()
 
 
+def _set_wifi(sid: str, want: bool, base_url: str = None) -> bool:
+    """Set Wi-Fi from Settings root, leaving Settings on the Wi-Fi page."""
+    import time
+    row = _element(sid, WIFI_ROW, base_url, timeout=_ROW_TIMEOUT)
+    label = _attr(sid, row, "label", base_url) if row else ""
+    state = label.split(",", 1)[1].strip() if label and "," in label else label
+    if bool(state and state.lower() != "off") == want:
+        return True
+    rect = _attr(sid, row, "rect", base_url) if row else None
+    if not rect:
+        return False
+    try:
+        _wda_post(
+            f"/session/{sid}/wda/tap",
+            {"x": int(rect["x"] + rect["width"] / 2),
+             "y": int(rect["y"] + rect["height"] / 2)},
+            base_url)
+    except Exception:                       # noqa: BLE001
+        return False
+    switch = _typed_element(
+        sid, WIFI_SWITCH, "XCUIElementTypeSwitch", base_url,
+        timeout=_ROW_TIMEOUT)
+    rect = _attr(sid, switch, "rect", base_url) if switch else None
+    if not rect:
+        return False
+    current = str(_attr(sid, switch, "value", base_url)) in ("1", "true", "True")
+    if current != want:
+        try:
+            _wda_post(
+                f"/session/{sid}/wda/tap",
+                {"x": int(rect["x"] + rect["width"] / 2),
+                 "y": int(rect["y"] + rect["height"] / 2)},
+                base_url)
+        except Exception:                   # noqa: BLE001
+            return False
+        time.sleep(2.0)
+    return (
+        str(_attr(sid, switch, "value", base_url)) in ("1", "true", "True")
+    ) == want
+
+
 def _tap_airplane(sid: str, want: bool, base_url: str = None,
                   settle: float = 4.0, timeout: float = 45.0) -> bool:
     """Drive the switch to `want` using an already-open Settings. True if it got there."""
@@ -335,18 +400,20 @@ def _tap_airplane(sid: str, want: bool, base_url: str = None,
     while time.time() < deadline:
         el = _element(sid, AIRPLANE_SWITCH, base_url, timeout=_ROW_TIMEOUT)
         if el is None:
-            return False
+            continue
         if (str(_attr(sid, el, "value", base_url)) in ("1", "true", "True")) == want:
             return True
         rect = _attr(sid, el, "rect", base_url) or {}
         if not rect:
-            return False
+            time.sleep(0.8)
+            continue
         x = int(rect["x"] + rect["width"] - _SWITCH_INSET)
         y = int(rect["y"] + rect["height"] / 2)
         try:
             _wda_post(f"/session/{sid}/wda/tap", {"x": x, "y": y}, base_url)
         except Exception:                   # noqa: BLE001
-            return False
+            time.sleep(0.8)
+            continue
         time.sleep(settle)
     return _read_airplane(sid, base_url) == want
 
@@ -368,8 +435,9 @@ def set_network(online: bool, base_url: str = None, wait: float = 75.0,
                 restore: bool = True):
     """Take the device online (True) or offline (False). -> (ok, network name).
 
-    `ok` is whether Airplane Mode ended in the right state; the name is the
-    Wi-Fi network it joined, "" when going offline or when it never associated.
+    `ok` means both radios ended in the required state: online is Airplane Mode
+    off + Wi-Fi on, and offline is Airplane Mode on + Wi-Fi off. The name is
+    the Wi-Fi network joined online, or "" when going offline.
 
     ONE Settings visit does the whole job — toggle, verify, and the wait for
     Wi-Fi to come back — and the game is foregrounded once at the end. That
@@ -389,9 +457,16 @@ def set_network(online: bool, base_url: str = None, wait: float = 75.0,
                                             # while it is still sliding in, and a
                                             # tap aimed at that rect hits nothing
     try:
-        ok = _tap_airplane(sid, not online, base_url)
+        airplane_ok = _tap_airplane(sid, not online, base_url)
+        wifi_ok = airplane_ok and _set_wifi(sid, online, base_url)
+        ok = airplane_ok and wifi_ok
         net = ""
         if ok and online:
+            # _set_wifi() had to enter the Wi-Fi page when it changed the
+            # switch. Reopen Settings at root so _read_wifi() can watch its row
+            # move from Not Connected to the joined network name.
+            if _element(sid, WIFI_ROW, base_url) is None:
+                sid = _open_settings(base_url)
             deadline = time.time() + wait
             while time.time() < deadline:
                 net = _read_wifi(sid, base_url, timeout=6.0)

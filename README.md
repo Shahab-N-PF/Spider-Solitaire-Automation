@@ -110,10 +110,18 @@ Run a subset, or a single test standalone:
 
 ```bash
 ./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay
+./.venv/bin/python tests/verifyFirstLaunch.py # T&C links on fresh install, then Airplane Mode
 ./.venv/bin/python tests/verifyMainMenu.py     # menu shows all its controls
 ./.venv/bin/python tests/verifyGamePlay.py     # the table plays (deal/undo, drawer)
 ./.venv/bin/python tests/verifyOptions.py      # Options: sections, scroll, live toggle
 ```
+
+`verifyFirstLaunch` checks the Terms & Conditions and Privacy Policy webviews
+only when the one-time card is showing. It closes each page back to the card,
+accepts the gates, presses Home so the choice is saved, then enables Airplane
+Mode, turns Wi-Fi off, and force-relaunches Spider before the rest of `run_all`.
+On an ordinary launch it skips the one-time link checks and only establishes
+the same offline menu state.
 
 Opt-in, deliberately out of the suite:
 

@@ -10,10 +10,25 @@ FL-02,Launch - Fresh install shows Terms & Conditions,Spider Solitaire Unity > L
 FL-03,Launch - Fresh install shows the tracking prompt,Spider Solitaire Unity > Launch,Functional,Medium,"1. After Terms & Conditions, wait for the iOS tracking prompt (Allow / Ask App Not to Track).
 2. Tap Allow. Do not tap Ask App Not to Track — that does not clear the gate.","1. The system tracking alert is on screen.
 2. The prompt goes away and you can reach the main menu.",Manual
+FL-04,Launch - Terms & Conditions link opens the terms page,Spider Solitaire Unity > Launch,Functional,High,"1. Delete Spider and reinstall it, or otherwise reset it so the Terms & Conditions card is on screen. Do not tap Continue yet.
+2. Tap the Terms & Conditions link.
+3. If Accept All Cookies appears, tap it and wait for the cookie banner to disappear.
+4. Close the page or tap Back.","1. The card shows links for Terms & Conditions and Privacy Policy.
+2. A terms web page opens, not the Privacy Policy page.
+3. The banner is gone and the Terms of Service heading is fully visible.
+4. The Terms & Conditions card is still there. Do not tap Continue yet.",Manual
+FL-05,Launch - Privacy Policy link opens the privacy page,Spider Solitaire Unity > Launch,Functional,High,"1. On the same Terms & Conditions card, tap Privacy Policy.
+2. If Accept All Cookies appears, tap it and wait for the cookie banner to disappear.
+3. Close the page or tap Back.","1. A privacy web page opens, not the Terms & Conditions page.
+2. The banner is gone and the Privacy Notice heading is fully visible.
+3. The Terms & Conditions card is still there. Continue is checked separately in FL-02.",Manual
 MM-01,Main Menu - All eight controls are visible,Spider Solitaire Unity > Main Menu,Functional,High,1. Open the app and wait until the menu finishes animating (a Game Center toast or sparkle can hide a label for a moment).,"1. Play, Stats, Options, Help, About, More Games, Choose Look, and the Spider logo are all on screen.",Manual
+ST-01,Statistics - Opens from the main menu,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.",1. The Statistics screen opens. The header reads Statistics. The main menu is gone.,Manual
 ST-03,Statistics - Page scrolls down to Reset Statistics,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.
 2. Scroll the page all the way down. Do not tap Reset.","1. The Statistics screen opens. Game Center is in the header.
 2. Reset Statistics is at the bottom. If you cannot reach it, the lower difficulty blocks did not render.",Manual
+ST-04,Statistics - Back returns to the main menu,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From Statistics, tap Back.",1. The main menu is showing.,Manual
+OP-01,Options - Opens from the main menu,Spider Solitaire Unity > Options,Functional,Medium,"1. From the main menu, tap Options.",1. The Options screen opens. The main menu is gone.,Manual
 OP-03,"Options - Applause Volume moves to min, max, and middle",Spider Solitaire Unity > Options,Functional,High,"1. From the main menu, tap Options and find Applause Volume.
 2. Drag the knob all the way left, all the way right, then to the middle.","1. A slider with a knob is on the row. The - and + marks are labels, not buttons.
 2. The knob sits at the left end, then the right end, then somewhere in the middle — not only at the two ends.",Manual
@@ -25,15 +40,19 @@ OP-05,Options - Auto Mute Sounds turns off and on,Spider Solitaire Unity > Optio
 2. It flips the first time and returns the second time. A tap that does nothing fails.",Manual
 OP-06,"Options - Card Lowering moves to min, max, and middle",Spider Solitaire Unity > Options,Functional,High,"1. Open Options, scroll to Card Lowering, and drag the knob all the way left, all the way right, then to the middle.",1. The knob reaches both ends and can sit in the middle. It is not a stepped control that only snaps to the ends.,Manual
 OP-07,Options - Use Hearts turns on and off,Spider Solitaire Unity > Options,Functional,High,"1. Open Options, scroll to Use Hearts (it ships OFF), and tap the toggle twice.","1. It turns on, then back off.",Manual
+HP-01,Help - Opens on Introduction,Spider Solitaire Unity > Help,Functional,Medium,"1. From the main menu, tap Help.",1. Help opens with the Introduction heading. The main menu is gone.,Manual
 HP-02,Help - Rules scroll down to the FAQ link,Spider Solitaire Unity > Help,Functional,Medium,"1. From the main menu, tap Help.
 2. Scroll the rules text down.","1. Help opens on Introduction.
 2. A frequently asked questions link appears at the bottom. A header with an empty body fails.",Manual
+HP-03,Help - Back returns to the main menu,Spider Solitaire Unity > Help,Functional,Medium,"1. From Help, tap Back.",1. The main menu is showing.,Manual
+AB-01,About - Opens from the About menu item,Spider Solitaire Unity > About,Functional,Medium,"1. From the main menu, tap About.",1. The About screen opens. You can see the copyright line.,Manual
 AB-03,About - Version and links are on the page,Spider Solitaire Unity > About,Functional,Medium,"1. From the main menu, tap About.","1. About opens with a version line, copyright, and links for Help, frequently asked questions, and submit feedback. Do not tap ad free version or submit feedback here — they leave the app.",Manual
 AB-04,About - Frequently asked questions stays in the app,Spider Solitaire Unity > About,Functional,Medium,"1. On About, tap frequently asked questions.",1. An FAQ screen opens inside Spider. You do not leave for a browser or the App Store.,Manual
 AB-05,About - FAQ scrolls down to submit feedback,Spider Solitaire Unity > About,Functional,Medium,1. Open FAQ from About. The first screen ends mid-answer. Scroll down.,1. Submit feedback appears at the bottom. The FAQ title at the top stays put; you are still on FAQ.,Manual
 AB-06,About - Spider logo also opens About,Spider Solitaire Unity > About,Functional,High,"1. From the main menu, tap the Spider logo at the top.","1. About opens, the same screen as the About menu item.",Manual
 MG-01,More Games - Gift icon opens the in-app promo page,Spider Solitaire Unity > More Games,Functional,Medium,"1. From the main menu, tap More Games (the gift icon).",1. An in-app page opens with Tap any game to download it! You do not jump to the App Store.,Manual
 MG-02,More Games - Swipe reveals FreeCell and Spiderette,Spider Solitaire Unity > More Games,Functional,Medium,"1. On the More Games page, swipe the list of games up once.",1. FreeCell and Spiderette come into view. The back button and instruction line at the top stay put.,Manual
+MG-03,More Games - Back returns to the main menu,Spider Solitaire Unity > More Games,Functional,Medium,"1. From the More Games page, tap Back.",1. The main menu is showing.,Manual
 PL-01,Play - Opens the difficulty picker,Spider Solitaire Unity > Play,Functional,High,"1. From the main menu, tap Play.",1. A difficulty picker opens. A game does not start yet.,Manual
 PL-02,Play - Picker shows all five levels,Spider Solitaire Unity > Play,Functional,High,1. Open Play.,"1. Easy, Medium, Hard, Bold, and Expert are all listed.",Manual
 PL-03,Play - Easy starts a game,Spider Solitaire Unity > Play,Functional,High,"1. On the picker, tap Easy. If the app asks whether to abandon a paused game, tap Yes.",1. You are on the game table (cards and the in-game bar). A prompt that only closed the picker is not enough.,Manual
@@ -63,6 +82,7 @@ VI-01,Victory - Complete Game from the table shows the win screen,Spider Solitai
 2. The Victory buttons on the right are visible.",Manual
 VI-02,Victory - Win screen shows all of its parts,Spider Solitaire Unity > Victory,Functional,Medium,"1. On the Victory screen, with Dev Panel closed, look over the page.","1. You can see the ranking-for header, current / rank / best columns, leaderboards, achievements, help, new, and stats.",Manual
 VI-03,Victory - Footer names the level you just played,Spider Solitaire Unity > Victory,Functional,High,1. Win an Easy game with Complete Game and read the footer.,"1. It says Easy level, matching the game you started, not some other level.",Manual
+VI-04,Victory - Back returns to the main menu,Spider Solitaire Unity > Victory,Functional,Medium,"1. On Victory, tap the screen's own Back control — not New.",1. The main menu is showing. Leaving by Back leaves no game in progress.,Manual
 DL-01,Difficulty - Medium starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Medium.
 2. Open Dev Panel on the table, tap Complete Game, close the panel, then tap Back on Victory.","1. A Medium game is on the table.
 2. Victory appeared for Medium, then you can get back to the menu.",Manual
@@ -129,6 +149,7 @@ LS-03,Last Score - Leaderboards opens Game Center,Spider Solitaire Unity > Last 
 LS-04,Last Score - Achievements opens Game Center,Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Score, tap achievements.
 2. Tap back and dismiss the sheet.","1. Game Center opens, headed Achievements.
 2. Last Score is showing again.",Manual
+LS-05,Last Score - Back returns to the main menu,Spider Solitaire Unity > Last Score,Functional,Medium,"1. From Last Score, tap Back until you reach the menu.",1. The main menu is showing.,Manual
 AF-02,Ad-free - Link asks No or Yes before the store,Spider Solitaire Unity > App Store / Mail,Functional,Medium,"1. On About, tap ad free version.","1. A card asks if you want to look at the ad-free version (No on the left, Yes on the right). You are still in Spider.",Manual
 AF-03,Ad-free - Yes opens Spider Solitaire +,Spider Solitaire Unity > App Store / Mail,Functional,High,"1. On that card, tap Yes.
 2. Read the store page name.","1. The App Store opens.

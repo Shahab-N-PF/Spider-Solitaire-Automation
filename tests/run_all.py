@@ -66,13 +66,16 @@ import visual  # noqa: E402
 #                     verifyVictory and verifyDifficultyLevels depend on, and the
 #                     only clean slot left costs more than running it alone does.
 TESTS = [
-    # First because it is the only test that starts from a TERMINATED app rather
-    # than walking back from wherever the last one left off — so it both checks
-    # the cold-start path and hands every later test a known-clean state. On a
-    # fresh install it also clears the two one-per-install gates (Terms &
-    # Conditions, then the ATT prompt); on a normal launch there are no pop-ups
-    # and it simply confirms a cold start reaches the menu.
-    "verifyFirstLaunch",        # cold start -> menu, no pop-ups left on screen
+    # First because it preserves an already-visible first-install gate, or
+    # cold-restarts when no gate is up, then hands every later test a known-clean
+    # state. On a
+    # fresh install it opens both policy links before clearing the two
+    # one-per-install gates (normally Terms & Conditions, then ATT; a reset ATT
+    # prompt can arrive first and is cleared without consuming the T&C card);
+    # on a normal launch
+    # there are no pop-ups and those checks are skipped. Both paths enable
+    # Airplane Mode before handing the menu to the remaining tests.
+    "verifyFirstLaunch",        # policy links when available -> offline menu
     "verifyMainMenu",           # foundation: the menu renders at all
     "verifyStatsPage",          # renders + scrolls end to end
     "verifyOptions",            # 4 named rows driven (2 toggles, 2 sliders), then reset
@@ -193,8 +196,10 @@ REQUIRED = [
     # the card suit pips verifyGamePlay reads to prove "Use Hearts" reached the
     # dealt cards
     "card_spade", "card_heart",
-    # the two first-launch gates verifyFirstLaunch has to clear (both by image —
-    # WDA can see neither)
+    # The two first-launch gates verifyFirstLaunch has to clear (both by image —
+    # WDA can see neither). Its policy link/page crops are deliberately omitted:
+    # they are only needed when the once-per-install card actually appears, and
+    # the test captures a bootstrap frame and reports them by name if missing.
     "tc_continue", "att_prompt", "att_allow",
 ]
 # Deliberately NOT listed: "resume", the difficulty picker's ribbon that

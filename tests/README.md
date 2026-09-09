@@ -182,7 +182,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyChooseLook` | Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
 | `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
-| `verifyFirstLaunch` | a **cold start** (terminate, relaunch) reaches the menu with no pop-ups left on screen; on a fresh install it also clears the two one-per-install gates. Runs **first** |
+| `verifyFirstLaunch` | preserves an already-visible first-install prompt (otherwise performs a **cold start**) and checks both links on the one-time Terms & Conditions card: Terms must open the terms page and Privacy Policy must open the privacy page, and each page must close back to the card. It then accepts T&C, allows ATT, presses Home to persist those choices, enables Airplane Mode, turns Wi-Fi off, and hands the remaining suite a clean main menu. On a normal launch the card/link checks are skipped, but the phone is still put offline. Runs **first** |
 | `verifyGamePlay` | **deal/undo round trip**, **tap-to-lower** drops the playfield and raises it back, hints respond, all six drawer actions behave, and two Options settings are proved to reach the table — **"Use Hearts"** flips the dealt cards from black spades to red hearts and back, and **"Rich Features"** hides and restores the Timer, Score and Multiplier |
 | `resetStats` | reset link + both confirmations, then back to the menu. **DESTRUCTIVE** — wipes local statistics, so it runs **last** |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
@@ -481,7 +481,10 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   cancelled, and `verifyPlay` failed. These are real `UIAlertController`s, so
   `ui.alert_now()` reads their text over WDA and `ui.answer_dialog()` presses
   Yes/No by name; the templates remain only as a fallback.
-* **Two first-launch gates block everything: Terms & Conditions, then ATT.**
+* **Two first-launch gates block everything: normally Terms & Conditions, then
+  ATT.** A separately reset tracking permission can put ATT first;
+  `verifyFirstLaunch` clears only that prompt and waits for the T&C card so its
+  links are not skipped.
   Both are matched as **images** — *neither* is visible to WDA, and the earlier
   claim here that T&C was matched by alert text was wrong. Measured on build 363
   with a live session while the T&C pop-up was plainly on screen, `/alert/text`
@@ -495,6 +498,26 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   App Not to Track" does not clear the gate (`att_deny` is kept for reference).
   It still only touches alerts it positively recognises as gates, so the game's
   own confirmations are left to `settle_prompts()`.
+* **`verifyFirstLaunch` owns the two policy links before it presses Continue.**
+  On a fresh install it opens Terms & Conditions and Privacy Policy in turn,
+  asserts a different page heading for each, and closes each page back to the
+  still-unaccepted card. If **Accept All Cookies** appears, it taps that native
+  button and waits for the banner to disappear before writing the full-page
+  capture; Privacy often inherits the choice made on Terms and has no banner.
+  The four optional crops are `tc_terms_link`,
+  `tc_terms_page`, `tc_privacy_link`, and `tc_privacy_page`. They are not in
+  `run_all.REQUIRED`, because a normal launch never uses them; if a fresh card
+  appears while they are missing, the test writes
+  `log/first_launch_terms_gate.png`, reports the missing names, and still
+  clears the gates so later cases are not stranded.
+* **Both first-launch paths hand `run_all` an offline menu.** When the card is
+  absent, the test establishes the radio state directly. When it is present,
+  it keeps the network up for the web pages, clears T&C and ATT, and presses
+  Home so the agreement is persisted. It then enables Airplane Mode **and turns
+  Wi-Fi off**, then force-relaunches Spider to the menu rather than resuming the
+  existing process. Airplane Mode alone is insufficient when iOS remembers that
+  Wi-Fi was manually enabled. Do not replace that Home press with a foreground
+  kill.
 * **They come back far more often than "once per install".** The app writes its
   state when it goes to the **background**, and `cold_launch()` terminates it
   from the **foreground**, so the "agreed" flag can be lost and both reappear on
