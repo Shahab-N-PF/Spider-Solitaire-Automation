@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the five observed interstitial trigger points. [UNITY]
+"""Verify observed interstitial trigger and cooldown points. [UNITY]
 
 *** ONLINE only — deliberately not part of tests/run_all.py. ***
 
@@ -10,7 +10,7 @@ This test records two independent clocks:
 * after an interstitial is closed and the user is back in the game, a 30-second
   cooldown starts.
 
-The five cases are exercised in order:
+The original five cases are exercised in order:
 
 1. table for less than 30 seconds, then Options: no ad;
 2. table for more than 30 seconds, then Help: ad;
@@ -18,6 +18,15 @@ The five cases are exercised in order:
 4. close that Victory ad, tap New within 30 seconds: no ad;
 5. win again, close the Victory ad, stay on Victory for more than 30 seconds,
    then tap New: ad.
+
+Additional coverage verifies:
+
+6. after the Help ad closes, Options within 30 seconds has no ad (global
+   cooldown, not Victory-only);
+7. over 30 seconds on the table, then Back: ad, closing onto the main menu;
+8. game entry within 30 seconds on that menu: no ad;
+9. game entry after more than 30 seconds on that menu: ad;
+10. over 30 seconds on the table, then FAQ: ad.
 
 An interstitial during ``resume_or_deal`` is also expected behavior. The test
 closes its StoreKit X followed by the ad's own X and continues without a cold
@@ -35,6 +44,8 @@ Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set,
 Run:  ./.venv/bin/python tests/triggerAdPoints.py
       ./.venv/bin/python tests/triggerAdPoints.py --part cooldown
       ./.venv/bin/python tests/triggerAdPoints.py --part victory
+      ./.venv/bin/python tests/triggerAdPoints.py --part menu
+      ./.venv/bin/python tests/triggerAdPoints.py --part destinations
 """
 import argparse
 import os
@@ -136,6 +147,35 @@ def open_drawer_action(anchor: str, label: str):
               f"could not tap the drawer's {label} action")
 
 
+def enter_from_menu():
+    """Start a resume/deal action without swallowing an entry interstitial."""
+    ui.expect(ui.on_menu(timeout=4.0),
+              "game entry did not start from the main menu")
+    if not ui.open_picker():
+        ui.expect(ui.in_app() and ui.lost(timeout=1.0),
+                  "Play did not open the difficulty picker")
+        return "opening the difficulty picker"
+    if ui.have("resume") and ui.is_on("resume"):
+        ui.expect(ui.tap("resume", settle=2.0),
+                  "the Resume ribbon could not be tapped")
+        return "resuming the paused game"
+    ui.expect(ui.tap("difficulty_easy", settle=2.0),
+              "Easy could not be tapped")
+    return "dealing a fresh Easy game"
+
+
+def leave_table_ad_to_menu(label: str):
+    """Leave a long-lived table, close its ad, and require the main menu."""
+    ui.expect(ui.at_table(timeout=8.0),
+              f"{label} did not start on the game table")
+    print(f"  {label}: waiting {DWELL:.0f}s on the table before Back")
+    ui.sleep(DWELL)
+    ui.expect(ui.back(), f"the table's Back control failed for {label}")
+    expect_ad(label)
+    ui.expect(ui.on_menu(timeout=8.0),
+              f"the {label} ad did not close onto the main menu")
+
+
 def verify_short_options_no_ad(retries: int = 1):
     """Rule 5, retrying once when inherited cooldown produces an entry ad."""
     for attempt in range(retries + 1):
@@ -185,6 +225,12 @@ def back_to_table():
         ui.expect(ui.at_table(timeout=8.0),
                   "destination back did not return to the game table")
         return
+    # FAQ has no dedicated screen anchor in the Unity template set, but it
+    # carries the same back_bar control as Options and Help.
+    if ui.back():
+        ui.expect(ui.at_table(timeout=8.0),
+                  "destination back did not return to the game table")
+        return
     reach_table()
     ui.settle_prompts()
     ui.expect(ui.at_table(timeout=8.0),
@@ -195,11 +241,11 @@ def win_and_expect_victory_ad(label: str):
     """Win the active table through the QA panel and require its ad."""
     ui.expect(ui.win_current_game(timeout=12.0),
               f"QA Complete Game did not reach Victory for {label}")
-    ui.expect(ui.close_dev_panel(),
-              f"could not collapse the Dev Panel on Victory for {label}")
     expect_ad(label)
     ui.expect(ui.at_screen("victory", timeout=8.0),
               f"the {label} ad did not leave the Victory screen visible")
+    ui.expect(ui.close_dev_panel(),
+              f"could not collapse the Dev Panel after the {label} ad closed")
 
 
 def ensure_dev_panel():
@@ -269,6 +315,15 @@ def run_cooldown_rules():
     back_to_table()
     print("  rule 4 passed: long table redirect triggered an ad")
 
+    # The cooldown starts when that Help ad closes and applies globally, not
+    # only to Victory's New button.
+    open_drawer_action("ingame_options", "Options inside Help-ad cooldown")
+    wait_no_ad("Help ad closed -> Options within cooldown",
+               lambda: ui.at_screen("options", timeout=0.5))
+    back_to_table()
+    print("  global cooldown passed: Options within 30s of the Help ad "
+          "did not trigger another ad")
+
 
 def run_victory_rules():
     """Victory trigger plus inside/outside-cooldown New behavior."""
@@ -302,25 +357,65 @@ def run_victory_rules():
     print("  rule 3 passed: New after 30s on Victory triggered an ad")
 
 
+def run_menu_rules():
+    """Back-ad landing plus short and long main-menu entry clocks."""
+    leave_table_ad_to_menu("long table -> Back")
+    print(f"  menu rule: waiting {SHORT:.0f}s before entering within cooldown")
+    ui.sleep(SHORT)
+    how = enter_from_menu()
+    wait_no_ad("short menu dwell -> game entry",
+               lambda: ui.at_table(timeout=0.5))
+    print(f"  menu rule passed: {how} within 30s did not trigger an ad")
+
+    leave_table_ad_to_menu("second long table -> Back")
+    print(f"  menu rule: waiting {DWELL:.0f}s on the main menu")
+    ui.sleep(DWELL)
+    how = enter_from_menu()
+    expect_ad(f"long menu dwell -> {how}")
+    back_to_table()
+    print("  menu rule passed: game entry after more than 30s on the "
+          "main menu triggered an ad")
+
+
+def run_destination_rules():
+    """Prove the long-table trigger also applies to the drawer's FAQ."""
+    print(f"  destination rule: waiting {DWELL:.0f}s before opening FAQ")
+    ui.sleep(DWELL)
+    open_drawer_action("ingame_faq", "FAQ")
+    expect_ad("long table -> FAQ")
+    back_to_table()
+    print("  destination rule passed: long table -> FAQ triggered an ad")
+
+
 def run(part: str = "all"):
     net = prepare()
     if part in ("all", "cooldown"):
         run_cooldown_rules()
     if part in ("all", "victory"):
         run_victory_rules()
+    if part in ("all", "menu"):
+        run_menu_rules()
+    if part in ("all", "destinations"):
+        run_destination_rules()
 
     if part == "all":
-        result = "all five interstitial trigger/cooldown rules"
+        result = "all interstitial trigger/cooldown rules"
     elif part == "cooldown":
         result = "the short/long table cooldown rules"
-    else:
+    elif part == "victory":
         result = "the Victory trigger/cooldown rules"
+    elif part == "menu":
+        result = "the main-menu trigger/cooldown rules"
+    else:
+        result = "the additional destination trigger rules"
     print(f"PASS: {result} passed online on {net!r}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--part", choices=("all", "cooldown", "victory"),
+    parser.add_argument("--part",
+                        choices=("all", "cooldown", "victory", "menu",
+                                 "destinations"),
                         default="all",
                         help="run all rules or one independently-runnable group")
     args = parser.parse_args()

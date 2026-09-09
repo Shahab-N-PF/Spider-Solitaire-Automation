@@ -126,6 +126,8 @@ Opt-in, deliberately out of the suite:
 ./.venv/bin/python tests/triggerAdPoints.py      # interstitial trigger points + 30s cooldown rules
 ./.venv/bin/python tests/triggerAdPoints.py --part cooldown  # short/long table rules only
 ./.venv/bin/python tests/triggerAdPoints.py --part victory   # Complete Game/Victory rules only
+./.venv/bin/python tests/triggerAdPoints.py --part menu      # Back ad + main-menu dwell rules
+./.venv/bin/python tests/triggerAdPoints.py --part destinations  # long-table FAQ trigger
 ./.venv/bin/python tests/verifyAdFreeVersion.py  # About's ad-free link -> App Store
 ./.venv/bin/python tests/visitLastScore.py       # Last Score + Game Center (needs an Apple account)
 # needs a Mail account on the device; never sends, deletes the draft afterwards

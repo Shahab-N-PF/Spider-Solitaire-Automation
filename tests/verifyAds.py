@@ -162,15 +162,25 @@ def _enter_for_ad():
     interstitial actually loads. Must not call ad_free()/recover() — that
     would swallow the ad this step is waiting for.
     """
+    if ui.alert_now():
+        ui.settle_prompts()
+
+    # A successful back() call only proves that WDA sent the tap; the game can
+    # remain on the table. Retry the table's Back control instead of returning
+    # without initiating the resume/deal action this helper promises.
+    if ui.at_table(timeout=1.5):
+        print("  first back left the table visible — retrying Back before "
+              "resume/deal")
+        ui.expect(ui.back(),
+                  "the retry Back control could not be tapped")
+        if ui.wait_lost(timeout=3.0):
+            return "retrying Back from the game table"
+
     if ui.at_screen("difficulty", timeout=2.0):
         print("  on the difficulty picker after back")
     elif ui.on_menu(timeout=2.0):
         ui.expect(ui.open_picker(), "Play did not open the difficulty picker")
     else:
-        if ui.alert_now():
-            ui.settle_prompts()
-        if ui.at_table(timeout=1.5):
-            return "back never left the table"
         ui.expect(ui.to_menu(),
                   "could not reach the menu to resume/deal after back showed no ad")
         ui.expect(ui.open_picker(), "Play did not open the difficulty picker")
