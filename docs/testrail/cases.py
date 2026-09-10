@@ -878,6 +878,15 @@ CASES = [
            "You leave Options and a support page opens. What that page "
            "then loads can vary with the network."),
       ]),
+    C("HS-02", "Options - Contact Us still leaves Options without internet",
+      f"{S} > Options",
+      [
+          ("Turn Airplane Mode on and turn Wi-Fi off. Open Options and "
+           "tap Contact Us.",
+           "You leave Options. The support page may show a no-connection "
+           "or failed-load screen instead of PeopleFun Support. That is "
+           "the case — the redirect still happened."),
+      ]),
 
     # ── Relaunch ──────────────────────────────────────────────────────
     C("RL-01", "Relaunch - Same board after closing the app for a few seconds",

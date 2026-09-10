@@ -204,7 +204,7 @@ network, so the order matters: start WDA, then go offline.
 
 Several tests need the network and are all deliberately kept out of `run_all.py` —
 run them on their own, online: `tests/verifyAds.py` (it brings the device online
-itself), `tests/verifyHelpShift.py`, `tests/verifyAdFreeVersion.py` and
+itself), `tests/verifyAdFreeVersion.py` and
 `tests/visitLastScore.py` (which also needs a signed-in Apple account).
 `tests/submitFeedback.py` is standalone too, but for a different reason: it needs a
 **Mail account** configured on the device. It never sends, and deletes the draft.

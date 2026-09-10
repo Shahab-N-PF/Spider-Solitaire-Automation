@@ -63,9 +63,8 @@ where it sits — everything that reads or depends on play history has already r
 and each run re-earns it — but a full run does leave the device's local stats at
 zero.
 
-Not in the default suite, on purpose: **`verifyHelpShift.py`** (needs the device
-online, which the suite otherwise avoids), **`verifyAds.py`** and
-**`triggerAdPoints.py`** (same — ads need the network; see *Ads* below),
+Not in the default suite, on purpose: **`verifyAds.py`** and
+**`triggerAdPoints.py`** (ads need the network; see *Ads* below),
 **`visitLastScore.py`** (its Game Center legs
 need the network and a signed-in Apple account), and
 **`verifyAdFreeVersion.py`** (the hand-off works offline, but the App Store page
@@ -188,7 +187,8 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
 | `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
-| `verifyHelpShift` | Contact Us opens the support flow (online, opt-in) |
+| `verifyHelpShift` | Contact Us leaves Options for Helpshift. In `run_all` this half stays **offline**: the capture is the no-network redirect (`log/HelpShift.png`), and the loaded page is not asserted |
+| `verifyHelpShiftOnline` | Last in `run_all`. Brings the device **online** and asserts Contact Us opens **PeopleFun Support** (`log/HelpShiftOnline.png`). Standalone: `verifyHelpShift.py --online` |
 | `verifyAds` | **chunks 1-3 of a rebuild:** brings the device **online itself**, opens the **Dev Panel** (unlocking it with the 5-tap emblem gesture if needed — both branches are one idempotent call), opens **MAX's Mediation Debugger**, and scrolls to its **Ads** section. The row reads **Select Live Network** when empty but changes to **Live Network** once a network is persisted, so the test accepts either label; it opens that row and selects **AppLovin** only when needed, proved by the picker's checkmark. Then closes those overlays, **resumes a paused game or deals Easy**, waits ~30s, taps back, and walks the interstitial chain — StoreKit product-sheet X, then the ad's own X — landing back on the **game table**. **Ends on the table on purpose** so a later chunk continues from there; a re-run expands the Dev Panel from the table rather than walking to the menu (back from the table fires another interstitial). Never cold-launches: that re-locks the Dev Panel and drops the AppLovin selection. The skip glyph is never tapped. The banner checks this replaced are in git history (online, opt-in) |
 | `triggerAdPoints` | **Online-only trigger/cooldown coverage:** verifies the original five table/Victory rules plus global cooldown after a Help ad, long-table Back, short/long main-menu dwell before entry, and long-table FAQ. Entry ads are valid cooldown-expiry events and are closed before the table clock starts; one inherited-cooldown ad on the first Options attempt gets one clean retry. The shared closer always handles StoreKit X before the ad's own X and captures an unmatched creative before failing. `--part cooldown`, `--part victory`, `--part menu`, and `--part destinations` run the groups independently. Never cold-launches (standalone, not in `run_all`) |
 | `verifyAdFreeVersion` | About's **"ad free version"** link raises a **No/Yes card** ("Tap Yes to proceed to the App Store"), and answering **Yes** hands off to the App Store — asserted on the foreground **bundle id**, not pixels. It comes back the way a PLAYER does — tapping the `◀ Spider` crumb iOS draws in the status bar (`ui.tap_back_to_app()`), not a programmatic resume — and lands on **About**, which is what proves the app was resumed and not restarted. The page it lands on is asserted by name to be **Spider Solitaire +**, this game's paid build (online, opt-in) |
@@ -518,6 +518,12 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   existing process. Airplane Mode alone is insufficient when iOS remembers that
   Wi-Fi was manually enabled. Do not replace that Home press with a foreground
   kill.
+* **`verifyHelpShift` is two passes.** After Options it stays offline and
+  only checks that Contact Us still leaves Options. After `resetStats` it
+  comes online (`verifyHelpShiftOnline`) and asserts the PeopleFun Support
+  header. A failed walk-back can cold-launch, so the offline half stays
+  before `openDebugTools`; going online any earlier lets ads interrupt the
+  rest of the suite.
 * **They come back far more often than "once per install".** The app writes its
   state when it goes to the **background**, and `cold_launch()` terminates it
   from the **foreground**, so the "agreed" flag can be lost and both reappear on

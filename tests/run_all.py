@@ -36,8 +36,6 @@ import visual  # noqa: E402
 # deliberate — see the resetStats entry at the bottom of TESTS.
 #
 # Not in the suite, on purpose:
-#   verifyHelpShift — needs the device ONLINE, which the rest of the suite
-#                     specifically avoids; run it deliberately.
 #   verifyAds       — needs the device ONLINE by definition (it is the ad axis).
 #   visitLastScore  — its Game Center legs need the device ONLINE and a
 #                     signed-in Apple account. Its first half (the picker's
@@ -79,6 +77,12 @@ TESTS = [
     "verifyMainMenu",           # foundation: the menu renders at all
     "verifyStatsPage",          # renders + scrolls end to end
     "verifyOptions",            # 4 named rows driven (2 toggles, 2 sliders), then reset
+    # After Options, before openDebugTools: Contact Us lives on Options, and a
+    # failed walk back from Helpshift can cold-launch. That is safe here and
+    # would hide the Dev Panel if it ran later. The suite is still offline,
+    # so this is only the no-network redirect. The loaded page is
+    # verifyHelpShiftOnline, last, after the phone comes back online.
+    "verifyHelpShift",          # Contact Us leaves Options (offline redirect)
     "verifyHelpPage",           # opens + the body scrolls
     "verifySpiderLogo",         # About via item + logo, links, in-app FAQ + its scroll
     "verifyMoreGamesBtn",       # in-app cross-promo page + its scroll
@@ -115,6 +119,11 @@ TESTS = [
     # re-earns all of that before it gets here, so wiping at the end leaves the
     # next run's ordering intact rather than breaking it.
     "resetStats",               # reset link + both confirmations (DESTRUCTIVE)
+    # After the offline suite — going online any earlier lets ads interrupt
+    # the tests that exist to run without them. FirstLaunch will put the
+    # next run back in Airplane Mode. This is the loaded PeopleFun Support
+    # page; the redirect-without-network half is verifyHelpShift above.
+    "verifyHelpShiftOnline",    # come online, Contact Us opens PeopleFun Support
 ]
 
 # Tests that are currently EXPECTED to fail because the Unity port dropped the

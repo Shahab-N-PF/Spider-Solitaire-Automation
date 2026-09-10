@@ -1043,8 +1043,9 @@ def terminate(sid: str = None):
 # ── network state ─────────────────────────────────────────────────
 # The suite runs OFFLINE on purpose — online, cross-promo interstitials
 # interrupt screen transitions and a blind tap on one can open the App Store
-# over the app. tests/verifyAds.py, tests/verifyHelpShift.py and
-# tests/visitLastScore.py are the deliberate exceptions and need the network up.
+# over the app. tests/verifyAds.py, tests/visitLastScore.py and
+# tests/verifyHelpShiftOnline.py (last in run_all) are the exceptions that
+# need the network up — the last of those brings the device online itself.
 #
 # Setting that used to be a manual step on the phone. These drive it through the
 # iOS Settings app, which — unlike this game — publishes a real accessibility

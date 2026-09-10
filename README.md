@@ -114,6 +114,8 @@ Run a subset, or a single test standalone:
 ./.venv/bin/python tests/verifyMainMenu.py     # menu shows all its controls
 ./.venv/bin/python tests/verifyGamePlay.py     # the table plays (deal/undo, drawer)
 ./.venv/bin/python tests/verifyOptions.py      # Options: sections, scroll, live toggle
+./.venv/bin/python tests/verifyHelpShift.py --offline  # Contact Us leaves Options (run_all's offline half)
+./.venv/bin/python tests/verifyHelpShift.py --online   # come online, PeopleFun Support must load
 ```
 
 `verifyFirstLaunch` checks the Terms & Conditions and Privacy Policy webviews
@@ -129,7 +131,6 @@ Opt-in, deliberately out of the suite:
 ./.venv/bin/python tests/resetStats.py           # DESTRUCTIVE: wipes local statistics
 ./.venv/bin/python tests/preflight_offline.py    # assert Airplane Mode before a run
 # these need the device ONLINE — the suite otherwise runs offline to keep ads out
-./.venv/bin/python tests/verifyHelpShift.py      # Contact Us opens the support flow
 ./.venv/bin/python tests/verifyAds.py            # MAX debugger + leave-game interstitial (brings itself online)
 ./.venv/bin/python tests/triggerAdPoints.py      # interstitial trigger points + 30s cooldown rules
 ./.venv/bin/python tests/triggerAdPoints.py --part cooldown  # short/long table rules only

@@ -201,8 +201,8 @@ def alert_tap(session_id: str, label: str = None, base_url: str = None) -> bool:
 
 # ── device radios (Airplane Mode / Wi-Fi) ──────────────────────────
 # The suite wants the phone OFFLINE (adverts otherwise interrupt screen
-# transitions), while tests/verifyAds.py, tests/verifyHelpShift.py and
-# tests/visitLastScore.py want it online. That used to be a manual step on the
+# transitions), while tests/verifyAds.py, tests/visitLastScore.py and
+# tests/verifyHelpShiftOnline.py want it online. That used to be a manual step on the
 # phone; these drive it.
 #
 # It works because iOS **Settings is an ordinary app**, so WDA reads its real

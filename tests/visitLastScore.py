@@ -11,8 +11,8 @@ Steps, as specified:
   7. tap the empty space at the bottom to dismiss it, back on Last Score
   8. the same three steps again for "achievements", headed "Achievements"
 
-ONLINE, OPT-IN — deliberately NOT in tests/run_all.py, alongside verifyAds and
-verifyHelpShift. Steps 5-8 need the device on the network AND a signed-in Apple
+ONLINE, OPT-IN — deliberately NOT in tests/run_all.py, alongside verifyAds.
+Steps 5-8 need the device on the network AND a signed-in Apple
 account: Game Center simply does not open in Airplane Mode, which is how the
 rest of the suite runs. The first half would run offline happily, but a case
 that is only half-checked in the offline suite is worse than one run

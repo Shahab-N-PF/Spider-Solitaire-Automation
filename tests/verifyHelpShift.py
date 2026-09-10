@@ -1,56 +1,146 @@
 #!/usr/bin/env python3
-"""Test: Options -> "Contact Us" opens the Helpshift support flow. [UNITY]
+"""Test: Options -> "Contact Us" opens Helpshift. [UNITY]
 
-The Options screen's top-right "Contact Us" button opens FingerArts' Helpshift
-support page. That page is fetched over the NETWORK, so it needs the device
-online — which is the opposite of how the rest of the suite runs (Airplane Mode,
-to keep cross-promo interstitials from interrupting screen transitions).
+Two halves, because the suite runs offline and Helpshift will not load there:
 
-For that reason this is intentionally NOT in tests/run_all.py: it would either
-fail offline or drag the whole suite online. Run it deliberately, with the device
-connected:
+  offline  — tapping Contact Us must still LEAVE Options. The capture is the
+             no-network destination; the loaded page is not asserted.
+             This is the `run()` that tests/run_all.py calls after Options.
 
-    ./.venv/bin/python tests/verifyHelpShift.py
+  online   — the phone is brought onto the network, then Contact Us must leave
+             Options AND show PeopleFun Support. run_all runs this last, after
+             the offline suite, so ads cannot interrupt earlier tests.
 
-Because the loaded page renders unpredictably (network content), the assertion is
-deliberately weak: tapping Contact Us must LEAVE the Options screen. That is the
-part the app controls; what Helpshift then renders is not ours to pin down.
+    ./.venv/bin/python tests/verifyHelpShift.py            # both
+    ./.venv/bin/python tests/verifyHelpShift.py --offline
+    ./.venv/bin/python tests/verifyHelpShift.py --online
 
-Captures log/HelpShift.png.
+Captures log/HelpShift.png (offline) and log/HelpShiftOnline.png (online).
 
-Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set, device
-ONLINE.
+Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set.
 """
+import argparse
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unity_ui as ui  # noqa: E402
 
+# Helpshift's header, measured on the Obj-C flow and the Unity SDK the same way:
+# a native bar reading "PeopleFun Support". Predicate lookups, not a crop —
+# the page is UIKit/WebView over Unity, so a template would bake in whatever
+# sat behind it.
+SUPPORT_TITLES = ("PeopleFun Support", "Helpshift")
 
-def run():
+
+def _leave_support() -> bool:
+    """Close the Helpshift webview / hand-off, then walk back to the menu."""
+    if not ui.in_app():
+        ui.tap_back_to_app(settle=2.5)
+    else:
+        for name in ("Done", "Close", "BackButton"):
+            if ui._tap_named("XCUIElementTypeButton", name):
+                ui.sleep(1.5)
+                break
+        else:
+            ui.back(settle=1.5)
+    return ui.to_menu()
+
+
+def _open_contact_us():
+    """Walk menu -> Options -> Contact Us. Leaves the support destination up."""
     ui.expect(ui.launch_to_menu(), "could not reach the main menu")
-    ui.expect(ui.tap("menu_options", settle=2.5), "Options control not found on the menu")
+    ui.expect(ui.tap("menu_options", settle=2.5),
+              "Options control not found on the menu")
     ui.expect(ui.at_screen("options"), "the Options screen did not open")
-    ui.expect(ui.is_on("contact_us"), "the 'Contact Us' button is missing from Options")
-
+    ui.expect(ui.is_on("contact_us"),
+              "the 'Contact Us' button is missing from Options")
     ui.expect(ui.tap("contact_us", settle=4.0), "'Contact Us' could not be tapped")
-    ui.sleep(4)                                  # let the support page load
+
+
+def _support_title(timeout: float = 20.0) -> str:
+    """Accessibility name of the Helpshift header, or '' if it never appeared."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for name in SUPPORT_TITLES:
+            if ui._ax_first("XCUIElementTypeNavigationBar", name, timeout=1.5):
+                return name
+            if ui._ax_first("XCUIElementTypeStaticText", name, timeout=1.0):
+                return name
+        time.sleep(1.0)
+    return ""
+
+
+def run_offline():
+    """Contact Us still redirects with no network. Does not pin the loaded page."""
+    _open_contact_us()
+    ui.sleep(4)                                  # no-network stand-in, settle
     shot = ui.shoot("HelpShift")
     ui.expect(not ui.is_on("screen_options"),
               "tapping 'Contact Us' did not leave the Options screen — the "
-              "support flow may not have opened (is the device online?). "
+              "support redirect did not fire. "
               f"See {shot}")
-    print(f"PASS: 'Contact Us' opened the support flow (left the Options screen) "
-          f"— see {shot}")
+    print(f"PASS: 'Contact Us' left Options for Helpshift (offline) — see {shot} "
+          "(the loaded page is not asserted; it will not be PeopleFun Support)")
+    ui.expect(_leave_support(),
+              "could not return to the main menu from the support flow")
 
-    ui.expect(ui.to_menu(), "could not return to the main menu from the support flow")
+
+def run_online():
+    """Bring the device online, then Contact Us must show PeopleFun Support."""
+    net = ui.online()
+    ui.expect(bool(net),
+              "could not leave Airplane Mode / join Wi-Fi — the online "
+              "Helpshift check needs a network")
+    print(f"  online on {net}")
+    _open_contact_us()
+    title = _support_title(timeout=24.0)
+    shot = ui.shoot("HelpShiftOnline")
+    ui.expect(not ui.is_on("screen_options"),
+              "tapping 'Contact Us' did not leave the Options screen — the "
+              "support redirect did not fire. "
+              f"See {shot}")
+    ui.expect(bool(title),
+              "Contact Us left Options but PeopleFun Support did not load. "
+              f"See {shot}")
+    print(f"PASS: 'Contact Us' opened {title} (online on {net}) — see {shot}")
+    ui.expect(_leave_support(),
+              "could not return to the main menu from the support flow")
+
+
+def run(mode: str = "offline"):
+    """run_all calls this with no args — that is the offline half."""
+    if mode == "online":
+        run_online()
+    elif mode == "offline":
+        run_offline()
+    else:
+        raise ValueError(f"unknown Helpshift mode {mode!r}")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--offline", action="store_true",
+        help="only the no-network redirect (what run_all calls after Options)")
+    parser.add_argument(
+        "--online", action="store_true",
+        help="come online and assert PeopleFun Support loads")
+    args = parser.parse_args(argv)
+    if args.offline and not args.online:
+        run_offline()
+    elif args.online and not args.offline:
+        run_online()
+    else:
+        run_offline()
+        run_online()
 
 
 if __name__ == "__main__":
     try:
-        run()
+        main()
     except Exception as e:  # noqa: BLE001
         print(f"FAIL: {e}")
         sys.exit(1)
