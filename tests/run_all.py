@@ -5,13 +5,15 @@ These tests target the **Unity** build (the Obj-C build is no longer functionall
 tested). They ask "does the Unity build WORK?" — a different question from
 tests/compare_unity*.py, which asks whether it LOOKS like the Obj-C baseline.
 
-Every test launches the app and walks itself to the main menu, so one failure
-cannot cascade into the next — the run always reports on all of them. Exit code
-is non-zero if any test failed, for CI.
+Every game test launches the app and walks itself to the main menu, so one
+failure cannot cascade into the next — the run always reports on all of them.
+The first test is the TestFlight install pre-step. Exit code is non-zero if
+any test failed, for CI.
 
-Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, `DEVICE_UDID` exported, and
-the device in **Airplane Mode** (online, cross-promo interstitials interrupt
-screen transitions — see tests/README.md).
+Prereqs: WDA up via scripts/wda.sh while the phone is online, iPhone unlocked,
+`DEVICE_UDID` exported, TestFlight installed and signed in, and the Spider
+invite accepted. The first test installs the build and the first-launch test
+then puts the phone in Airplane Mode for the offline suite.
 
 Run:  ./.venv/bin/python tests/run_all.py
       ./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay   # a subset
@@ -67,7 +69,12 @@ import visual  # noqa: E402
 #                     verifyVictory and verifyDifficultyLevels depend on, and the
 #                     only clean slot left costs more than running it alone does.
 TESTS = [
-    # First because it preserves an already-visible first-install gate, or
+    # TestFlight must run while the phone is online. It downloads the newest
+    # odd build and leaves Spider unopened so verifyFirstLaunch can own the
+    # fresh-install gates.
+    "installFromTestFlight",
+    # After TestFlight has installed the build, this preserves an already-visible
+    # first-install gate, or
     # cold-restarts when no gate is up, then hands every later test a known-clean
     # state. On a
     # fresh install it opens both policy links before clearing the two

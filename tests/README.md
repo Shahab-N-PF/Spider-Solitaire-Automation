@@ -48,7 +48,7 @@ This suite uses `config.UNITY_ASSETS` (`assets_unity/`, per-device) instead.
 
 ```bash
 ./scripts/wda.sh 00008030-001C51DA0E80A02E     # device UNLOCKED; leave running
-export DEVICE_UDID=00008030-001C51DA0E80A02E   # THEN enable Airplane Mode
+export DEVICE_UDID=00008030-001C51DA0E80A02E   # keep the phone online
 ./.venv/bin/python tests/run_all.py                          # whole suite
 ./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay  # a subset
 ./.venv/bin/python tests/verifyGamePlay.py                   # one test, standalone
@@ -56,6 +56,15 @@ export DEVICE_UDID=00008030-001C51DA0E80A02E   # THEN enable Airplane Mode
 
 `run_all.py` preflights the rig (templates present, WDA reachable, `DEVICE_UDID`
 set) and exits 2 with a readable message rather than failing test-by-test.
+
+The full run starts with `installFromTestFlight`: it brings the phone online,
+opens TestFlight, selects the top entry under Previous Builds, and installs it
+only when the build number in parentheses is odd. TestFlight must be installed
+and signed in, and the Spider invite must already be accepted. The test
+uninstalls Spider only after the odd-build check; an even newest build fails
+without changing the existing installation. It leaves Spider unopened so
+`verifyFirstLaunch` can handle the fresh-install gates. Run it alone with
+`./.venv/bin/python tests/installFromTestFlight.py`.
 
 After a run, open `log/spider_regression.html` for the self-contained
 regression report. It has one expandable card for every TestRail case, the
@@ -182,6 +191,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 
 | Test | What it asserts |
 |---|---|
+| `installFromTestFlight` | while online, opens TestFlight, selects the newest top-listed Previous Builds entry, and installs it only when its parenthesized build number is odd. Leaves Spider unopened for `verifyFirstLaunch`; an even newest build leaves the existing installation untouched |
 | `verifyMainMenu` | all 7 menu controls + logo render *simultaneously* (polled — a launch toast and sparkle can briefly hide one) |
 | `verifyStatsPage` | Statistics renders, Game Center present, scrolls end to end to "Reset Statistics" (not tapped) |
 | `verifyOptions` | Options opens with Contact Us present, then **four named rows** are *operated*: **Applause Volume** and **Card Lowering** (sliders) each drag to both ends and to mid-track, **Auto Mute Sounds** (ships ON) and **Use Hearts** (ships OFF) each flip and report the new state, and a changed slider value survives leaving the screen and returning. All four are then **reset to fixed values — on failure too** |

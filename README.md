@@ -93,13 +93,15 @@ Templates are in `assets_unity/`; the Obj-C `assets/` do not match Unity.
 ./scripts/setup.sh                          # 1. one-time: build .venv (skip if it exists)
 ./scripts/wda.sh <UDID>                     # 2. start WDA — own tab; iPhone UNLOCKED
 export DEVICE_UDID=<UDID>                   # 3. pin Airtest to the same phone
-#                                             then enable Airplane Mode on the device
-./.venv/bin/python tests/run_all.py         # 4. run every test, print PASS/FAIL
+#                                             keep the phone online for TestFlight
+./.venv/bin/python tests/run_all.py         # 4. install latest odd build + regress
 ```
 
 `run_all.py` preflights the rig (templates present, WDA reachable, `DEVICE_UDID`
-set), runs the tests, and prints a PASS/FAIL summary. No functional failures
-are expected; a failed case is a product or rig regression. Full detail:
+set), brings the phone online, installs the newest odd-numbered Spider build
+from TestFlight, and prints a PASS/FAIL summary. TestFlight must be installed,
+signed in, and have the Spider invite accepted. No functional failures are
+expected; a failed case is a product or rig regression. Full detail:
 `tests/README.md`.
 
 The run also writes `log/spider_regression.html`, a self-contained HTML report
@@ -114,6 +116,7 @@ the runner, for example `./.venv/bin/python tests/run_all.py verifyAds`.
 Run a subset, or a single test standalone:
 
 ```bash
+./.venv/bin/python tests/installFromTestFlight.py # latest top build; installs only odd builds
 ./.venv/bin/python tests/run_all.py verifyPlay verifyAbandonNo
 ./.venv/bin/python tests/run_all.py verifyResetCancelled
 ./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay

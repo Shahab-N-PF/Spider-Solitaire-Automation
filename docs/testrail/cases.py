@@ -90,6 +90,20 @@ CASES = [
       ],
       priority="High"),
 
+    C("FL-06", "Launch - Latest odd TestFlight build installs",
+      f"{S} > Launch",
+      [
+          ("Open TestFlight and tap Spider / Spider Solitaire.",
+           "The TestFlight page for this game is showing."),
+          ("Scroll to Previous Builds and tap it. Tap the top row.",
+           "The newest build's page is showing."),
+          ("If that page's version in parentheses is odd, delete Spider if "
+           "it is installed, then tap Install and wait. If it is even, stop.",
+           "The odd build installs. An even newest build leaves the existing "
+           "Spider installation unchanged."),
+      ],
+      priority="High"),
+
     # ── Main Menu ─────────────────────────────────────────────────────
     C("MM-01", "Main Menu - All eight controls are visible",
       f"{S} > Main Menu",

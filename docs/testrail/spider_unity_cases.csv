@@ -22,6 +22,11 @@ FL-05,Launch - Privacy Policy link opens the privacy page,Spider Solitaire Unity
 3. Close the page or tap Back.","1. A privacy web page opens, not the Terms & Conditions page.
 2. The banner is gone and the Privacy Notice heading is fully visible.
 3. The Terms & Conditions card is still there. Continue is checked separately in FL-02.",Manual
+FL-06,Launch - Latest odd TestFlight build installs,Spider Solitaire Unity > Launch,Functional,High,"1. Open TestFlight and tap Spider / Spider Solitaire.
+2. Scroll to Previous Builds and tap it. Tap the top row.
+3. If that page's version in parentheses is odd, delete Spider if it is installed, then tap Install and wait. If it is even, stop.","1. The TestFlight page for this game is showing.
+2. The newest build's page is showing.
+3. The odd build installs. An even newest build leaves the existing Spider installation unchanged.",Manual
 MM-01,Main Menu - All eight controls are visible,Spider Solitaire Unity > Main Menu,Functional,High,1. Open the app and wait until the menu finishes animating (a Game Center toast or sparkle can hide a label for a moment).,"1. Play, Stats, Options, Help, About, More Games, Choose Look, and the Spider logo are all on screen.",Manual
 ST-01,Statistics - Opens from the main menu,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.",1. The Statistics screen opens. The header reads Statistics. The main menu is gone.,Manual
 ST-03,Statistics - Page scrolls down to Reset Statistics,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.

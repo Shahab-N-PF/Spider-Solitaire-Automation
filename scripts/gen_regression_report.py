@@ -32,6 +32,10 @@ from cases import CASES  # noqa: E402
 # The TestRail list remains the person-facing source of truth. This catalog
 # only connects each manual case to the automated parent and its evidence.
 CASE_CATALOG = OrderedDict([
+    ("installFromTestFlight", {
+        "ids": ["FL-06"],
+        "shots": ["TestFlightBuild.png"],
+    }),
     ("verifyFirstLaunch", {
         "ids": ["FL-01", "FL-02", "FL-03", "FL-04", "FL-05"],
         "shots": ["first_launch.png"],
