@@ -19,10 +19,12 @@ import json
 import os
 import sys
 from collections import OrderedDict
+from datetime import datetime
 
 from PIL import Image
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HEADER_LOGO = os.path.join(REPO, "reports", "spider_report_header.jpg")
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "docs", "testrail"))
 import config  # noqa: E402
@@ -181,44 +183,91 @@ CSS = r"""
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
 body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  color:#eaf1ff; background:linear-gradient(160deg,#12294f,#0a1226); min-height:100vh; }
-.wrap { max-width:1040px; margin:0 auto; padding:28px 20px 60px; }
-header { display:flex; align-items:center; gap:18px; }
-.mark { width:64px; height:64px; border-radius:16px; background:linear-gradient(135deg,#ff5ea8,#ff9d3c);
-  box-shadow:0 6px 22px rgba(0,0,0,.45); display:grid; place-items:center; font-size:28px; font-weight:800; }
-h1 { font-size:26px; margin:0; font-weight:800; letter-spacing:.2px; }
-.sub { color:#93a8cc; font-size:14px; margin-top:3px; }
-.accent { height:4px; border-radius:4px; background:linear-gradient(120deg,#ff5ea8,#ff9d3c); margin:16px 0 22px; }
-.chips { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:22px; }
-.chip { background:#152a52; border:1px solid #24406f; border-radius:12px; padding:8px 13px; display:flex; flex-direction:column; }
-.chip .k { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:#93a8cc; }
-.chip .v { font-size:14px; font-weight:600; margin-top:2px; }
-.cards { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:12px; }
-.summary { flex:1; min-width:130px; background:#152a52; border:1px solid #24406f; border-radius:16px; padding:16px 18px; }
-.summary .num { font-size:30px; font-weight:800; }
-.summary .lbl { font-size:12px; color:#93a8cc; text-transform:uppercase; letter-spacing:.6px; }
-.rate-wrap { background:#152a52; border:1px solid #24406f; border-radius:16px; padding:16px 18px; margin:14px 0 26px; }
-.rate-top { display:flex; justify-content:space-between; font-size:13px; color:#93a8cc; }
-.bar { height:12px; border-radius:8px; background:#0c1a35; margin-top:10px; overflow:hidden; }
-.bar > i { display:block; height:100%; background:linear-gradient(120deg,#ff5ea8,#ff9d3c); }
-.sec { font-size:15px; font-weight:800; letter-spacing:.3px; margin:26px 0 10px; display:flex; align-items:baseline; gap:12px; }
-.secstat { font-size:12px; font-weight:600; color:#93a8cc; }
-.case { background:#152a52; border:1px solid #24406f; border-radius:12px; margin-bottom:9px; overflow:hidden; }
-.case.failed { border-color:#ff5a6a; }
-.case.skipped { border-color:#f2b544; }
-summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:12px; padding:13px 16px; }
+  color:#f4ece4; background:#2a211c; min-height:100vh; }
+.wrap { max-width:1040px; margin:0 auto; padding:32px 20px 64px; }
+.hero { display:flex; align-items:center; justify-content:space-between;
+  gap:28px; flex-wrap:wrap; margin-bottom:22px; }
+.brand { display:flex; align-items:center; gap:16px; min-width:240px; }
+.mark { width:64px; height:64px; border-radius:16px; object-fit:cover;
+  background:#c45c32; box-shadow:0 4px 16px rgba(0,0,0,.25); }
+h1 { font-family:"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  font-size:26px; margin:0; font-weight:700; letter-spacing:0; color:#f4ece4; }
+.sub { color:#c4b2a3; font-size:14px; margin-top:4px; }
+.hero-stat { display:flex; align-items:center; gap:20px; }
+.donut { width:132px; height:132px; border-radius:50%;
+  display:grid; place-items:center; flex:0 0 132px;
+  box-shadow:inset 0 0 0 1px #4a3b33; }
+.donut-hole { width:86px; height:86px; border-radius:50%; background:#2a211c;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.donut-pct { font-family:"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  font-size:26px; font-weight:700; line-height:1; }
+.donut-lbl { color:#c4b2a3; font-size:10px; letter-spacing:.3px; margin-top:3px; }
+.legend { display:flex; flex-direction:column; gap:7px; font-size:13px; color:#c4b2a3; }
+.legend b { color:#f4ece4; font-weight:600; }
+.swatch { display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:7px; vertical-align:middle; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.filters { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:28px; }
+.filter { appearance:none; background:#3a2e28; border:1px solid #4a3b33;
+  color:#c4b2a3; border-radius:999px; padding:6px 12px; font:inherit;
+  font-size:13px; cursor:pointer; }
+.filter b { color:#f4ece4; font-weight:600; }
+.filter.is-on { color:#f4ece4; border-color:#c45c32; background:#4a342c; }
+.filter[data-filter="passed"].is-on { border-color:#6f9e7a; }
+.filter[data-filter="failed"].is-on { border-color:#b85a48; }
+.filter[data-filter="skipped"].is-on { border-color:#d4b483; }
+body[data-filter="passed"] .attention,
+body[data-filter="failed"] .attention,
+body[data-filter="skipped"] .attention { display:none; }
+body[data-filter="passed"] .case:not(.passed),
+body[data-filter="failed"] .case:not(.failed),
+body[data-filter="skipped"] .case:not(.skipped) { display:none; }
+body[data-filter="passed"] .group:not([data-has~="passed"]),
+body[data-filter="failed"] .group:not([data-has~="failed"]),
+body[data-filter="skipped"] .group:not([data-has~="skipped"]) { display:none; }
+.chip { background:#3a2e28; border:1px solid #4a3b33; border-radius:10px;
+  padding:7px 11px; display:flex; flex-direction:column; min-width:88px; }
+.chip .k { font-size:11px; letter-spacing:.2px; color:#c4b2a3; }
+.chip .v { font-size:13px; font-weight:600; margin-top:2px; }
+.attention { background:#3a2e28; border:1px solid #4a3b33; border-left:4px solid #b85a48;
+  border-radius:12px; padding:16px 16px 8px; margin-bottom:28px; }
+.attention h2 { font-family:"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  font-size:17px; margin:0 0 4px; font-weight:700; }
+.attention .lead { color:#c4b2a3; font-size:13px; margin:0 0 12px; }
+.sec { font-family:"Iowan Old Style","Palatino Linotype",Palatino,serif;
+  font-size:17px; font-weight:700; margin:28px 0 10px; padding-left:12px;
+  border-left:3px solid #c45c32; display:flex; align-items:baseline; gap:10px; }
+.secstat { font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  font-size:12px; font-weight:500; color:#c4b2a3; }
+.case { background:#3a2e28; border:1px solid #4a3b33; border-radius:10px;
+  margin-bottom:8px; overflow:hidden; border-left:8px solid #6f9e7a; }
+.case.failed { border-left-color:#b85a48; }
+.case.skipped { border-left-color:#d4b483; }
+summary { list-style:none; cursor:pointer; display:flex; align-items:center;
+  gap:12px; padding:12px 14px; }
 summary::-webkit-details-marker { display:none; }
-.cid { font-family:ui-monospace,Menlo,monospace; font-size:13px; color:#93a8cc; min-width:64px; }
-.title { flex:1; font-weight:600; font-size:14.5px; }
-.pill { color:#08122a; font-weight:800; font-size:11px; padding:3px 10px; border-radius:20px; letter-spacing:.4px; }
-.dur { color:#93a8cc; font-size:12px; min-width:56px; text-align:right; }
-.detail { padding:0 16px 16px; }
-.shot { display:block; max-width:100%; max-height:620px; border-radius:10px; border:1px solid #24406f; margin:0 0 12px; }
-.shot-caption { color:#93a8cc; font-size:11px; margin:-7px 0 12px; }
-.noshot { color:#93a8cc; font-size:13px; margin:0 0 12px; }
-.msg { background:#0c1a35; border:1px solid #24406f; border-radius:8px; padding:10px; color:#ffd7db; font-size:12px; white-space:pre-wrap; overflow-x:auto; margin:0 0 12px; }
-.evidence { background:#0a1930; border:1px solid #24406f; border-left:3px solid #5aa9ff; border-radius:8px; padding:10px; color:#cfe3ff; font-size:12px; white-space:pre-wrap; overflow-x:auto; margin:0 0 12px; }
-footer { color:#93a8cc; font-size:12px; text-align:center; margin-top:34px; }
+.title { flex:1; font-weight:600; font-size:14px; }
+.pill { color:#2a211c; font-weight:700; font-size:10px; padding:3px 8px;
+  border-radius:999px; letter-spacing:.3px; }
+.dur { color:#c4b2a3; font-size:12px; min-width:52px; text-align:right; }
+.detail { padding:0 14px 14px; }
+.shots { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:12px; margin-top:4px; }
+.shot-card { margin:0; }
+.shot { display:block; width:100%; max-height:420px; object-fit:contain;
+  border-radius:8px; border:1px solid #4a3b33; background:#2a211c; }
+.shot-caption { color:#c4b2a3; font-size:11px; margin:6px 0 0; }
+.noshot { color:#c4b2a3; font-size:13px; margin:0 0 10px; }
+.msg { background:#2a211c; border:1px solid #4a3b33; border-radius:8px;
+  padding:10px; color:#e8cfc4; font-size:12px; white-space:pre-wrap;
+  overflow-x:auto; margin:0 0 12px; }
+.evidence { background:#322822; border:1px solid #4a3b33; border-left:3px solid #c45c32;
+  border-radius:8px; padding:10px; color:#f4ece4; font-size:12px;
+  white-space:pre-wrap; overflow-x:auto; margin:0 0 12px; }
+footer { color:#c4b2a3; font-size:12px; text-align:center; margin-top:36px; }
+@media (max-width:720px) {
+  .hero-stat { width:100%; }
+}
 """
 
 
@@ -246,6 +295,21 @@ def _format_duration(seconds):
         return f"{seconds:.1f}s"
     minutes, remainder = divmod(round(seconds), 60)
     return f"{minutes}m {remainder:02d}s"
+
+
+def _format_run_time(value):
+    """Render the stored ISO timestamp as a readable local time with offset."""
+    if not value:
+        return "No run recorded"
+    try:
+        moment = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return str(value)
+    pretty = moment.strftime("%b %-d, %Y, %-I:%M %p")
+    offset = moment.strftime("%z")
+    if len(offset) == 5:
+        offset = f"{offset[:3]}:{offset[3:]}"
+    return f"{pretty} (UTC{offset or ' local'})"
 
 
 def _image_uri(path):
@@ -285,10 +349,142 @@ def _status(parent, results):
     return ("passed" if result.get("ok") else "failed"), result
 
 
+STATUS_PILL = {
+    "passed": "#6f9e7a",
+    "failed": "#b85a48",
+    "skipped": "#d4b483",
+}
+
+
 def _shots_for(case_id, spec):
     names = list(spec.get("shots", []))
     names.extend(spec.get("extra", {}).get(case_id, []))
     return list(dict.fromkeys(names))
+
+
+def _case_card(case, parent, spec, status, result, uri_cache, open_failed=True):
+    """One expandable TestRail card, optionally opened when the case failed."""
+    case_id = case["id"]
+    title = html.escape(case["title"])
+    duration = _format_duration(result.get("seconds") if result else None)
+    color = STATUS_PILL[status]
+    detail = []
+    if status == "skipped":
+        detail.append(
+            f'<p class="noshot">Not run in this invocation. '
+            f'Run <code>run_all.py {html.escape(parent)}</code> to '
+            "populate this case.</p>"
+        )
+    elif result and result.get("error"):
+        detail.append(f'<pre class="msg">{html.escape(result["error"])}</pre>')
+
+    shot_names = _shots_for(case_id, spec)
+    found = []
+    if status != "skipped":
+        for shot_name in shot_names:
+            path = os.path.join(config.LOG, shot_name)
+            if shot_name not in uri_cache:
+                uri_cache[shot_name] = _image_uri(path)
+            uri = uri_cache[shot_name]
+            if uri:
+                found.append(
+                    f'<figure class="shot-card">'
+                    f'<img class="shot" src="{uri}" alt="{html.escape(shot_name)}">'
+                    f'<figcaption class="shot-caption">'
+                    f'{html.escape(shot_name)}</figcaption></figure>'
+                )
+    if status == "skipped":
+        detail.append(
+            f'<p class="noshot">Expected evidence after running: '
+            f'{html.escape(", ".join(shot_names))}</p>'
+        )
+    elif not found:
+        detail.append(
+            '<p class="noshot">No screenshot was captured for this case '
+            f'in <code>log/</code>. Expected evidence: '
+            f'{html.escape(", ".join(shot_names))}</p>'
+        )
+    elif found:
+        detail.append(f'<div class="shots">{"".join(found)}</div>')
+    opened = " open" if (open_failed and status == "failed") else ""
+    return (
+        f'<details class="case {status}"{opened}>'
+        f'<summary><span class="title">{title}</span>'
+        f'<span class="pill" style="background:{color}">{status}</span>'
+        f'<span class="dur">{duration}</span></summary>'
+        f'<div class="detail"><div class="evidence">Automated parent: '
+        f'{html.escape(parent)}</div>{"".join(detail)}</div></details>'
+    )
+
+
+def _donut(counts, executed, rate):
+    """CSS conic-gradient donut: pass / fail / skip of all cases."""
+    total = max(sum(counts.values()), 1)
+    pass_pct = 100.0 * counts["passed"] / total
+    fail_pct = 100.0 * counts["failed"] / total
+    fail_end = pass_pct + fail_pct
+    gradient = (
+        f"conic-gradient(#6f9e7a 0 {pass_pct:.2f}%, "
+        f"#b85a48 {pass_pct:.2f}% {fail_end:.2f}%, "
+        f"#d4b483 {fail_end:.2f}% 100%)"
+    )
+    if executed == 0:
+        gradient = "conic-gradient(#4a3b33 0 100%)"
+    center = f"{rate:.0f}%" if executed else "—"
+    return f"""<div class="hero-stat">
+<div class="donut" style="background:{gradient}">
+<div class="donut-hole"><div class="donut-pct">{center}</div>
+<div class="donut-lbl">pass rate</div></div></div>
+<div class="legend">
+<div><span class="swatch" style="background:#6f9e7a"></span>
+<b>{counts["passed"]}</b> passed</div>
+<div><span class="swatch" style="background:#b85a48"></span>
+<b>{counts["failed"]}</b> failed</div>
+<div><span class="swatch" style="background:#d4b483"></span>
+<b>{counts["skipped"]}</b> skipped</div>
+<div style="margin-top:4px">{counts["passed"]}/{executed or 0} executed</div>
+</div></div>"""
+
+
+FILTER_JS = """
+(function () {
+  var buttons = document.querySelectorAll(".filter");
+  function apply(mode) {
+    document.body.setAttribute("data-filter", mode);
+    buttons.forEach(function (button) {
+      var on = button.getAttribute("data-filter") === mode;
+      button.classList.toggle("is-on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  buttons.forEach(function (button) {
+    button.addEventListener("click", function () {
+      apply(button.getAttribute("data-filter"));
+    });
+  });
+  apply("all");
+})();
+"""
+
+
+def _filters(counts):
+    """All / Passed / Failed / Skipped chips for the case list."""
+    total = sum(counts.values())
+    chips = [
+        ("all", "All", total),
+        ("passed", "Passed", counts["passed"]),
+        ("failed", "Failed", counts["failed"]),
+        ("skipped", "Skipped", counts["skipped"]),
+    ]
+    buttons = []
+    for key, label, n in chips:
+        pressed = "true" if key == "all" else "false"
+        on = " is-on" if key == "all" else ""
+        buttons.append(
+            f'<button type="button" class="filter{on}" data-filter="{key}" '
+            f'aria-pressed="{pressed}">{html.escape(label)} <b>{n}</b></button>'
+        )
+    return f'<div class="filters" role="group" aria-label="Filter cases">{"".join(buttons)}</div>'
 
 
 def build(results_path=None, out_path=None):
@@ -304,6 +500,7 @@ def build(results_path=None, out_path=None):
 
     counts = {"passed": 0, "failed": 0, "skipped": 0}
     cards_by_section = OrderedDict()
+    failed_rows = []
     uri_cache = {}
     body = []
     for case in CASES:
@@ -312,91 +509,64 @@ def build(results_path=None, out_path=None):
         spec = CASE_CATALOG[parent]
         status, result = _status(parent, result_by_name)
         counts[status] += 1
-        cards_by_section.setdefault(case["section"].split(" > ")[-1], []).append(
-            (case, parent, spec, status, result)
+        row = (case, parent, spec, status, result)
+        cards_by_section.setdefault(case["section"].split(" > ")[-1], []).append(row)
+        if status == "failed":
+            failed_rows.append(row)
+
+    if failed_rows:
+        body.append(
+            '<section class="attention"><h2>Needs attention</h2>'
+            f'<p class="lead">{len(failed_rows)} failed case'
+            f'{"s" if len(failed_rows) != 1 else ""} from this run</p>'
         )
+        for row in failed_rows:
+            body.append(_case_card(*row, uri_cache))
+        body.append("</section>")
 
     for section, section_cases in cards_by_section.items():
         passed = sum(status == "passed" for _, _, _, status, _ in section_cases)
         total = len(section_cases)
-        cards = [f'<h2 class="sec">{html.escape(section)}'
-                 f'<span class="secstat">{passed}/{total} passed</span></h2>']
-        for case, parent, spec, status, result in section_cases:
-            case_id = case["id"]
-            title = html.escape(case["title"])
-            duration = _format_duration(result.get("seconds") if result else None)
-            status_label = status.upper()
-            color = {"passed": "#3ddc84", "failed": "#ff5a6a",
-                     "skipped": "#f2b544"}[status]
-            detail = []
-            if status == "skipped":
-                detail.append(
-                    f'<p class="noshot">Not run in this invocation. '
-                    f'Run <code>run_all.py {html.escape(parent)}</code> to '
-                    "populate this case.</p>"
-                )
-            elif result and result.get("error"):
-                detail.append(f'<pre class="msg">{html.escape(result["error"])}</pre>')
-
-            shot_names = _shots_for(case_id, spec)
-            found = 0
-            if status != "skipped":
-                for shot_name in shot_names:
-                    path = os.path.join(config.LOG, shot_name)
-                    if shot_name not in uri_cache:
-                        uri_cache[shot_name] = _image_uri(path)
-                    uri = uri_cache[shot_name]
-                    if uri:
-                        found += 1
-                        detail.append(
-                            f'<img class="shot" src="{uri}" alt="{html.escape(shot_name)}">'
-                            f'<div class="shot-caption">Evidence: '
-                            f'{html.escape(shot_name)}</div>'
-                        )
-            if status == "skipped":
-                detail.append(
-                    f'<p class="noshot">Expected evidence after running: '
-                    f'{html.escape(", ".join(shot_names))}</p>'
-                )
-            elif not found:
-                detail.append(
-                    '<p class="noshot">No screenshot was captured for this case '
-                    f'in <code>log/</code>. Expected evidence: '
-                    f'{html.escape(", ".join(shot_names))}</p>'
-                )
-            detail_html = "".join(detail)
-            cards.append(
-                f'<details class="case {status}">'
-                f'<summary><span class="cid">{html.escape(case_id)}</span>'
-                f'<span class="title">{title}</span>'
-                f'<span class="pill" style="background:{color}">{status_label}</span>'
-                f'<span class="dur">{duration}</span></summary>'
-                f'<div class="detail"><div class="evidence">Automated parent: '
-                f'{html.escape(parent)}</div>{detail_html}</div></details>'
-            )
-        body.extend(cards)
+        present = " ".join(sorted({status for _, _, _, status, _ in section_cases}))
+        body.append(f'<section class="group" data-has="{present}">')
+        body.append(
+            f'<h2 class="sec">{html.escape(section)}'
+            f'<span class="secstat">· {passed}/{total}</span></h2>'
+        )
+        for row in section_cases:
+            body.append(_case_card(*row, uri_cache))
+        body.append("</section>")
 
     executed = counts["passed"] + counts["failed"]
     rate = (100 * counts["passed"] / executed) if executed else 0
     device = payload.get("device", {})
     app = payload.get("app", {})
     run_duration = _format_duration(payload.get("duration_seconds"))
-    run_time = payload.get("finished") or payload.get("started") or "No run recorded"
+    run_time = _format_run_time(
+        payload.get("finished") or payload.get("started")
+    )
     app_value = " ".join(x for x in (
         app.get("name"), app.get("version"),
         f"(build {app['build']})" if app.get("build") else "",
     ) if x).strip()
     if not app_value:
         app_value = "—"
+    logo_uri = _image_uri(HEADER_LOGO)
+    header_mark = (
+        f'<img class="mark" src="{logo_uri}" alt="Spider Solitaire logo">'
+        if logo_uri else '<div class="mark">S</div>'
+    )
 
     document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spider Solitaire — Regression Report</title>
 <style>{CSS}</style></head><body><div class="wrap">
-<header><div class="mark">S</div><div><h1>Spider Solitaire — Regression Report</h1>
-<div class="sub">Unity functional suite · one card per TestRail case</div></div></header>
-<div class="accent"></div>
+<div class="hero">
+<div class="brand">{header_mark}<div><h1>Spider Solitaire</h1>
+<div class="sub">Regression report · Unity functional suite</div></div></div>
+{_donut(counts, executed, rate)}
+</div>
 <div class="chips">
 {_chip("Device", device.get("model"))}
 {_chip("Platform", "iOS " + device.get("ios", "") if device.get("ios") else "")}
@@ -405,19 +575,11 @@ def build(results_path=None, out_path=None):
 {_chip("Duration", run_duration)}
 {_chip("Run", run_time)}
 </div>
-<div class="cards">
-<div class="summary"><div class="num">{len(CASES)}</div><div class="lbl">Total</div></div>
-<div class="summary"><div class="num" style="color:#3ddc84">{counts["passed"]}</div><div class="lbl">Passed</div></div>
-<div class="summary"><div class="num" style="color:#ff5a6a">{counts["failed"]}</div><div class="lbl">Failed</div></div>
-<div class="summary"><div class="num" style="color:#f2b544">{counts["skipped"]}</div><div class="lbl">Skipped</div></div>
-</div>
-<div class="rate-wrap"><div class="rate-top"><span>Pass rate (of executed)</span>
-<span>{rate:.0f}% &nbsp;·&nbsp; {counts["passed"]}/{executed}</span></div>
-<div class="bar"><i style="width:{rate:.2f}%"></i></div></div>
+{_filters(counts)}
 {"".join(body)}
 <footer>Generated by scripts/gen_regression_report.py · screenshots are compressed
 JPEG evidence from log/</footer>
-</div></body></html>
+</div><script>{FILTER_JS}</script></body></html>
 """
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
