@@ -288,6 +288,16 @@ CASES = [
            "A prompt that only closed the picker is not enough."),
       ],
       priority="High"),
+    C("PL-04", "Play - Declining abandon stays on the picker",
+      f"{S} > Play",
+      [
+          ("With a paused game, open Play and tap its difficulty again.",
+           "An abandon confirmation appears."),
+          ("Tap No.",
+           "The new deal is cancelled. The difficulty picker remains "
+           "open, the game table has not started, and the paused game "
+           "has not been discarded."),
+      ]),
 
     # ── QA / Dev Panel ────────────────────────────────────────────────
     C("QA-02", "QA - Dev Panel is hidden until you unlock it",
@@ -576,6 +586,16 @@ CASES = [
       ],
       type="Destructive",
       priority="High"),
+    C("RS-03", "Reset Statistics - Declining leaves scores alone",
+      f"{S} > Statistics",
+      [
+          ("Open Stats, scroll to Reset Statistics, and tap it.",
+           "A reset confirmation appears."),
+          ("Tap No.",
+           "The confirmation closes, Statistics remains open, and the "
+           "local scores are unchanged."),
+      ],
+      type="Destructive"),
 
     # ── Choose Look ───────────────────────────────────────────────────
     C("CL-01", "Choose Look - Opens on the Surface tab",
@@ -808,6 +828,13 @@ CASES = [
       ]),
 
     # ── App Store / Mail ──────────────────────────────────────────────
+    C("AF-01", "Ad-free - No leaves you on About",
+      f"{S} > App Store / Mail",
+      [
+          ("On About, tap ad free version and tap No on the confirmation.",
+           "The card closes. Spider stays in front on About and the "
+           "App Store does not open."),
+      ]),
     C("AF-02", "Ad-free - Link asks No or Yes before the store",
       f"{S} > App Store / Mail",
       [

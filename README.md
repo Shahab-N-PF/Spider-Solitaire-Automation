@@ -98,9 +98,14 @@ export DEVICE_UDID=<UDID>                   # 3. pin Airtest to the same phone
 ```
 
 `run_all.py` preflights the rig (templates present, WDA reachable, `DEVICE_UDID`
-set), runs the tests, and prints a PASS/FAIL summary. Two failures are **expected**
-— they are known Unity port gaps and are labelled as such, so they don't mask a
-broken rig. Full detail: `tests/README.md`.
+set), runs the tests, and prints a PASS/FAIL summary. No functional failures
+are expected; a failed case is a product or rig regression. Full detail:
+`tests/README.md`.
+
+The run also writes `log/spider_regression.html`, a self-contained HTML report
+with one expandable result card per TestRail case and the screenshots captured
+by its automated parent test. Standalone cases remain SKIPPED until run through
+the runner, for example `./.venv/bin/python tests/run_all.py verifyAds`.
 
 > **WDA must be running** (`./scripts/wda.sh`, own tab) and the **iPhone
 > unlocked** for any of this to work — WDA listens on `http://127.0.0.1:8100`.
@@ -109,6 +114,8 @@ broken rig. Full detail: `tests/README.md`.
 Run a subset, or a single test standalone:
 
 ```bash
+./.venv/bin/python tests/run_all.py verifyPlay verifyAbandonNo
+./.venv/bin/python tests/run_all.py verifyResetCancelled
 ./.venv/bin/python tests/run_all.py verifyPlay verifyGamePlay
 ./.venv/bin/python tests/verifyFirstLaunch.py # T&C links on fresh install, then Airplane Mode
 ./.venv/bin/python tests/verifyMainMenu.py     # menu shows all its controls

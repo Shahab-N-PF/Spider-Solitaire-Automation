@@ -56,6 +56,9 @@ MG-03,More Games - Back returns to the main menu,Spider Solitaire Unity > More G
 PL-01,Play - Opens the difficulty picker,Spider Solitaire Unity > Play,Functional,High,"1. From the main menu, tap Play.",1. A difficulty picker opens. A game does not start yet.,Manual
 PL-02,Play - Picker shows all five levels,Spider Solitaire Unity > Play,Functional,High,1. Open Play.,"1. Easy, Medium, Hard, Bold, and Expert are all listed.",Manual
 PL-03,Play - Easy starts a game,Spider Solitaire Unity > Play,Functional,High,"1. On the picker, tap Easy. If the app asks whether to abandon a paused game, tap Yes.",1. You are on the game table (cards and the in-game bar). A prompt that only closed the picker is not enough.,Manual
+PL-04,Play - Declining abandon stays on the picker,Spider Solitaire Unity > Play,Functional,Medium,"1. With a paused game, open Play and tap its difficulty again.
+2. Tap No.","1. An abandon confirmation appears.
+2. The new deal is cancelled. The difficulty picker remains open, the game table has not started, and the paused game has not been discarded.",Manual
 QA-02,QA - Dev Panel is hidden until you unlock it,Spider Solitaire Unity > QA / Dev Panel,Functional,Medium,"1. Open About. If a Dev Panel button is already in the bottom-right, tap the spider emblem (the spider above the wordmark, not the words) five times quickly to hide it.",1. No Dev Panel button is showing. A build that always shows the button fails.,Manual
 QA-03,QA - Five quick taps on the emblem show Dev Panel,Spider Solitaire Unity > QA / Dev Panel,Functional,High,"1. On About, tap the spider emblem five times quickly. Tap the emblem, not the Spider SOLITAIRE wordmark under it.",1. A Dev Panel button appears in the bottom-right corner.,Manual
 QA-04,QA - Five more taps hide Dev Panel again,Spider Solitaire Unity > QA / Dev Panel,Functional,Medium,"1. With the Dev Panel button showing on About, tap the emblem five times quickly again.",1. The Dev Panel button disappears. The gesture turns it on and off.,Manual
@@ -109,6 +112,9 @@ PI-06,Promo icons - Spiderette opens Spiderette,Spider Solitaire Unity > More Ga
 2. The main menu is showing.",Manual
 RS-01,Reset Statistics - Link asks you to confirm,Spider Solitaire Unity > Statistics,Destructive,High,"1. Open Stats, scroll to Reset Statistics, and tap it.",1. A confirmation appears (reset local scores?). Game Center scores are not part of this wipe.,Manual
 RS-02,Reset Statistics - Confirming wipes local scores,Spider Solitaire Unity > Statistics,Destructive,High,1. Accept every confirmation. The app asks twice (a second just to be on the safe side).,1. Local statistics are cleared. You can get back to the menu. Do this last — it wipes play history on the device.,Manual
+RS-03,Reset Statistics - Declining leaves scores alone,Spider Solitaire Unity > Statistics,Destructive,Medium,"1. Open Stats, scroll to Reset Statistics, and tap it.
+2. Tap No.","1. A reset confirmation appears.
+2. The confirmation closes, Statistics remains open, and the local scores are unchanged.",Manual
 CL-01,Choose Look - Opens on the Surface tab,Spider Solitaire Unity > Choose Look,Functional,Medium,"1. From the main menu, tap Choose Look. If Cards is showing, tap Surface.",1. The look picker opens. Surface content (Simulate Depth) is showing.,Manual
 CL-03,Choose Look - Surface and Cards tabs switch,Spider Solitaire Unity > Choose Look,Functional,Medium,"1. In Choose Look, tap Cards, then tap Surface again.",1. Cards shows Extra Large Card-Symbols. Surface comes back to Simulate Depth.,Manual
 CL-04,Choose Look - Sixth surface shows on the game table,Spider Solitaire Unity > Choose Look,Functional,High,"1. On Surface, tap the 6th palette (second row, third column — light checkered wood).
@@ -150,6 +156,7 @@ LS-04,Last Score - Achievements opens Game Center,Spider Solitaire Unity > Last 
 2. Tap back and dismiss the sheet.","1. Game Center opens, headed Achievements.
 2. Last Score is showing again.",Manual
 LS-05,Last Score - Back returns to the main menu,Spider Solitaire Unity > Last Score,Functional,Medium,"1. From Last Score, tap Back until you reach the menu.",1. The main menu is showing.,Manual
+AF-01,Ad-free - No leaves you on About,Spider Solitaire Unity > App Store / Mail,Functional,Medium,"1. On About, tap ad free version and tap No on the confirmation.",1. The card closes. Spider stays in front on About and the App Store does not open.,Manual
 AF-02,Ad-free - Link asks No or Yes before the store,Spider Solitaire Unity > App Store / Mail,Functional,Medium,"1. On About, tap ad free version.","1. A card asks if you want to look at the ad-free version (No on the left, Yes on the right). You are still in Spider.",Manual
 AF-03,Ad-free - Yes opens Spider Solitaire +,Spider Solitaire Unity > App Store / Mail,Functional,High,"1. On that card, tap Yes.
 2. Read the store page name.","1. The App Store opens.

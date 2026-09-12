@@ -4,7 +4,7 @@ Cases a **person** can run on the phone. One case per behaviour, written as
 Tap / Wait / Check. The Automation column is Manual even where an automated
 test covers the same behaviour.
 
-**97 cases.** Back-to-menu and Opens-from-menu cases are included.
+**100 cases.** Back-to-menu and Opens-from-menu cases are included.
 “The link is there” / harness-cleanup cases stay out.
 
 | File | Role |

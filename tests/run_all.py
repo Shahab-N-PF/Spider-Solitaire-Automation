@@ -18,9 +18,12 @@ Run:  ./.venv/bin/python tests/run_all.py
       SKIP_VISUAL=1 ./.venv/bin/python tests/run_all.py               # skip baselines
 """
 import importlib
+import json
 import os
+import subprocess
 import sys
 import time
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -87,6 +90,7 @@ TESTS = [
     "verifySpiderLogo",         # About via item + logo, links, in-app FAQ + its scroll
     "verifyMoreGamesBtn",       # in-app cross-promo page + its scroll
     "verifyPlay",               # picker shows 5 levels, Easy deals
+    "verifyAbandonNo",          # declining abandon keeps the picker open
     # openDebugTools force-restarts the app (its premise is a HIDDEN button), so
     # it must come before anything that needs the unlock — and the fewer tests
     # between it and verifyVictory, the fewer chances something restarts the app
@@ -111,6 +115,7 @@ TESTS = [
     # most likely to be red. Keeping it at the end means the summary is not led
     # by an expected failure, and a rig problem shows up before it.
     "verifyMoreGamesIcons",     # promo strip — build-dependent (341/343 yes, 353 no)
+    "verifyResetCancelled",     # declining reset leaves local scores intact
     # LAST, and destructive: it permanently wipes local statistics on the device
     # (Game Center scores are untouched). Everything that reads or depends on
     # play history has already run by this point — verifyStatsPage renders the
@@ -145,6 +150,125 @@ TESTS = [
 # (An earlier note here called the empty strip a build-353 regression. That was
 # wrong — it was written from a fresh-install capture with zero wins.)
 KNOWN_UNITY_GAPS = {}
+
+
+RESULTS_PATH = os.path.join(config.LOG, "run_results.json")
+REPORT_PATH = os.path.join(config.LOG, "spider_regression.html")
+
+
+def _iso_now(timestamp=None):
+    """Return a local ISO-8601 timestamp suitable for the report metadata."""
+    dt = datetime.fromtimestamp(timestamp or time.time()).astimezone()
+    return dt.isoformat(timespec="seconds")
+
+
+def _app_metadata():
+    """Read display/version/build metadata without making it a test failure."""
+    display, version = unity_ui.helpers.app_info()
+    build = ""
+    try:
+        cmd = [sys.executable, "-m", "tidevice"]
+        if config.DEVICE_UDID:
+            cmd += ["--udid", config.DEVICE_UDID]
+        cmd += ["appinfo", "--json", config.BUNDLE_ID]
+        raw = subprocess.run(cmd, capture_output=True, text=True,
+                             timeout=60).stdout
+        info = json.loads(raw)
+        for key in ("CFBundleVersion", "bundleVersion", "CFBundleShortVersionString"):
+            if info.get(key):
+                if key == "CFBundleShortVersionString" and not version:
+                    version = str(info[key])
+                elif key != "CFBundleShortVersionString":
+                    build = str(info[key])
+                    break
+    except Exception:  # noqa: BLE001
+        pass
+    return {"name": display or config.GAME_NAME,
+            "version": version,
+            "build": build}
+
+
+def _screen_size_from_log():
+    """Use the newest functional screenshot for the report's screen chip."""
+    try:
+        from PIL import Image
+        candidates = [
+            os.path.join(config.LOG, name)
+            for name in os.listdir(config.LOG)
+            if name.endswith(".png") and name != "_size_probe.png"
+        ]
+        if not candidates:
+            return ""
+        path = max(candidates, key=os.path.getmtime)
+        with Image.open(path) as image:
+            return f"{image.width}x{image.height}"
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _write_run_results(results, started_at):
+    """Merge this invocation into the JSON consumed by the HTML generator."""
+    os.makedirs(config.LOG, exist_ok=True)
+    previous = {}
+    try:
+        with open(RESULTS_PATH, encoding="utf-8") as fh:
+            previous = json.load(fh)
+    except (OSError, ValueError):
+        pass
+
+    tests = {
+        item["name"]: item for item in previous.get("tests", [])
+        if isinstance(item, dict) and item.get("name")
+    }
+    run_finished = time.time()
+    run_at = _iso_now(run_finished)
+    for name, ok, seconds, error in results:
+        tests[name] = {
+            "name": name,
+            "ok": bool(ok),
+            "seconds": round(seconds, 3),
+            "error": error,
+            "run_at": run_at,
+        }
+
+    ordered_names = list(dict.fromkeys(TESTS + list(tests)))
+    payload = {
+        "schema": 1,
+        "started": _iso_now(started_at),
+        "finished": _iso_now(run_finished),
+        "duration_seconds": round(run_finished - started_at, 3),
+        "device": {
+            "model": unity_ui.helpers.device_model() or "",
+            "ios": unity_ui.helpers.os_version() or "",
+            "udid": config.DEVICE_UDID or "",
+            "screen": _screen_size_from_log(),
+        },
+        "app": _app_metadata(),
+        "tests": [tests[name] for name in ordered_names if name in tests],
+    }
+    with open(RESULTS_PATH, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, sort_keys=False)
+        fh.write("\n")
+    return payload
+
+
+def _write_regression_report():
+    """Regenerate the self-contained report, but never mask test results."""
+    try:
+        proc = subprocess.run(
+            [sys.executable,
+             os.path.join(config.ROOT, "scripts", "gen_regression_report.py")],
+            capture_output=True, text=True, timeout=120,
+        )
+        if proc.stdout:
+            print(proc.stdout.rstrip())
+        if proc.returncode:
+            print(f"WARNING: regression report generation failed: "
+                  f"{proc.stderr.strip() or proc.returncode}")
+        else:
+            print(f"  report: {REPORT_PATH}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: regression report generation failed: {exc}")
 
 
 def preflight():
@@ -228,6 +352,7 @@ REQUIRED = [
 def main():
     picked = [a for a in sys.argv[1:] if not a.startswith("-")]
     tests = picked or TESTS
+    started_at = time.time()
 
     problems = preflight()
     if problems:
@@ -243,16 +368,16 @@ def main():
         t0 = time.time()
         try:
             mod.run()
-            results.append((name, True, time.time() - t0))
+            results.append((name, True, time.time() - t0, ""))
         except Exception as e:  # noqa: BLE001
             print(f"FAIL: {e}")
-            results.append((name, False, time.time() - t0))
+            results.append((name, False, time.time() - t0, str(e)))
 
     print("\n" + "=" * 56)
     print("  functional tests (Unity build)")
-    passed = sum(1 for _, ok, _ in results if ok)
+    passed = sum(1 for _, ok, _, _ in results if ok)
     unexpected = 0
-    for name, ok, dt in results:
+    for name, ok, dt, _ in results:
         note = ""
         if not ok and name in KNOWN_UNITY_GAPS:
             note = "   [known Unity gap]"
@@ -261,12 +386,14 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name:24} ({dt:5.1f}s){note}")
     print(f"  {passed}/{len(results)} passed")
 
-    gaps = [n for n, ok, _ in results if not ok and n in KNOWN_UNITY_GAPS]
+    gaps = [n for n, ok, _, _ in results if not ok and n in KNOWN_UNITY_GAPS]
     if gaps:
         print("\n  known Unity port gaps (expected failures, not rig problems):")
         for n in gaps:
             print(f"    - {n}: {KNOWN_UNITY_GAPS[n]}")
 
+    _write_run_results(results, started_at)
+    _write_regression_report()
     visual_ok = run_visual_phase()
     sys.exit(0 if (unexpected == 0 and visual_ok) else 1)
 
