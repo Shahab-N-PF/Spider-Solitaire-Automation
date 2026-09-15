@@ -6,13 +6,16 @@ Steps, as specified:
   2. tap "LAST SCORE", bottom-left of the picker
   3. assert the header reads "Last Won Game Score"
   4. tap the forward arrow 4 times, 2 seconds apart
-  5. tap "leaderboards" — Apple's Game Center sheet opens, headed "Leaderboards"
-  6. tap that sheet's back arrow (top-left circle)
-  7. tap the empty space at the bottom to dismiss it, back on Last Score
-  8. the same three steps again for "achievements", headed "Achievements"
+  5. tap "leaderboards". The first tap can raise a Game Center notice card
+     ("previous Scores and Achievements may take a little time to upload")
+     instead of Apple's sheet — OK that card, then tap "leaderboards" again
+  6. Apple's Game Center sheet opens, headed "Leaderboards"
+  7. tap that sheet's back arrow (top-left circle)
+  8. tap the empty space at the bottom to dismiss it, back on Last Score
+  9. the same steps again for "achievements", headed "Achievements"
 
 ONLINE, OPT-IN — deliberately NOT in tests/run_all.py, alongside verifyAds.
-Steps 5-8 need the device on the network AND a signed-in Apple
+Steps 5-9 need the device on the network AND a signed-in Apple
 account: Game Center simply does not open in Airplane Mode, which is how the
 rest of the suite runs. The first half would run offline happily, but a case
 that is only half-checked in the offline suite is worse than one run
@@ -46,8 +49,9 @@ tap, but does NOT fail on "unchanged" — the spec for this case is to tap four
 times, and a dead arrow is a finding to raise rather than a pass/fail the case
 was asked to own. Turn the printed line into an assertion if that changes.
 
-Captures log/unity_last_score.png, log/unity_last_score_tap<N>.png and
-log/unity_game_center_<link>.png.
+Captures log/unity_last_score.png, log/unity_last_score_tap<N>.png,
+log/unity_game_center_notice_<link>.png (only if the notice card appeared)
+and log/unity_game_center_<link>.png.
 
 Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set, and the
 device ONLINE with an Apple account signed in to Game Center.
@@ -135,8 +139,15 @@ def step_period(before_shot: str):
 
 def visit_game_center(link: str, control: str, header: str, header_tpl: str):
     """Open Game Center from `link`, back out of that page, and dismiss it."""
-    ui.expect(ui.tap(control, settle=4.5),
-              f"the Last Score screen has no '{link}' text to tap")
+    tap_game_center_link(link, control)
+    # The first Game Center open (leaderboards or achievements) can raise a
+    # one-button notice card on Last Score instead of Apple's sheet. That is
+    # the same Unity widget as the table tip / reset prompt — WDA cannot see
+    # it — so it is found by shape and answered OK, then the link is tapped
+    # again. Skip this if Last Score is already covered: that is the sheet.
+    if ui.is_on("screen_last_score") and ui.card_up(timeout=1.5):
+        dismiss_game_center_notice(link)
+        tap_game_center_link(link, control)
 
     # Two different failures, told apart by whether the Last Score header is
     # still uncovered, because they have completely different causes: nothing
@@ -169,6 +180,25 @@ def visit_game_center(link: str, control: str, header: str, header_tpl: str):
               f"after '{link}', tapping the bottom did not dismiss Game Center "
               f"back to the 'Last Won Game Score' screen")
     print(f"  {link}: back arrow, then a tap at the bottom, returned to Last Score")
+
+
+def tap_game_center_link(link: str, control: str):
+    ui.expect(ui.tap(control, settle=4.5),
+              f"the Last Score screen has no '{link}' text to tap")
+
+
+def dismiss_game_center_notice(link: str):
+    """OK the first-time Game Center notice and land back on Last Score."""
+    shot = ui.shoot(f"unity_game_center_notice_{link}")
+    ui.expect(ui.answer_card(0, settle=2.0),
+              f"tapping '{link}' raised a card, but its OK button could not "
+              f"be pressed — {shot}")
+    ui.expect(not ui.card_up(timeout=2.0),
+              f"OK did not dismiss the Game Center notice after '{link}' — {shot}")
+    ui.expect(ui.at_screen("last_score", timeout=4.0),
+              f"OK on the Game Center notice left the 'Last Won Game Score' "
+              f"screen — {shot}")
+    print(f"  dismissed Game Center notice after '{link}', tapping again — {shot}")
 
 
 def period_box(arrow_pos):

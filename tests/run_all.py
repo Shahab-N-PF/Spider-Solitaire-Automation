@@ -117,11 +117,10 @@ TESTS = [
     # lets this test open on Medium with no abandon prompt to answer — and since
     # it now completes every level too, no level raises one.
     "verifyDifficultyLevels",   # medium..expert deal AND win (Easy is verifyPlay's)
-    # Last on purpose: this is the one test whose result depends on the build
-    # (the promo strip shipped in 341/343 and is gone again in 353), so it is the
-    # most likely to be red. Keeping it at the end means the summary is not led
-    # by an expected failure, and a rig problem shows up before it.
-    "verifyMoreGamesIcons",     # promo strip — build-dependent (341/343 yes, 353 no)
+    # Last feature check on purpose: this needs the completed-game state above,
+    # then brings the device online so the App Store destination names render.
+    # Reset tests remain after it because resetStats must be destructive-last.
+    "verifyMoreGamesIcons",     # promo strip + online App Store destination checks
     "verifyResetCancelled",     # declining reset leaves local scores intact
     # LAST, and destructive: it permanently wipes local statistics on the device
     # (Game Center scores are untouched). Everything that reads or depends on
@@ -131,10 +130,10 @@ TESTS = [
     # re-earns all of that before it gets here, so wiping at the end leaves the
     # next run's ordering intact rather than breaking it.
     "resetStats",               # reset link + both confirmations (DESTRUCTIVE)
-    # After the offline suite — going online any earlier lets ads interrupt
-    # the tests that exist to run without them. FirstLaunch will put the
-    # next run back in Airplane Mode. This is the loaded PeopleFun Support
-    # page; the redirect-without-network half is verifyHelpShift above.
+    # verifyMoreGamesIcons brings the device online for its App Store checks;
+    # the reset tests run after that transition. This final check still calls
+    # ui.online() itself for standalone runs and verifies the loaded PeopleFun
+    # Support page; the redirect-without-network half is verifyHelpShift above.
     "verifyHelpShiftOnline",    # come online, Contact Us opens PeopleFun Support
 ]
 
@@ -373,12 +372,19 @@ def main():
         mod = importlib.import_module(f"tests.{name}")
         print(f"\n=== {name} ===")
         t0 = time.time()
+        previous_test = os.environ.get("TEST_NAME")
+        os.environ["TEST_NAME"] = name
         try:
             mod.run()
             results.append((name, True, time.time() - t0, ""))
         except Exception as e:  # noqa: BLE001
             print(f"FAIL: {e}")
             results.append((name, False, time.time() - t0, str(e)))
+        finally:
+            if previous_test is None:
+                os.environ.pop("TEST_NAME", None)
+            else:
+                os.environ["TEST_NAME"] = previous_test
 
     print("\n" + "=" * 56)
     print("  functional tests (Unity build)")

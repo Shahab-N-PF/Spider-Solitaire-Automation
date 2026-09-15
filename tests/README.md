@@ -123,7 +123,9 @@ Two places still want a genuinely fresh app and ask for it explicitly:
   app anyway. It is deliberately **not in `run_all.py`**: the kill would hide the
   Dev Panel button `verifyVictory` and `verifyDifficultyLevels` depend on.
 
-Consequence for ordering: **`verifyMoreGamesIcons` must stay last** and
+Consequence for ordering: **`verifyMoreGamesIcons` must stay after
+`verifyDifficultyLevels`** so the completed-game promo strip exists, and before
+the destructive reset. It brings the device online for its App Store checks.
 `openDebugTools` must stay ahead of `verifyVictory`. See the next section.
 
 ## Result (2026-08-13, Unity build 353, iPhone 11, online)
@@ -198,7 +200,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyHelpPage` | Help opens on "Introduction" and the body scrolls to its footer |
 | `verifySpiderLogo` | About reachable from both the menu item **and the logo**; version, copyright, links; in-app FAQ opens **and scrolls to its 'submit feedback' footer** |
 | `verifyMoreGamesBtn` | the in-app cross-promo page opens, **scrolls** (one swipe, revealing FreeCell + Spiderette below the fold) and returns |
-| `verifyMoreGamesIcons` | all 5 promo icons present, **each one opens the App Store**, switching back (never killing the app) returns to the menu, and — online — each opens the **right game**, asserted on the store page's **name** read from its accessibility tree. The old "5 different pages" check survived a swap; the name check does not, and `--selftest` proves that offline. Needs a completed game first — runs last |
+| `verifyMoreGamesIcons` | brings the device online, then checks all 5 promo icons are present, **each one opens the App Store**, switching back (never killing the app) returns to the menu, and each opens the **right game**, asserted on the store page's **name** read from its accessibility tree. Identical store pages fail instead of skipping destination verification. The old "5 different pages" check survived a swap; the name check does not, and `--selftest` proves that offline. Needs a completed game first — runs after `verifyDifficultyLevels` and before the destructive reset |
 | `openDebugTools` | 5 rapid taps on the About emblem reveal the "Dev Panel" button, bottom-right. Does **not** restart the app (it clears a prior unlock with a toggle-off burst instead), and leaves the button ON for `verifyVictory` and `verifyDifficultyLevels` |
 | `verifyChooseLook` | Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
@@ -209,7 +211,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyResetCancelled` | opens Reset Statistics, presses No, confirms the card closes, Statistics remains open, and the score region is unchanged |
 | `resetStats` | reset link + both confirmations, then back to the menu. **DESTRUCTIVE** — wipes local statistics, so it runs **last** |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
-| `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score (online, opt-in) |
+| `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score. The first tap of either can raise a Game Center notice card ("scores may take a little time to upload") instead of the sheet — OK that card, then tap the same link again (online, opt-in) |
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
 | `verifyHelpShift` | Contact Us leaves Options for Helpshift. In `run_all` this half stays **offline**: the capture is the no-network redirect (`log/HelpShift.png`), and the loaded page is not asserted |
 | `verifyHelpShiftOnline` | Last in `run_all`. Brings the device **online** and asserts Contact Us opens **PeopleFun Support** (`log/HelpShiftOnline.png`). Standalone: `verifyHelpShift.py --online` |
@@ -543,11 +545,11 @@ Refreshing templates for a new Unity build (**not** the same as re-baselining �
   Wi-Fi was manually enabled. Do not replace that Home press with a foreground
   kill.
 * **`verifyHelpShift` is two passes.** After Options it stays offline and
-  only checks that Contact Us still leaves Options. After `resetStats` it
-  comes online (`verifyHelpShiftOnline`) and asserts the PeopleFun Support
-  header. A failed walk-back can cold-launch, so the offline half stays
-  before `openDebugTools`; going online any earlier lets ads interrupt the
-  rest of the suite.
+  only checks that Contact Us still leaves Options. `verifyMoreGamesIcons`
+  brings the device online for its App Store checks; after `resetStats`,
+  `verifyHelpShiftOnline` verifies the PeopleFun Support header (and remains
+  self-contained for standalone runs). A failed walk-back can cold-launch, so
+  the offline half stays before `openDebugTools`.
 * **They come back far more often than "once per install".** The app writes its
   state when it goes to the **background**, and `cold_launch()` terminates it
   from the **foreground**, so the "agreed" flag can be lost and both reappear on

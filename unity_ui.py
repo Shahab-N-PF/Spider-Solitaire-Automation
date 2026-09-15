@@ -37,7 +37,9 @@ Conventions
     failures with expect(), so messages stay in the test.
 """
 import logging
+import json
 import os
+import sys
 import time
 
 import config
@@ -46,6 +48,20 @@ from airtest.core.api import connect_device, snapshot, swipe, text, touch
 from airtest.core.settings import Settings as ST
 
 logging.getLogger("airtest").setLevel(logging.WARNING)
+
+# The suite intentionally changes radio state mid-run. Keep the state we
+# changed locally so overlay cleanup does not reopen Settings just to ask
+# whether it is offline before every ad-template lookup.
+_NETWORK_ONLINE = None
+
+# These tests intentionally hand off to Apple's App Store. Every other test
+# must remain inside Spider; an outbound handoff there is the failure we need
+# to stop on and diagnose.
+APP_STORE_HANDOFF_TESTS = frozenset((
+    "installFromTestFlight",
+    "verifyMoreGamesIcons",
+    "verifyAdFreeVersion",
+))
 
 # Matching is done by find() below rather than by airtest, so these only affect
 # any airtest call a test makes directly: template matching only (the keypoint
@@ -311,8 +327,41 @@ def seen(name: str, timeout: float = 8.0, threshold: float = None) -> bool:
         time.sleep(0.2)
 
 
+def _test_name() -> str:
+    """Best-effort current case name for the tap journal."""
+    return (os.environ.get("TEST_NAME")
+            or os.path.splitext(os.path.basename(sys.argv[0]))[0])
+
+
+def _journal_tap(kind: str, reason: str, pos=None) -> str:
+    """Record a tap and stop on an unexpected App Store handoff."""
+    app = active_app()
+    record = {
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "test": _test_name(),
+        "kind": kind,
+        "reason": reason,
+        "position": list(pos) if pos is not None else None,
+        "active_app": app,
+    }
+    os.makedirs(config.LOG, exist_ok=True)
+    with open(os.path.join(config.LOG, "tap_journal.jsonl"),
+              "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+    print(f"  [tap] {_test_name()} {kind}:{reason}"
+          f"{f' at {tuple(pos)}' if pos is not None else ''}"
+          f" -> {app or 'unknown'}")
+
+    if app == APP_STORE and _test_name() not in APP_STORE_HANDOFF_TESTS:
+        shot = shoot("unexpected_appstore")
+        raise SystemExit(
+            f"UNEXPECTED APP STORE after {kind}:{reason}; "
+            f"tap journal: {config.LOG}/tap_journal.jsonl; screenshot: {shot}")
+    return app
+
+
 def tap(name: str, timeout: float = 8.0, settle: float = 1.5,
-        threshold: float = None) -> bool:
+        threshold: float = None, reason: str = None) -> bool:
     """Wait for <name>, tap where it actually is, settle. False if never seen.
 
     Taps the matched POSITION rather than handing the Template back to airtest,
@@ -326,13 +375,15 @@ def tap(name: str, timeout: float = 8.0, settle: float = 1.5,
         return False
     touch(pos)
     time.sleep(settle)
+    _journal_tap("template", reason or name, pos)
     return True
 
 
-def tap_at(pos, settle: float = 1.2):
+def tap_at(pos, settle: float = 1.2, reason: str = None):
     """Tap a raw capture-space coordinate."""
     touch(pos)
     time.sleep(settle)
+    _journal_tap("coordinate", reason or "tap_at", pos)
 
 
 def _point_scale() -> float:
@@ -801,7 +852,7 @@ def on_window(title: str, timeout: float = 8.0) -> bool:
         time.sleep(1)
 
 
-def _tap_named(kind: str, name: str) -> bool:
+def _tap_named(kind: str, name: str, reason: str = None) -> bool:
     """Tap the element of `kind` called `name` at its rect centre. False if absent.
 
     Taps the CENTRE rather than calling /element/<id>/click, because click is not
@@ -819,8 +870,12 @@ def _tap_named(kind: str, name: str) -> bool:
         rect = json.load(urllib.request.urlopen(
             config.WDA_URL + f"/session/{sid}/element/{eid}/rect",
             timeout=8)).get("value") or {}
-        return _tap_point(rect["x"] + rect["width"] / 2,
-                          rect["y"] + rect["height"] / 2)
+        pos = (rect["x"] + rect["width"] / 2,
+               rect["y"] + rect["height"] / 2)
+        ok = _tap_point(*pos)
+        if ok:
+            _journal_tap("accessibility", reason or f"{kind}:{name}", pos)
+        return ok
     except Exception:  # noqa: BLE001
         return False
 
@@ -1064,7 +1119,11 @@ def offline(restore: bool = True) -> bool:
     `restore=False` leaves Settings in front so a caller can deliberately
     relaunch Spider instead of merely foregrounding the existing process.
     """
-    return helpers.set_network(False, restore=restore)[0]
+    global _NETWORK_ONLINE
+    ok = helpers.set_network(False, restore=restore)[0]
+    if ok:
+        _NETWORK_ONLINE = False
+    return ok
 
 
 def online(wait: float = 75.0) -> str:
@@ -1074,7 +1133,10 @@ def online(wait: float = 75.0) -> str:
     should treat as a failure rather than pressing on, since every symptom of
     "no network" downstream looks like a broken feature instead.
     """
+    global _NETWORK_ONLINE
     ok, net = helpers.set_network(True, wait=wait)
+    if ok:
+        _NETWORK_ONLINE = True
     return net if ok else ""
 
 
@@ -1122,7 +1184,7 @@ FIRST_LAUNCH_GATES = ("terms & conditions", "terms and conditions",
 def clear_overlays(rounds: int = 6) -> int:
     """Dismiss whatever is covering the UI. Returns how many were cleared.
 
-    Four kinds. The two first-launch gates normally arrive in this order (a
+    Three kinds. The two first-launch gates normally arrive in this order (a)
     separately reset tracking permission can put ATT first):
 
     1. Terms & Conditions / Privacy Policy, by IMAGE (tc_continue). NOT by alert
@@ -1140,7 +1202,11 @@ def clear_overlays(rounds: int = 6) -> int:
     3. A first-launch gate that IS a real alert, by its TEXT
        (FIRST_LAUNCH_GATES). Nothing on this build takes this path; it is kept
        as a cheap fallback in case a later build presents one properly.
-    4. An interstitial cross-promo ad (these appear when the device is online).
+
+    Interstitial ads are NOT hunted here. `ad_close` false-matched the first-
+    launch / menu chrome at (111, 1730) — far from the real X at ~(50, 136) —
+    and that tap opened the App Store. Ads are closed by `dismiss_ad()` /
+    `recover()` from callers that have already lost Spider's own UI.
 
     Only alerts positively recognised as gates are accepted. The game's own
     confirmations are WDA-visible alerts too, and the right answer depends on
@@ -1167,8 +1233,6 @@ def clear_overlays(rounds: int = 6) -> int:
                 buttons = helpers.alert_buttons(sid)     # [] on WDA 15 -> default
                 did = helpers.alert_tap(
                     sid, helpers.positive_button(buttons) if buttons else None)
-        if not did and dismiss_ad(timeout=0.4):
-            did = True
         if not did:
             break
         cleared += 1
@@ -1194,6 +1258,9 @@ AD_CLOSE_COORDS = {
     "ad_close_creative_03": (57, 145),
 }
 AD_CLOSE_REF_SIZE = (828, 1792)
+# How far a crop match may sit from its registered centre. The false match that
+# opened the App Store was ~1600 px away; real creatives stay in the top-left.
+_AD_CLOSE_POS_TOL = 80
 
 
 def _tap_ax_close() -> bool:
@@ -1261,8 +1328,10 @@ def tap_ad_close(timeout: float = 30.0, settle: float = 2.0) -> bool:
         for name in sorted(
                 stem[:-4] for stem in os.listdir(config.UNITY_ASSETS)
                 if stem.startswith("ad_close") and stem.endswith(".png")):
-            if seen(name, timeout=1.0):
-                if tap(name, timeout=1.0, settle=settle):
+            pos = find(name)
+            if pos is not None and _ad_close_pos_ok(name, pos):
+                if tap(name, timeout=1.0, settle=settle,
+                       reason=f"tap_ad_close:{name}"):
                     if not in_app():
                         return False
                     if not lost(timeout=1.0):
@@ -1312,6 +1381,23 @@ def close_interstitial_chain(where: str = "interstitial",
     return True
 
 
+def _ad_close_pos_ok(name: str, pos) -> bool:
+    """True when a playable-ad X crop matched near its registered centre."""
+    if name == "ad_store_close":
+        return True
+    if pos is None:
+        return False
+    known = AD_CLOSE_COORDS.get(name)
+    if known is None:
+        return False
+    w, h = screen_size()
+    rw, rh = AD_CLOSE_REF_SIZE
+    expect_x = int(round(known[0] * w / rw))
+    expect_y = int(round(known[1] * h / rh))
+    return (abs(pos[0] - expect_x) <= _AD_CLOSE_POS_TOL
+            and abs(pos[1] - expect_y) <= _AD_CLOSE_POS_TOL)
+
+
 def dismiss_ad(timeout: float = 1.5) -> bool:
     """Close ONE layer of ad if a known close control is showing.
 
@@ -1325,11 +1411,26 @@ def dismiss_ad(timeout: float = 1.5) -> bool:
     StoreKit sheet, which sits on plain white and matches cleanly) and ad_close
     if a crop exists for this build. Never a guessed position — a close button
     moves with the creative and a miss taps the ad itself.
+
+    A playable-ad crop is also rejected unless it matched near its registered
+    centre. `ad_close` scored a hit at (111, 1730) on first-launch chrome —
+    that tap opened the real App Store.
     """
+    if _NETWORK_ONLINE is False:
+        # There is no live ad to dismiss in Airplane Mode. Hunting stale ad
+        # crops here is dangerous: a false match can tap a real App Store link
+        # and leave iOS on its offline "Cannot Connect" page.
+        return False
+    if not lost(timeout=timeout):
+        return False
     for name in AD_CLOSERS:
-        if have(name) and seen(name, timeout=timeout):
-            if tap(name, settle=1.5):
-                return True
+        if not have(name):
+            continue
+        pos = find(name)
+        if pos is None or not _ad_close_pos_ok(name, pos):
+            continue
+        if tap(name, settle=1.5, reason=f"dismiss_ad:{name}"):
+            return True
     return False
 
 
@@ -1431,11 +1532,12 @@ def answer_dialog(yes: bool, timeout: float = 4.0) -> bool:
 
 
 # ── the Unity card dialog ─────────────────────────────────────────
-# Spider draws two of its confirmations itself instead of presenting a
-# UIAlertController: the "Did you know?" tip on the game table, and "Would you
-# like to reset local scores?" on Statistics. Both are the same widget — a pale,
-# translucent rounded card carrying one or two pill buttons along its bottom —
-# and WDA sees nothing of either, so they have to be read out of the picture.
+# Spider draws several of its confirmations itself instead of presenting a
+# UIAlertController: the "Did you know?" tip on the game table, "Would you
+# like to reset local scores?" on Statistics, and the first-time Game Center
+# notice on Last Score. All are the same widget — a pale, translucent
+# rounded card carrying one or two pill buttons along its bottom —
+# and WDA sees nothing of them, so they have to be read out of the picture.
 #
 # They cannot be TEMPLATE-matched, and the crops that used to try (`prompt_tip`,
 # `tip_ok`) are gone. Those were cut from a rendering where the card was DARK

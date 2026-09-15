@@ -51,10 +51,9 @@ Steps:
      lost. Never terminate to get back;
   4. each icon opens the RIGHT game — checked by the App Store page's NAME,
      read from its accessibility tree (the store is an ordinary UIKit app, so
-     unlike the game it publishes real text). This only runs when the pages
-     actually render: offline every page is the same "No Internet Connection"
-     screen, so the test says the targets were not verified instead of
-     pretending, and the same-page comparison is what detects that case.
+     unlike the game it publishes real text). The test brings the device
+     online before opening the icons, so every destination must render and
+     the name check cannot be skipped.
 
      This used to assert only that the five pages DIFFER from each other, which
      a swap survives — swap two links and you still have five different pages.
@@ -241,6 +240,12 @@ def check_destinations(names, titles):
 
 
 def run():
+    net = ui.online()
+    ui.expect(bool(net),
+              "could not leave Airplane Mode / join Wi-Fi — promo destinations "
+              "need the App Store pages to load")
+    print(f"  online on {net}")
+
     ui.expect(ui.launch_to_menu(), "could not reach the main menu")
     ui.sleep(3)                     # the strip animates in after the menu settles
 
@@ -265,16 +270,15 @@ def run():
         stores[name], titles[name] = check_redirect(name)
         print(f"  {name}: opens the App Store, and switching back returns to the menu")
 
-    # Do the five go to DIFFERENT places? Only answerable when the store pages
-    # actually rendered. Offline (which is how this suite normally runs) every
-    # page is the same "No Internet Connection" screen, so say so rather than
-    # pretending the destinations were checked.
+    # The device was brought online above, so identical store captures mean the
+    # pages failed to render. Do not silently downgrade that to an unverified
+    # result: the destination assertions are required for this test.
     names = list(PROMO_ICONS)
     first = stores[names[0]]
     if all(looks_the_same(first, stores[n]) for n in names[1:]):
-        print("  NOTE: the App Store pages did not load (device is offline), so "
-              "WHICH game each icon opens was not verified — only that each one "
-              "hands off to the App Store. Re-run online to check the targets.")
+        ui.expect(False,
+                  "the App Store pages all look identical after going online; "
+                  "promo destinations were not rendered")
     else:
         check_destinations(names, titles)
 

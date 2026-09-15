@@ -822,7 +822,9 @@ CASES = [
       f"{S} > Last Score",
       [
           ("On Last Score, tap leaderboards. You need a signed-in Apple ID.",
-           "Game Center opens, headed Leaderboards."),
+           "Game Center opens, headed Leaderboards. If a notice card "
+           "appears instead (scores may take a little time to upload), "
+           "tap OK and tap leaderboards again."),
           ("Tap Game Center's back arrow, then dismiss the sheet.",
            "Last Score is showing again."),
       ]),
@@ -830,7 +832,8 @@ CASES = [
       f"{S} > Last Score",
       [
           ("On Last Score, tap achievements.",
-           "Game Center opens, headed Achievements."),
+           "Game Center opens, headed Achievements. If the same notice "
+           "card appears, tap OK and tap achievements again."),
           ("Tap back and dismiss the sheet.",
            "Last Score is showing again."),
       ]),

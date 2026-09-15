@@ -89,7 +89,7 @@ def run_offline():
 
 
 def run_online():
-    """Bring the device online, then Contact Us must show PeopleFun Support."""
+    """Bring the device online, then close Support and return via Options."""
     net = ui.online()
     ui.expect(bool(net),
               "could not leave Airplane Mode / join Wi-Fi — the online "
@@ -105,9 +105,26 @@ def run_online():
     ui.expect(bool(title),
               "Contact Us left Options but PeopleFun Support did not load. "
               f"See {shot}")
-    print(f"PASS: 'Contact Us' opened {title} (online on {net}) — see {shot}")
-    ui.expect(_leave_support(),
-              "could not return to the main menu from the support flow")
+    print(f"  'Contact Us' opened {title} (online on {net}) — see {shot}")
+
+    # PeopleFun Support draws its own native header. On the iPhone 11 capture,
+    # the top-left X is at (34, 82) in a 473x1024 frame, or (0.072w, 0.080h).
+    # Use the relative position so this remains valid for the other 19.5:9
+    # phones in the device family.
+    w, h = ui.screen_size()
+    ui.tap_at((int(w * 0.072), int(h * 0.080)), settle=2.5,
+              reason="helpshift_support_x")
+    ui.expect(ui.at_screen("options", timeout=8.0),
+              "tapping the PeopleFun Support X did not return to Options")
+
+    ui.expect(ui.tap("back_bar", settle=2.0),
+              "the Options back button could not be tapped after closing "
+              "PeopleFun Support")
+    ui.expect(ui.on_menu(timeout=8.0),
+              "the Options back button did not return to the main menu")
+    final_shot = ui.shoot("HelpShiftOnlineAfter")
+    print(f"PASS: 'Contact Us' opened {title}, then the Support X and Options "
+          f"back returned to the main menu — see {shot}, {final_shot}")
 
 
 def run(mode: str = "offline"):
