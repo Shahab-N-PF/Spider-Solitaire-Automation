@@ -84,6 +84,9 @@ def expected_fields():
 
 
 def run():
+    # The network is already on (HelpShiftOnline / Ad-free / any prior online
+    # case). Do not call ui.online() — that opens Settings and can take 75s
+    # for a radio state this test does not own.
     # 1-3. Reach About and prove the link is there before tapping it, so "the
     #      link is missing" and "the link goes nowhere" stay separate failures.
     ui.expect(ui.launch_to_menu(), "could not reach the main menu")

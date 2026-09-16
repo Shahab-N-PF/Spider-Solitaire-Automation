@@ -16,6 +16,11 @@ NOT in tests/run_all.py: the look is saved by the app, so a test that repaints
 the table has no business sitting in the middle of a suite that reads the table.
 Run it on its own, or last, after everything else has already run.
 
+IT STARTS OFFLINE AND FROM A KILL. A leftover online session (ads) can fire an
+interstitial when this later deals Easy, so it enables Airplane Mode and turns
+Wi-Fi off first, then Homes and terminates the way verifyRelaunch does, then
+force-launches to the menu. That is before any look check, not between them.
+
 IT PUTS THE DEFAULT LOOK BACK before it finishes, from a block that runs even
 when the checks fail — and that is not tidiness. The menu's three ICON controls
 carry the felt inside their crops, so on the tan surface this test applies they
@@ -48,10 +53,12 @@ Run:  ./.venv/bin/python tests/verifyChooseLook.py
 """
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unity_ui as ui  # noqa: E402
+from tests.verifyRelaunch import kill  # noqa: E402
 
 SURFACE_N = 6       # reading order: row 2, column 3 — the light checkered wood
 CARDS_N = 5         # reading order: row 2, column 2 — the black filigree deck
@@ -113,7 +120,14 @@ FELT_X = (0.15, 0.85)   # trimmed either side, clear of the undo/hints widgets
 
 
 def run():
-    ui.expect(ui.launch_to_menu(), "could not reach the main menu")
+    ui.expect(ui.offline(),
+              "could not enable Airplane Mode / turn Wi-Fi off — Choose Look "
+              "deals a game, and a leftover online session can fire an ad")
+    ui.expect(ui.home(),
+              "the Home press did not send the app to the background — "
+              "without it a kill measures the harness, not the app")
+    kill()
+    ui.expect(ui.launch_to_menu(force=True), "could not reach the main menu")
     before = menu_felt()
 
     # 1. Open the modal. It reopens on whichever tab was last used, so normalise
@@ -181,9 +195,30 @@ def check(before):
               f"({moved:.3f} apart)")
 
     # 6. The real claim: both looks reached the game table.
-    print(f"  {ui.resume_or_deal('easy')}")
-    ui.expect(ui.at_table(timeout=12.0),
-              "could not reach the game table to check the new look")
+    # Always deal Easy. Do not Resume a paused game, and do not use
+    # start_game() — that calls settle_prompts(), which treats the Unity
+    # abandon card as a tip and taps the left pill (No). Yes is on the right.
+    ui.expect(ui.open_picker(),
+              "could not open the difficulty picker to check the new look")
+    ui.expect(ui.tap("difficulty_easy", settle=2.5),
+              "the picker has no Easy row to tap")
+    if ui.card_up(timeout=2.0):
+        ui.expect(ui.answer_card(1, settle=3.0),
+                  "could not tap Yes on the abandon confirmation")
+        ui.expect(card_gone(timeout=4.0),
+                  "Yes did not dismiss the abandon confirmation")
+    elif ui.dialog_up(timeout=1.0):
+        ui.expect(ui.answer_dialog(True),
+                  "could not tap Yes on the abandon confirmation")
+    # A new deal can raise the "Did you know?" tip. Leftmost is OK. Do this
+    # only after the abandon card is gone, or we would tap No on that card.
+    if ui.card_up(timeout=3.0):
+        ui.answer_card(0, settle=1.5)
+    # tap_undo is white text on the felt, so it misses on Surface 6. The
+    # in-game menu still matches (~0.79 on tan), and a felt band is the
+    # same reading the colour check uses.
+    ui.expect(on_painted_table(timeout=12.0),
+              "Easy did not deal a game after Yes on the confirmation")
     shot_t = ui.shoot("choose_look_table")
 
     felt = felt_colour()
@@ -283,6 +318,26 @@ def menu_felt():
     return flat_patch(img, int(h * 0.62), int(h * 0.68), int(w * 0.05), int(w * 0.30))
 
 
+def card_gone(timeout: float = 4.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not ui.card_up(timeout=0.2):
+            return True
+        ui.sleep(0.2)
+    return False
+
+
+def on_painted_table(timeout: float = 12.0) -> bool:
+    """True on the table even when tap_undo cannot match the new felt."""
+    deadline = time.time() + timeout
+    while True:
+        if ui.menu_button_pos() is not None or felt_colour() is not None:
+            return True
+        if time.time() >= deadline:
+            return False
+        ui.sleep(0.3)
+
+
 def felt_colour():
     """The felt colour on the game table, from the first band that is really felt."""
     img = ui._screen_image()
@@ -298,17 +353,22 @@ def felt_colour():
 def back_colour():
     """The card-back colour, read off the 'tap for hints' widget.
 
-    NOT the stock pile: that empties as a game is played out, and
-    ui.resume_or_deal() can hand back a well-played game, so the patch would be
-    felt rather than a card. The hints widget always draws three full card
-    backs. Anchored to the caption plus the offset tap_table_control() already
-    uses for this control.
+    NOT the stock pile: that empties as a game is played out, so the patch
+    would be felt rather than a card. The hints widget always draws three
+    full card backs. Anchored to the caption plus the offset
+    tap_table_control() already uses for this control.
     """
     img = ui._screen_image()
     h, w = img.shape[:2]
     cap = ui.find("tap_hints", screen=img)
     if cap is None:
-        return None
+        cap = ui.find("tap_hints", threshold=0.55, screen=img)
+    if cap is None:
+        menu = ui.menu_button_pos()
+        if menu is None:
+            return None
+        # hints sits bottom-right, same side as the top-bar menu
+        cap = (menu[0], int(0.90 * h))
     cx = cap[0]
     cy = cap[1] + int(ui._CONTROL_DY["hints"] * h)
     return patch(img, cy - 30, cy + 30, cx - 45, cx + 45)

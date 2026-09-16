@@ -69,9 +69,9 @@ import visual  # noqa: E402
 #                     verifyVictory and verifyDifficultyLevels depend on, and the
 #                     only clean slot left costs more than running it alone does.
 TESTS = [
-    # TestFlight must run while the phone is online. It downloads the newest
-    # odd build and leaves Spider unopened so verifyFirstLaunch can own the
-    # fresh-install gates.
+    # TestFlight must run while the phone is online. It downloads the greatest
+    # odd build from Previous Builds and leaves Spider unopened so
+    # verifyFirstLaunch can own the fresh-install gates.
     "installFromTestFlight",
     # After TestFlight has installed the build, this preserves an already-visible
     # first-install gate, or

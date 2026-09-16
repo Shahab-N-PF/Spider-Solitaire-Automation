@@ -1126,15 +1126,19 @@ def offline(restore: bool = True) -> bool:
     return ok
 
 
-def online(wait: float = 75.0) -> str:
+def online(wait: float = 75.0, restore: bool = True) -> str:
     """Leave Airplane Mode and wait for Wi-Fi to rejoin. Returns the network name.
 
     Empty string if it never joined one — which a caller that needs the network
     should treat as a failure rather than pressing on, since every symptom of
     "no network" downstream looks like a broken feature instead.
+
+    `restore=False` leaves Settings in front so a caller can open another app
+    without launching Spider. That is required when Spider is not installed:
+    restoring it 500s WDA.
     """
     global _NETWORK_ONLINE
-    ok, net = helpers.set_network(True, wait=wait)
+    ok, net = helpers.set_network(True, wait=wait, restore=restore)
     if ok:
         _NETWORK_ONLINE = True
     return net if ok else ""

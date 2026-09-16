@@ -1,12 +1,15 @@
-"""Test: install the newest odd Spider build from TestFlight.
+"""Test: install the greatest odd Spider build from TestFlight.
 
 This is the first test in the full regression run.  It deliberately leaves
 TestFlight in front after the download; ``verifyFirstLaunch`` launches Spider
 next and owns the fresh-install Terms & Conditions and ATT flow.
 
-The newest Previous Builds row is selected first.  An even build is a hard
-failure, but the existing Spider installation is left untouched so a mistaken
-TestFlight release cannot strand the device without the app.
+The Previous Builds list is scanned completely. The greatest odd build is
+selected regardless of where it appears in the list; an all-even list fails
+without changing the existing installation.
+
+A missing Spider install is not a reason to stop: going online does not
+restore the game, and TestFlight still installs the greatest odd build.
 
 Prereqs: WDA up while the phone is online, TestFlight installed and signed in,
 the Spider TestFlight invite accepted, and DEVICE_UDID set.
@@ -22,7 +25,21 @@ import unity_ui as ui  # noqa: E402
 
 
 def run():
-    network = ui.online()
+    installed = tf.app_installed()
+    if installed is None:
+        print("  could not read whether Spider is installed; continuing to TestFlight")
+    elif installed == ("", None):
+        print("  Spider is not installed; TestFlight will install the greatest odd build")
+    else:
+        print(f"  Spider already installed: {installed[0]} ({installed[1]})")
+
+    # Do not restore Spider after Settings: it may not be on the device yet,
+    # and launching a missing bundle 500s WDA. TestFlight is opened next.
+    try:
+        network = ui.online(restore=False)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  WARNING: going online raised {exc}; retrying without restoring Spider")
+        network = ui.online(restore=False)
     ui.expect(network, "the phone did not reconnect to Wi-Fi for TestFlight")
 
     tf.open_testflight()
@@ -40,27 +57,23 @@ def run():
     )
     previous_shot = ui.shoot("TestFlightPreviousBuilds")
 
-    marketing, build = tf.tap_newest_build()
+    marketing, build, seen, row = tf.tap_latest_odd_build()
     ui.expect(
         build is not None,
-        "TestFlight did not show a versioned build row at the top of "
-        f"Previous Builds (see {previous_shot})",
+        "TestFlight showed no odd build in Previous Builds; seen builds: "
+        f"{[build for build, _marketing in seen]} "
+        f"(see {previous_shot})",
     )
     build_shot = ui.shoot("TestFlightBuild")
-    print(f"  newest TestFlight build: {marketing} ({build}) — {build_shot}")
-
-    if build % 2 == 0:
-        raise AssertionError(
-            f"the newest TestFlight build is even: {marketing} ({build}); "
-            "Spider was not uninstalled or changed"
-        )
+    print(f"  greatest odd TestFlight build: {marketing} ({build}) — "
+          f"{build_shot}")
 
     ui.expect(
         tf.uninstall_spider(),
         "Spider did not uninstall before the TestFlight download",
     )
     ui.expect(
-        tf.install_current_build(marketing, build),
+        tf.install_current_build(marketing, build, row=row),
         f"TestFlight did not install {marketing} ({build}) within 10 minutes",
     )
     installed = tf.app_installed()
@@ -70,12 +83,32 @@ def run():
         f"{marketing} ({build})",
     )
     print(
-        f"PASS: TestFlight installed newest odd Spider build "
+        f"PASS: TestFlight installed greatest odd Spider build "
         f"{marketing} ({build}); Spider was left unopened"
     )
 
 
+def selftest():
+    """Exercise greatest-odd selection without a device."""
+    builds = [
+        ("8.0.2", 382), ("8.0.2", 380), ("8.0.2", 379),
+        ("8.0.2", 377), ("8.0.2", 375), ("8.0.2", 373),
+        ("8.0.2", 371),
+    ]
+    chosen = tf.latest_odd_build(builds)
+    if chosen != ("8.0.2", 379):
+        print(f"SELFTEST FAIL: expected (8.0.2, 379), got {chosen}")
+        return False
+    if tf.latest_odd_build([("8.0.2", 382), ("8.0.2", 380)]) != ("", None):
+        print("SELFTEST FAIL: all-even builds produced a selection")
+        return False
+    print("SELFTEST PASS: selected 8.0.2 (379) from the mixed list")
+    return True
+
+
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(0 if selftest() else 1)
     try:
         run()
     except Exception as exc:  # noqa: BLE001
