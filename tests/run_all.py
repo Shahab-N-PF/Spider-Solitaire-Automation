@@ -63,11 +63,6 @@ import visual  # noqa: E402
 #                     Accounts" instead of a composer and the suite would fail
 #                     for an environment reason, not a build one. (It never
 #                     sends, and deletes the draft from a finally.)
-#   verifyRelaunch  — KILLS the app mid-game by design (its premise is that the
-#                     game screen comes back after a kill). Anywhere after
-#                     openDebugTools that would hide the Dev Panel button
-#                     verifyVictory and verifyDifficultyLevels depend on, and the
-#                     only clean slot left costs more than running it alone does.
 TESTS = [
     # TestFlight must run while the phone is online. It downloads the greatest
     # odd build from Previous Builds and leaves Spider unopened so
@@ -98,6 +93,10 @@ TESTS = [
     "verifyMoreGamesBtn",       # in-app cross-promo page + its scroll
     "verifyPlay",               # picker shows 5 levels, Easy deals
     "verifyAbandonNo",          # declining abandon keeps the picker open
+    # Before openDebugTools on purpose: this kills the app, which hides the
+    # Dev Panel button. Running it after the unlock would cost verifyVictory
+    # and verifyDifficultyLevels their cheat.
+    "verifyRelaunch",           # Home + kill on the table restores the same board
     # openDebugTools force-restarts the app (its premise is a HIDDEN button), so
     # it must come before anything that needs the unlock — and the fewer tests
     # between it and verifyVictory, the fewer chances something restarts the app
@@ -355,6 +354,20 @@ REQUIRED = [
 # run over crops nothing in the run touches. That test asserts its own.
 
 
+def _refresh_session(after: str):
+    """Rebuild the WDA/Airtest session without launching XCTest.
+
+    Skipping TestFlight: that step leaves Spider unopened so first-launch
+    can own the gates. Attaching here would launch it.
+    """
+    if after == "installFromTestFlight":
+        return
+    try:
+        unity_ui.reconnect(foreground=True, settle=1.0)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  WARNING: could not reconnect WDA session: {exc}")
+
+
 def main():
     picked = [a for a in sys.argv[1:] if not a.startswith("-")]
     tests = picked or TESTS
@@ -385,6 +398,7 @@ def main():
                 os.environ.pop("TEST_NAME", None)
             else:
                 os.environ["TEST_NAME"] = previous_test
+            _refresh_session(name)
 
     print("\n" + "=" * 56)
     print("  functional tests (Unity build)")

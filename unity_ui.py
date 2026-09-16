@@ -153,6 +153,46 @@ def connect():
     connect_device(config.DEVICE_URI)
 
 
+# Airtest raises these when its cached WDA session is dead and its recover
+# tries to launch the wrong xctrunner (SolitaireUITests) instead of using the
+# already-running agent from scripts/wda.sh.
+_SESSION_ERRORS = (
+    "re-acquire session",
+    "call depth exceed",
+    "no such session",
+    "invalid session",
+    "session does not exist",
+)
+
+
+def is_session_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(token in msg for token in _SESSION_ERRORS)
+
+
+def reconnect(foreground: bool = True, settle: float = 1.0) -> str:
+    """Mint/reuse a WDA session and point Airtest at it. Never launches XCTest.
+
+    foreground=True attaches to Spider (may bring it to the front). False
+    attaches to whatever is already front — App Store / Mail hand-offs.
+    """
+    print("  reconnecting WDA session without relaunching XCTest")
+    if foreground:
+        sid = helpers.launch_app(force=False)
+    else:
+        sid = helpers.open_session(bundle_id=None)
+    time.sleep(settle)
+    connect()
+    return sid
+
+
+def _recover_session(exc: BaseException, foreground=None):
+    if not is_session_error(exc):
+        raise exc
+    want_front = in_app() if foreground is None else foreground
+    reconnect(foreground=want_front, settle=0.8)
+
+
 def sleep(sec: float):
     time.sleep(sec)
 
@@ -262,7 +302,11 @@ def _tpl_image(name: str):
 def _screen_image():
     """Current screen as a BGR array (no file written)."""
     from airtest.core.helper import G
-    return G.DEVICE.snapshot()
+    try:
+        return G.DEVICE.snapshot()
+    except Exception as e:  # noqa: BLE001
+        _recover_session(e)
+        return G.DEVICE.snapshot()
 
 
 def device_scale() -> float:
@@ -373,7 +417,7 @@ def tap(name: str, timeout: float = 8.0, settle: float = 1.5,
     pos = find(name, threshold)
     if pos is None:                 # matched a moment ago, gone now
         return False
-    touch(pos)
+    _touch(pos)
     time.sleep(settle)
     _journal_tap("template", reason or name, pos)
     return True
@@ -381,9 +425,18 @@ def tap(name: str, timeout: float = 8.0, settle: float = 1.5,
 
 def tap_at(pos, settle: float = 1.2, reason: str = None):
     """Tap a raw capture-space coordinate."""
-    touch(pos)
+    _touch(pos)
     time.sleep(settle)
     _journal_tap("coordinate", reason or "tap_at", pos)
+
+
+def _touch(pos):
+    """Airtest touch, reconnecting WDA once if the session dropped."""
+    try:
+        touch(pos)
+    except Exception as e:  # noqa: BLE001
+        _recover_session(e)
+        touch(pos)
 
 
 def _point_scale() -> float:
@@ -970,11 +1023,22 @@ def tap_back_to_app(settle: float = 3.0, timeout: float = 10.0) -> bool:
     """
     if in_app():
         return True
+    # Airtest's device object dies when another app is front; rebuild the
+    # session on whatever is showing, do not launch Spider (that would skip
+    # the crumb this function exists to test).
+    try:
+        reconnect(foreground=False, settle=0.5)
+    except Exception:  # noqa: BLE001
+        pass
     w, h = screen_size()
     tap_at((int(w * _CRUMB[0]), int(h * _CRUMB[1])), settle=settle)
     deadline = time.time() + timeout
     while time.time() < deadline:
         if in_app():
+            try:
+                reconnect(foreground=True, settle=0.5)
+            except Exception:  # noqa: BLE001
+                pass
             return True
         time.sleep(1)
     return in_app()
@@ -1373,6 +1437,17 @@ def close_interstitial_chain(where: str = "interstitial",
                              store_timeout: float = 90.0,
                              ad_timeout: float = 30.0) -> bool:
     """Close the StoreKit product sheet first, then the ad's own X."""
+    try:
+        return _close_interstitial_chain(where, store_timeout, ad_timeout)
+    except Exception as e:  # noqa: BLE001
+        if not is_session_error(e):
+            raise
+        reconnect(foreground=True)
+        return _close_interstitial_chain(where, store_timeout, ad_timeout)
+
+
+def _close_interstitial_chain(where: str, store_timeout: float,
+                              ad_timeout: float) -> bool:
     expect(in_app(),
            "the interstitial took us out of Spider after "
            f"{where} — now in {active_app() or 'unknown'}")

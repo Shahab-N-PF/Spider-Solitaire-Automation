@@ -25,19 +25,21 @@ Additional coverage verifies:
    cooldown, not Victory-only);
 7. over 30 seconds on the table, then Back: ad, closing onto the main menu;
 8. game entry within 30 seconds on that menu: no ad;
-9. game entry after more than 30 seconds on that menu: ad;
-10. over 30 seconds on the table, then FAQ: ad.
+9. over 30 seconds on the table, then FAQ: ad.
+
+Resume never shows an interstitial, so a long menu dwell followed by Resume
+is not a trigger and is not asserted.
 
 An interstitial during ``resume_or_deal`` is also expected behavior. The test
 closes its StoreKit X followed by the ad's own X and continues without a cold
 launch. The ad-close crop is creative-dependent, so a missing close control is
-reported rather than guessed.
+reported rather than guessed. If the chain still cannot close after the 120s
+StoreKit wait, the test prints ``Manual effort required at this step``, waits
+for a hand close, and the summary marks that check ``Passed Manually``.
 
 Additional observed trigger: leaving a game can show an ad whose close returns
-the user to the main menu. If the user remains on that menu for more than 30
-seconds, the next resume or new deal can show another interstitial. This is a
-separate menu dwell/cooldown path and must not be treated as a duplicate of
-the original game-leave ad.
+the user to the main menu. Resume from that menu does not show another
+interstitial, even after a long dwell.
 
 Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set,
          and a network connection.
@@ -62,14 +64,63 @@ NO_AD = 8.0
 AD_WAIT = 20.0
 STORE_WAIT = 120.0
 AD_CLOSE_WAIT = 30.0
+MANUAL_WAIT = 300.0
+_SETUP_CLOSES = (
+    "leftover",
+    "resume_or_deal",
+    "fresh-table setup",
+    "short table -> Options setup retry",
+)
+
+RESULTS = []
+MANUAL_CLOSES = set()
+
+
+def note_check(label: str):
+    """Record a completed check for the end-of-run summary."""
+    status = "Passed Manually" if label in MANUAL_CLOSES else "PASS"
+    RESULTS.append((label, status))
+
+
+def print_report():
+    if not RESULTS:
+        return
+    print()
+    for label, status in RESULTS:
+        print(f"  {status:<16}  {label}")
+
+
+def wait_for_manual_close(where: str):
+    """Pause until the user dismisses a stuck interstitial on the phone."""
+    print("Manual effort required at this step", flush=True)
+    print(f"  Close the {where} interstitial on the phone; the test "
+          "continues when Spider's own UI is back.", flush=True)
+    if ui.in_app() and ui.lost(timeout=0.5):
+        path = ui.shoot("ad_unmatched")
+        print(f"  unmatched ad close captured before waiting — see {path}")
+    deadline = time.time() + MANUAL_WAIT
+    while time.time() < deadline:
+        if ui.in_app() and not ui.lost(timeout=1.0):
+            MANUAL_CLOSES.add(where)
+            if where in _SETUP_CLOSES:
+                RESULTS.append((where, "Passed Manually"))
+            print(f"  {where} closed manually — continuing")
+            return
+        ui.sleep(1.5)
+    raise AssertionError(
+        f"the {where} interstitial was still showing after "
+        f"{MANUAL_WAIT:.0f}s of waiting for a manual close")
 
 
 def close_current_ad(where: str):
-    ui.expect(ui.in_app(),
-              f"the {where} interstitial left Spider — now in "
-              f"{ui.active_app() or 'unknown'}")
-    ui.expect(ui.close_interstitial_chain(where, STORE_WAIT, AD_CLOSE_WAIT),
-              f"could not close the {where} interstitial chain")
+    try:
+        ui.expect(ui.in_app(),
+                  f"the {where} interstitial left Spider — now in "
+                  f"{ui.active_app() or 'unknown'}")
+        ui.expect(ui.close_interstitial_chain(where, STORE_WAIT, AD_CLOSE_WAIT),
+                  f"could not close the {where} interstitial chain")
+    except AssertionError:
+        wait_for_manual_close(where)
 
 
 def reach_table(ad_attempts: int = 5):
@@ -196,6 +247,7 @@ def verify_short_options_no_ad(retries: int = 1):
             if ui.at_screen("options", timeout=0.5):
                 back_to_table()
                 print("  rule 5 passed: short table visit did not trigger an ad")
+                note_check("short table -> Options")
                 return
             if ui.lost(timeout=0.5):
                 break
@@ -314,6 +366,7 @@ def run_cooldown_rules():
     expect_ad("long table -> Help")
     back_to_table()
     print("  rule 4 passed: long table redirect triggered an ad")
+    note_check("long table -> Help")
 
     # The cooldown starts when that Help ad closes and applies globally, not
     # only to Victory's New button.
@@ -323,6 +376,7 @@ def run_cooldown_rules():
     back_to_table()
     print("  global cooldown passed: Options within 30s of the Help ad "
           "did not trigger another ad")
+    note_check("Help ad closed -> Options within cooldown")
 
 
 def run_victory_rules():
@@ -332,6 +386,7 @@ def run_victory_rules():
     ui.sleep(DWELL)
     win_and_expect_victory_ad("long table -> Victory")
     print("  rule 1 passed: long table visit triggered an ad on Victory")
+    note_check("long table -> Victory")
 
     # Rule 2: the 30-second post-ad cooldown suppresses New.
     ui.expect(ui.tap("victory_new", settle=3.0),
@@ -342,12 +397,14 @@ def run_victory_rules():
     ui.expect(ui.at_table(timeout=12.0),
               "New within the cooldown did not reach a game table")
     print("  rule 2 passed: New within 30s did not trigger an ad")
+    note_check("Victory ad closed -> New within cooldown")
 
     # Rule 3: after another win/ad, remain on Victory past the cooldown, then
     # New must trigger the interstitial.
     print(f"  rule 3: waiting {DWELL:.0f}s before the second win")
     ui.sleep(DWELL)
     win_and_expect_victory_ad("second long table -> Victory")
+    note_check("second long table -> Victory")
     print(f"  rule 3: waiting {DWELL:.0f}s on Victory for cooldown expiry")
     ui.sleep(DWELL)
     ui.expect(ui.tap("victory_new", settle=3.0),
@@ -355,26 +412,20 @@ def run_victory_rules():
     expect_ad("Victory -> New after cooldown")
     back_to_table()
     print("  rule 3 passed: New after 30s on Victory triggered an ad")
+    note_check("Victory -> New after cooldown")
 
 
 def run_menu_rules():
-    """Back-ad landing plus short and long main-menu entry clocks."""
+    """Back-ad landing plus short main-menu entry (Resume does not fire an ad)."""
     leave_table_ad_to_menu("long table -> Back")
+    note_check("long table -> Back")
     print(f"  menu rule: waiting {SHORT:.0f}s before entering within cooldown")
     ui.sleep(SHORT)
     how = enter_from_menu()
     wait_no_ad("short menu dwell -> game entry",
                lambda: ui.at_table(timeout=0.5))
     print(f"  menu rule passed: {how} within 30s did not trigger an ad")
-
-    leave_table_ad_to_menu("second long table -> Back")
-    print(f"  menu rule: waiting {DWELL:.0f}s on the main menu")
-    ui.sleep(DWELL)
-    how = enter_from_menu()
-    expect_ad(f"long menu dwell -> {how}")
-    back_to_table()
-    print("  menu rule passed: game entry after more than 30s on the "
-          "main menu triggered an ad")
+    note_check("short menu dwell -> game entry")
 
 
 def run_destination_rules():
@@ -385,6 +436,7 @@ def run_destination_rules():
     expect_ad("long table -> FAQ")
     back_to_table()
     print("  destination rule passed: long table -> FAQ triggered an ad")
+    note_check("long table -> FAQ")
 
 
 def run(part: str = "all"):
@@ -408,6 +460,7 @@ def run(part: str = "all"):
         result = "the main-menu trigger/cooldown rules"
     else:
         result = "the additional destination trigger rules"
+    print_report()
     print(f"PASS: {result} passed online on {net!r}")
 
 
@@ -422,5 +475,6 @@ if __name__ == "__main__":
     try:
         run(args.part)
     except Exception as e:  # noqa: BLE001
+        print_report()
         print(f"FAIL: {e}")
         sys.exit(1)

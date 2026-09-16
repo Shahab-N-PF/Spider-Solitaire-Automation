@@ -18,6 +18,63 @@ import config
 _CURRENT_SESSION = None
 
 
+def session_alive(session_id: str = None, base_url: str = None,
+                  timeout: int = 8) -> bool:
+    """True when this WDA session still answers. Does not relaunch XCTest."""
+    sid = session_id or _CURRENT_SESSION
+    if not sid:
+        return False
+    try:
+        urllib.request.urlopen(
+            (base_url or config.WDA_URL) + f"/session/{sid}/window/size",
+            timeout=timeout)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def open_session(bundle_id: str = None, base_url: str = None, timeout: int = 30,
+                 force: bool = False) -> str:
+    """Create a WDA session against the already-running agent.
+
+    Never launches XCTest — ``scripts/wda.sh`` owns that. Airtest's recover
+    path tries ``SolitaireUITests.xctrunner`` and raises "Failed to re-acquire
+    session"; callers should call this instead.
+
+    ``bundle_id`` set: attach/launch that app (same as ``launch_app``).
+    ``bundle_id`` None: session on whatever is already front, so an App Store
+    or Mail hand-off can keep tapping without yanking Spider forward.
+    """
+    global _CURRENT_SESSION
+    base_url = base_url or config.WDA_URL
+    if not bundle_id:
+        sid = None
+        try:
+            sid = wda_status(base_url, timeout=8).get("sessionId")
+        except Exception:  # noqa: BLE001
+            sid = _CURRENT_SESSION
+        if sid and session_alive(sid, base_url):
+            _CURRENT_SESSION = sid
+            return sid
+    always = {}
+    if bundle_id:
+        always["bundleId"] = bundle_id
+        always["forceAppLaunch"] = bool(force)
+        always["shouldTerminateApp"] = False
+    body = json.dumps({"capabilities": {"alwaysMatch": always}}).encode()
+    req = urllib.request.Request(
+        base_url + "/session", data=body, headers={"Content-Type": "application/json"}
+    )
+    sid = json.load(urllib.request.urlopen(req, timeout=timeout))["value"]["sessionId"]
+    _CURRENT_SESSION = sid
+    try:
+        _wda_post(f"/session/{sid}/wda/settings",
+                  {"settings": {"defaultAlertAction": "accept"}}, base_url)
+    except Exception:  # noqa: BLE001
+        pass
+    return sid
+
+
 def launch_app(bundle_id: str = None, base_url: str = None, timeout: int = 30,
                force: bool = False) -> str:
     """Foreground an app via WDA and return the session id.
@@ -31,28 +88,8 @@ def launch_app(bundle_id: str = None, base_url: str = None, timeout: int = 30,
     If the app is not running it is launched, so callers still get a foregrounded
     app either way. Pass force=True for a deliberate fresh start (cold_launch).
     """
-    global _CURRENT_SESSION
-    bundle_id = bundle_id or config.BUNDLE_ID
-    base_url = base_url or config.WDA_URL
-    body = json.dumps({"capabilities": {"alwaysMatch": {
-        "bundleId": bundle_id,
-        "forceAppLaunch": bool(force),
-        "shouldTerminateApp": False,
-    }}}).encode()
-    req = urllib.request.Request(
-        base_url + "/session", data=body, headers={"Content-Type": "application/json"}
-    )
-    sid = json.load(urllib.request.urlopen(req, timeout=timeout))["value"]["sessionId"]
-    _CURRENT_SESSION = sid
-    # Best-effort: ask WDA to auto-accept (tap the affirmative button of) any
-    # system alert it can see during the session. Harmless if unsupported; the
-    # explicit sweep in flows.dismiss_popups() covers what this misses (ATT).
-    try:
-        _wda_post(f"/session/{sid}/wda/settings",
-                  {"settings": {"defaultAlertAction": "accept"}}, base_url)
-    except Exception:  # noqa: BLE001
-        pass
-    return sid
+    return open_session(bundle_id=bundle_id or config.BUNDLE_ID,
+                        base_url=base_url, timeout=timeout, force=force)
 
 
 def current_session() -> str:
