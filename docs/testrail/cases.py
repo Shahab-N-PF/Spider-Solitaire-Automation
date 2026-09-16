@@ -95,12 +95,15 @@ CASES = [
       [
           ("Open TestFlight and tap Spider / Spider Solitaire.",
            "The TestFlight page for this game is showing."),
-          ("Scroll to Previous Builds and tap it. Tap the top row.",
-           "The newest build's page is showing."),
-          ("If that page's version in parentheses is odd, delete Spider if "
-           "it is installed, then tap Install and wait. If it is even, stop.",
-           "The odd build installs. An even newest build leaves the existing "
-           "Spider installation unchanged."),
+          ("Scroll to Previous Builds and tap it. Review all individual "
+           "build rows.",
+           "The greatest odd-numbered build is identified, regardless of "
+           "where it appears in the list."),
+          ("If an odd build exists, delete Spider if it is installed, then "
+           "tap Install for that exact row and wait. If all builds are even, "
+           "stop.",
+           "The greatest odd build installs. An all-even list leaves the "
+           "existing Spider installation unchanged."),
       ],
       priority="High"),
 
@@ -824,7 +827,8 @@ CASES = [
           ("On Last Score, tap leaderboards. You need a signed-in Apple ID.",
            "Game Center opens, headed Leaderboards. If a notice card "
            "appears instead (scores may take a little time to upload), "
-           "tap OK and tap leaderboards again."),
+           "tap OK — Leaderboards opens from that, do not tap the "
+           "link again."),
           ("Tap Game Center's back arrow, then dismiss the sheet.",
            "Last Score is showing again."),
       ]),
@@ -833,7 +837,8 @@ CASES = [
       [
           ("On Last Score, tap achievements.",
            "Game Center opens, headed Achievements. If the same notice "
-           "card appears, tap OK and tap achievements again."),
+           "card appears, tap OK — Achievements opens from that, do "
+           "not tap the link again."),
           ("Tap back and dismiss the sheet.",
            "Last Score is showing again."),
       ]),

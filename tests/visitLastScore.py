@@ -8,7 +8,8 @@ Steps, as specified:
   4. tap the forward arrow 4 times, 2 seconds apart
   5. tap "leaderboards". The first tap can raise a Game Center notice card
      ("previous Scores and Achievements may take a little time to upload")
-     instead of Apple's sheet — OK that card, then tap "leaderboards" again
+     instead of Apple's sheet — OK that card, and the Leaderboards page
+     opens directly (do not tap the link again)
   6. Apple's Game Center sheet opens, headed "Leaderboards"
   7. tap that sheet's back arrow (top-left circle)
   8. tap the empty space at the bottom to dismiss it, back on Last Score
@@ -143,11 +144,11 @@ def visit_game_center(link: str, control: str, header: str, header_tpl: str):
     # The first Game Center open (leaderboards or achievements) can raise a
     # one-button notice card on Last Score instead of Apple's sheet. That is
     # the same Unity widget as the table tip / reset prompt — WDA cannot see
-    # it — so it is found by shape and answered OK, then the link is tapped
-    # again. Skip this if Last Score is already covered: that is the sheet.
+    # it — so it is found by shape and answered OK. After OK the sheet opens
+    # on its own; do not tap the link again. Skip this if Last Score is
+    # already covered: that is the sheet.
     if ui.is_on("screen_last_score") and ui.card_up(timeout=1.5):
         dismiss_game_center_notice(link)
-        tap_game_center_link(link, control)
 
     # Two different failures, told apart by whether the Last Score header is
     # still uncovered, because they have completely different causes: nothing
@@ -188,17 +189,14 @@ def tap_game_center_link(link: str, control: str):
 
 
 def dismiss_game_center_notice(link: str):
-    """OK the first-time Game Center notice and land back on Last Score."""
+    """OK the first-time Game Center notice; the sheet opens from that tap."""
     shot = ui.shoot(f"unity_game_center_notice_{link}")
     ui.expect(ui.answer_card(0, settle=2.0),
               f"tapping '{link}' raised a card, but its OK button could not "
               f"be pressed — {shot}")
     ui.expect(not ui.card_up(timeout=2.0),
               f"OK did not dismiss the Game Center notice after '{link}' — {shot}")
-    ui.expect(ui.at_screen("last_score", timeout=4.0),
-              f"OK on the Game Center notice left the 'Last Won Game Score' "
-              f"screen — {shot}")
-    print(f"  dismissed Game Center notice after '{link}', tapping again — {shot}")
+    print(f"  dismissed Game Center notice after '{link}', sheet should open — {shot}")
 
 
 def period_box(arrow_pos):

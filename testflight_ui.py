@@ -22,12 +22,10 @@ _VERSION_RE = re.compile(
     r"(?P<marketing>\d+(?:\.\d+){1,3})\s*\((?P<build>\d+)\)"
 )
 _GROUP_RE = re.compile(r"^\d+(?:\.\d+){1,3}")
-_ACTION_NAMES = (
-    "Install",
-    "INSTALL",
-    "Update",
-    "UPDATE",
-    "Install Build",
+_BUILD_KINDS = (
+    "XCUIElementTypeCell",
+    "XCUIElementTypeButton",
+    "XCUIElementTypeStaticText",
 )
 _APP_NAMES = (
     "Spider ▻ Solitaire",
@@ -335,60 +333,206 @@ def parse_build(text):
     return match.group("marketing"), int(match.group("build"))
 
 
-def tap_newest_build(timeout=90.0):
-    """Open the top version group, then tap its newest individual build."""
+def latest_odd_build(pairs):
+    """Return the greatest odd ``(marketing, build)`` pair, or ``("", None)``."""
+    best = ("", None)
+    for marketing, build in pairs:
+        try:
+            build = int(build)
+        except (TypeError, ValueError):
+            continue
+        if build % 2 and (best[1] is None or build > best[1]):
+            best = (str(marketing), build)
+    return best
+
+
+def _visible_build_records():
+    """Return one preferred visible accessibility record per build number."""
+    priority = {kind: i for i, kind in enumerate(_BUILD_KINDS)}
+    by_build = {}
+    for record in _records(_BUILD_KINDS):
+        marketing, build = parse_build(_text(record))
+        if build is None or not record.get("rect"):
+            continue
+        old = by_build.get(build)
+        if old is None or priority.get(record["kind"], 99) < priority.get(
+                old["kind"], 99):
+            by_build[build] = record
+    return by_build
+
+
+def _version_group_record():
+    """Return the top visible marketing-version group, if the list is grouped."""
+    groups = []
+    for record in _records(_BUILD_KINDS):
+        text = _text(record)
+        normalized = re.sub(r"\s*\.\s*", ".", text).strip()
+        if not _GROUP_RE.match(normalized):
+            continue
+        rect = record.get("rect") or {}
+        if rect:
+            groups.append((float(rect.get("y", 10**9)), record))
+    return min(groups, key=lambda item: item[0])[1] if groups else None
+
+
+def tap_latest_odd_build(timeout=120.0):
+    """Find and tap the greatest odd build anywhere in Previous Builds.
+
+    The return value is ``(marketing, build, seen, row)``. ``seen`` contains
+    every distinct build encountered while scrolling. ``row`` is the
+    accessibility record for the chosen build, used to tap its Install pill.
+    """
     deadline = time.time() + timeout
     opened_group = False
+    seen = {}
+    stagnant = 0
+
     while time.time() < deadline:
-        candidates = []
-        for record in _records((
-            "XCUIElementTypeCell",
-            "XCUIElementTypeButton",
-            "XCUIElementTypeStaticText",
-        )):
-            marketing, build = parse_build(_text(record))
-            if build is None:
-                continue
-            rect = record.get("rect") or {}
-            if rect:
-                candidates.append((float(rect.get("y", 10**9)),
-                                   marketing, build, record))
-        if candidates:
-            _, marketing, build, record = min(candidates, key=lambda item: item[0])
-            if _tap_record(record):
-                time.sleep(2.5)
-                return marketing, build
+        visible = _visible_build_records()
+        before = len(seen)
+        for build, record in visible.items():
+            marketing, parsed_build = parse_build(_text(record))
+            seen[parsed_build] = marketing
 
-        # TestFlight first shows version groups ("8.0.2 — 5 Builds"). Open
-        # the top group before looking for labels containing a build number.
+        if visible:
+            stagnant = stagnant + 1 if len(seen) == before else 0
+            if stagnant >= 1:
+                break
+            if not _scroll(down=True):
+                break
+            continue
+
+        # TestFlight first shows version groups ("8.0.2 — 7 Builds"). Open
+        # the highest group before looking for parenthesized build labels.
         if not opened_group:
-            groups = []
-            for record in _records((
-                "XCUIElementTypeCell",
-                "XCUIElementTypeButton",
-                "XCUIElementTypeStaticText",
-            )):
-                text = _text(record)
-                normalized = re.sub(r"\s*\.\s*", ".", text).strip()
-                if not _GROUP_RE.match(normalized):
-                    continue
-                rect = record.get("rect") or {}
-                if rect:
-                    groups.append((float(rect.get("y", 10**9)), record))
-            if groups:
-                _, record = min(groups, key=lambda item: item[0])
-                if _tap_record(record):
-                    opened_group = True
-                    time.sleep(2.5)
-                    continue
-        _scroll(down=True)
-    return "", None
+            record = _version_group_record()
+            if record is not None and _tap_record(record):
+                opened_group = True
+                time.sleep(2.5)
+                continue
+        if not _scroll(down=True):
+            break
+
+    marketing, build = latest_odd_build(
+        [(marketing, build) for build, marketing in seen.items()])
+    if build is None:
+        return marketing, build, sorted(seen.items()), None
+
+    # The scan ends at the bottom. Scroll back until the selected row is
+    # visible. Do not tap the cell centre: that hits "Expires in …", not
+    # Install. The Install pill is tapped after uninstall, from the rect.
+    while time.time() < deadline:
+        visible = _visible_build_records()
+        record = visible.get(build)
+        if record is not None:
+            return marketing, build, sorted(seen.items()), record
+        if not _scroll(down=False):
+            break
+    return "", None, sorted(seen.items()), None
 
 
-def install_current_build(marketing, build, timeout=600.0):
-    """Tap Install for the selected build and verify its installed build."""
+def _visible_named_rects(name, timeout=8.0):
+    """Visible rects of every control named `name`, via one predicate query."""
+    sid = helpers.current_session()
+    if not sid:
+        return []
+    escaped = str(name).replace("'", "\\'")
+    body = json.dumps({
+        "using": "predicate string",
+        "value": f"name == '{escaped}' OR label == '{escaped}'",
+    }).encode()
+    found = []
+    try:
+        req = urllib.request.Request(
+            config.WDA_URL + f"/session/{sid}/elements",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        elements = json.load(urllib.request.urlopen(req, timeout=timeout)).get(
+            "value"
+        ) or []
+    except Exception:  # noqa: BLE001
+        return []
+    for element in elements:
+        eid = element.get("ELEMENT") or (
+            list(element.values())[0] if element else None
+        )
+        if not eid:
+            continue
+
+        def attr(key, eid=eid):
+            try:
+                return json.load(urllib.request.urlopen(
+                    config.WDA_URL
+                    + f"/session/{sid}/element/{eid}/attribute/{key}",
+                    timeout=5,
+                )).get("value")
+            except Exception:  # noqa: BLE001
+                return None
+
+        visible = attr("visible")
+        if visible is False or str(visible).lower() == "false":
+            continue
+        rect = attr("rect") or {}
+        if rect:
+            found.append(rect)
+    return found
+
+
+def _build_label_rect(marketing, build, timeout=6.0):
+    """Visible rect of the version label, not necessarily the whole row."""
+    label = f"{marketing} ({build})"
+    rects = _visible_named_rects(label, timeout=timeout)
+    if rects:
+        return min(rects, key=lambda r: float(r.get("x", 0)))
+    return ui._ax_rect(label, kind="XCUIElementTypeStaticText", timeout=timeout)
+
+
+def _install_rect_for_row(row_rect):
+    """The Install pill on the same row as `row_rect`, or None."""
+    if not row_rect:
+        return None
+    row_mid = float(row_rect.get("y", 0)) + float(row_rect.get("height", 0)) / 2
+    band = max(float(row_rect.get("height", 0)), 40)
+    matches = []
+    for rect in _visible_named_rects("Install"):
+        mid = float(rect.get("y", 0)) + float(rect.get("height", 0)) / 2
+        if abs(mid - row_mid) > band:
+            continue
+        matches.append((abs(mid - row_mid), rect))
+    if matches:
+        return min(matches, key=lambda item: item[0])[1]
+    return None
+
+
+def _tap_install_for_build(marketing, build, row=None):
+    """Tap the Install pill on the chosen Previous Builds row."""
+    label_rect = _build_label_rect(marketing, build) or (row or {}).get("rect")
+    install_rect = _install_rect_for_row(label_rect)
+    if install_rect:
+        print(f"  Install rect {install_rect} for {marketing} ({build}) "
+              f"label {label_rect}")
+        return ui._tap_point(
+            float(install_rect.get("x", 0)) + float(install_rect.get("width", 0)) / 2,
+            float(install_rect.get("y", 0)) + float(install_rect.get("height", 0)) / 2,
+        )
+    if not label_rect:
+        return False
+    # Last resort: screen-right at the label's row, in WDA points — not 88%
+    # of a narrow version-text rect, which misses the pill.
+    width, _height = ui.screen_size()
+    scale = ui.point_scale() or 1.0
+    x = (width / scale) * 0.86
+    y = float(label_rect.get("y", 0)) + float(label_rect.get("height", 0)) / 2
+    print(f"  Install fallback tap at ({x:.0f}, {y:.0f}) for "
+          f"{marketing} ({build}) label {label_rect}")
+    return ui._tap_point(x, y)
+
+
+def install_current_build(marketing, build, row=None, timeout=600.0):
+    """Tap Install on the chosen row and wait until that build is installed."""
     deadline = time.time() + timeout
-    tapped = False
+    last_tap = 0.0
     while time.time() < deadline:
         installed = app_installed()
         if installed is None:
@@ -397,18 +541,12 @@ def install_current_build(marketing, build, timeout=600.0):
         current_marketing, current_build = installed
         if current_build == build:
             return True
-        if not tapped:
-            for action in _ACTION_NAMES:
-                if _tap_label(action, timeout=1.0):
-                    tapped = True
-                    break
-        if tapped:
-            installed = app_installed()
-            if installed is None:
-                time.sleep(3.0)
-                continue
-            current_marketing, current_build = installed
-            if current_build == build:
-                return True
+        if time.time() - last_tap >= 15.0:
+            if _tap_install_for_build(marketing, build, row=row):
+                last_tap = time.time()
+                print(f"  tapped Install on {marketing} ({build})")
+            else:
+                _scroll(down=False)
         time.sleep(3.0)
+    ui.shoot("TestFlightInstallTimeout")
     return False

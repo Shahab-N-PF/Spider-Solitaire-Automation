@@ -58,13 +58,13 @@ export DEVICE_UDID=00008030-001C51DA0E80A02E   # keep the phone online
 set) and exits 2 with a readable message rather than failing test-by-test.
 
 The full run starts with `installFromTestFlight`: it brings the phone online,
-opens TestFlight, selects the top entry under Previous Builds, and installs it
-only when the build number in parentheses is odd. TestFlight must be installed
-and signed in, and the Spider invite must already be accepted. The test
-uninstalls Spider only after the odd-build check; an even newest build fails
-without changing the existing installation. It leaves Spider unopened so
-`verifyFirstLaunch` can handle the fresh-install gates. Run it alone with
-`./.venv/bin/python tests/installFromTestFlight.py`.
+opens TestFlight, scans every individual entry under Previous Builds, and
+installs the greatest build whose number in parentheses is odd. TestFlight
+must be installed and signed in, and the Spider invite must already be
+accepted. The test uninstalls Spider only after finding an odd build; an
+all-even list fails without changing the existing installation. It leaves
+Spider unopened so `verifyFirstLaunch` can handle the fresh-install gates.
+Run it alone with `./.venv/bin/python tests/installFromTestFlight.py`.
 
 After a run, open `log/spider_regression.html` for the self-contained
 regression report. It has one expandable card for every TestRail case, the
@@ -193,7 +193,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 
 | Test | What it asserts |
 |---|---|
-| `installFromTestFlight` | while online, opens TestFlight, selects the newest top-listed Previous Builds entry, and installs it only when its parenthesized build number is odd. Leaves Spider unopened for `verifyFirstLaunch`; an even newest build leaves the existing installation untouched |
+| `installFromTestFlight` | while online, opens TestFlight, scans every Previous Builds entry, selects the greatest odd parenthesized build number regardless of list position, and installs that row. Leaves Spider unopened for `verifyFirstLaunch`; an all-even list leaves the existing installation untouched |
 | `verifyMainMenu` | all 7 menu controls + logo render *simultaneously* (polled — a launch toast and sparkle can briefly hide one) |
 | `verifyStatsPage` | Statistics renders, Game Center present, scrolls end to end to "Reset Statistics" (not tapped) |
 | `verifyOptions` | Options opens with Contact Us present, then **four named rows** are *operated*: **Applause Volume** and **Card Lowering** (sliders) each drag to both ends and to mid-track, **Auto Mute Sounds** (ships ON) and **Use Hearts** (ships OFF) each flip and report the new state, and a changed slider value survives leaving the screen and returning. All four are then **reset to fixed values — on failure too** |
@@ -202,7 +202,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyMoreGamesBtn` | the in-app cross-promo page opens, **scrolls** (one swipe, revealing FreeCell + Spiderette below the fold) and returns |
 | `verifyMoreGamesIcons` | brings the device online, then checks all 5 promo icons are present, **each one opens the App Store**, switching back (never killing the app) returns to the menu, and each opens the **right game**, asserted on the store page's **name** read from its accessibility tree. Identical store pages fail instead of skipping destination verification. The old "5 different pages" check survived a swap; the name check does not, and `--selftest` proves that offline. Needs a completed game first — runs after `verifyDifficultyLevels` and before the destructive reset |
 | `openDebugTools` | 5 rapid taps on the About emblem reveal the "Dev Panel" button, bottom-right. Does **not** restart the app (it clears a prior unlock with a toggle-off burst instead), and leaves the button ON for `verifyVictory` and `verifyDifficultyLevels` |
-| `verifyChooseLook` | Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
+| `verifyChooseLook` | starts **offline** (Airplane Mode + Wi-Fi off) and **Homes then kills** the app the way `verifyRelaunch` does, then force-launches to the menu. Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
 | `verifyAbandonNo` | with a paused game, declining the abandon confirmation keeps the difficulty picker open, does not start a new game, and leaves the paused game available |
 | `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
@@ -211,7 +211,7 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyResetCancelled` | opens Reset Statistics, presses No, confirms the card closes, Statistics remains open, and the score region is unchanged |
 | `resetStats` | reset link + both confirmations, then back to the menu. **DESTRUCTIVE** — wipes local statistics, so it runs **last** |
 | `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
-| `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score. The first tap of either can raise a Game Center notice card ("scores may take a little time to upload") instead of the sheet — OK that card, then tap the same link again (online, opt-in) |
+| `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score. The first tap of either can raise a Game Center notice card ("scores may take a little time to upload") instead of the sheet — OK that card and the sheet opens directly (online, opt-in) |
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. Three findings: the Home press is load-bearing (without it the app comes back on the **menu**, because it writes its state on backgrounding), the restored game comes back **paused behind a "tap a card to start"**, and the restored board is **not redrawn pixel-identically** — a per-pixel diff called an identical deal 9-12% changed (standalone, not in `run_all`) |
 | `verifyHelpShift` | Contact Us leaves Options for Helpshift. In `run_all` this half stays **offline**: the capture is the no-network redirect (`log/HelpShift.png`), and the loaded page is not asserted |
 | `verifyHelpShiftOnline` | Last in `run_all`. Brings the device **online** and asserts Contact Us opens **PeopleFun Support** (`log/HelpShiftOnline.png`). Standalone: `verifyHelpShift.py --online` |
