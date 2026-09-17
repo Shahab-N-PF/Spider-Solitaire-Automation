@@ -298,6 +298,9 @@ def open_testflight():
     # TestFlight can reopen on the last detail page.  The Apps tab is the
     # stable way back to the list, and is harmless when already selected.
     _tap_label("Apps", timeout=4.0)
+    # The Apps list stays on a spinner after a Settings Wi-Fi hand-off when
+    # the network is slow; wait before hunting for Spider.
+    time.sleep(10)
     return True
 
 
