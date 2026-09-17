@@ -66,14 +66,15 @@ all-even list fails without changing the existing installation. It leaves
 Spider unopened so `verifyFirstLaunch` can handle the fresh-install gates.
 Run it alone with `./.venv/bin/python tests/installFromTestFlight.py`.
 
-After a run, open `log/spider_regression.html` for the self-contained
-regression report. It has one expandable card for every TestRail case, the
-parent test's PASS/FAIL result, and the screenshots that test captured. The
+After a run, open `log/spider_regression.html` for the lightweight,
+self-contained regression dashboard. It has one expandable card for every
+TestRail case and the parent test's PASS/FAIL result. Screenshots are not
+embedded; the original captures remain available separately in `log/`. The
 standalone cases appear as SKIPPED until they are run through the runner, for
 example `run_all.py verifyAds`; a direct `python tests/verifyAds.py` run does
 not update the report ledger. `triggerAdPoints` is the exception: it writes
-each named check (TA-01..TA-08, TA-10) into that ledger itself, so a FAQ miss can
-fail TA-10 without failing the parent case. TA-09 is commented out of the
+each named check (TA-01..TA-08, TA-10) into that ledger itself, so a FAQ miss
+can fail TA-10 without failing the parent case. TA-09 is commented out of the
 TestRail catalog — Resume no longer fires an ad.
 
 The report is generated from `log/run_results.json`. Subset runs merge their

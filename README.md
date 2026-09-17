@@ -104,10 +104,11 @@ signed in, and have the Spider invite accepted. No functional failures are
 expected; a failed case is a product or rig regression. Full detail:
 `tests/README.md`.
 
-The run also writes `log/spider_regression.html`, a self-contained HTML report
-with one expandable result card per TestRail case and the screenshots captured
-by its automated parent test. Standalone cases remain SKIPPED until run through
-the runner, for example `./.venv/bin/python tests/run_all.py verifyAds`.
+The run also writes `log/spider_regression.html`, a lightweight, self-contained
+HTML dashboard with one expandable result card per TestRail case. Screenshots
+are not embedded in the report; the original captures remain available
+separately in `log/`. Standalone cases remain SKIPPED until run through the
+runner, for example `./.venv/bin/python tests/run_all.py verifyAds`.
 
 > **WDA must be running** (`./scripts/wda.sh`, own tab) and the **iPhone
 > unlocked** for any of this to work — WDA listens on `http://127.0.0.1:8100`.
