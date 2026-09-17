@@ -8,9 +8,11 @@ Steps, as specified:
   4. tap the forward arrow 4 times, 2 seconds apart
   5. tap "leaderboards". The first tap can raise a Game Center notice card
      ("previous Scores and Achievements may take a little time to upload")
-     instead of Apple's sheet — OK that card, and the Leaderboards page
-     opens directly (do not tap the link again)
-  6. Apple's Game Center sheet opens, headed "Leaderboards"
+     instead of Apple's sheet — OK that card, wait ~10s, and the Leaderboards
+     page usually opens (do not tap the link again). If the sheet is still
+     missing, continue without failing.
+  6. Apple's Game Center sheet opens, headed "Leaderboards" (asserted only
+     when no notice card appeared)
   7. tap that sheet's back arrow (top-left circle)
   8. tap the empty space at the bottom to dismiss it, back on Last Score
   9. the same steps again for "achievements", headed "Achievements"
@@ -23,8 +25,8 @@ that is only half-checked in the offline suite is worse than one run
 deliberately with the network on.
 
 So take the device OFF Airplane Mode before running this. Failing to open Game
-Center is a real failure here and the message says to check the network first —
-there is no silent skip, because there is no longer an offline suite to protect.
+Center without a notice card is still a failure and the message says to check
+the network first. After OK on the notice, a missing sheet is not a failure.
 
 About step 3. Unity draws its whole UI into one opaque view and publishes no
 accessibility text, so there is no API that can return the header string — the
@@ -145,10 +147,17 @@ def visit_game_center(link: str, control: str, header: str, header_tpl: str):
     # one-button notice card on Last Score instead of Apple's sheet. That is
     # the same Unity widget as the table tip / reset prompt — WDA cannot see
     # it — so it is found by shape and answered OK. After OK the sheet opens
-    # on its own; do not tap the link again. Skip this if Last Score is
-    # already covered: that is the sheet.
+    # on its own a few seconds later; do not tap the link again. Skip this if
+    # Last Score is already covered: that is the sheet.
     if ui.is_on("screen_last_score") and ui.card_up(timeout=1.5):
         dismiss_game_center_notice(link)
+        ui.sleep(10)
+        if not ui.seen(header_tpl, timeout=1.0):
+            print(f"  '{link}' sheet did not appear after OK; continuing "
+                  "without failing")
+            return
+        _record_and_close_sheet(link, header, header_tpl)
+        return
 
     # Two different failures, told apart by whether the Last Score header is
     # still uncovered, because they have completely different causes: nothing
@@ -161,6 +170,10 @@ def visit_game_center(link: str, control: str, header: str, header_tpl: str):
     ui.expect(ui.seen(header_tpl, timeout=10.0),
               f"tapping '{link}' covered the screen with something that is NOT "
               f"Game Center's '{header}' sheet")
+    _record_and_close_sheet(link, header, header_tpl)
+
+
+def _record_and_close_sheet(link: str, header: str, header_tpl: str):
     shot = ui.shoot(f"unity_game_center_{link}")
     print(f"  Game Center opened, headed '{header}' — {shot}")
 

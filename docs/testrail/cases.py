@@ -786,16 +786,19 @@ CASES = [
            "The table appears with no ad."),
       ],
       priority="High"),
-    C("TA-09", "Ads - Starting a game after 30s on the menu shows an ad",
-      f"{S} > Ads",
-      [
-          ("Leave a table with Back after more than 30 seconds, close "
-           "that ad onto the menu, stay on the menu more than 30 "
-           "seconds, then resume or deal.",
-           "An ad plays as you enter the game. This is the menu wait, "
-           "not the same as the leave-game ad."),
-      ],
-      priority="High"),
+    # TA-09 retired: Resume no longer fires an interstitial, so a long menu
+    # dwell followed by Resume is not a trigger. Kept here commented so the
+    # case is neither executed nor listed in the regression report.
+    # C("TA-09", "Ads - Starting a game after 30s on the menu shows an ad",
+    #   f"{S} > Ads",
+    #   [
+    #       ("Leave a table with Back after more than 30 seconds, close "
+    #        "that ad onto the menu, stay on the menu more than 30 "
+    #        "seconds, then resume or deal.",
+    #        "An ad plays as you enter the game. This is the menu wait, "
+    #        "not the same as the leave-game ad."),
+    #   ],
+    #   priority="High"),
     C("TA-10", "Ads - Over 30s on the table, FAQ shows an ad",
       f"{S} > Ads",
       [

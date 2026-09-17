@@ -23,10 +23,10 @@ FL-05,Launch - Privacy Policy link opens the privacy page,Spider Solitaire Unity
 2. The banner is gone and the Privacy Notice heading is fully visible.
 3. The Terms & Conditions card is still there. Continue is checked separately in FL-02.",Manual
 FL-06,Launch - Latest odd TestFlight build installs,Spider Solitaire Unity > Launch,Functional,High,"1. Open TestFlight and tap Spider / Spider Solitaire.
-2. Scroll to Previous Builds and tap it. Tap the top row.
-3. If that page's version in parentheses is odd, delete Spider if it is installed, then tap Install and wait. If it is even, stop.","1. The TestFlight page for this game is showing.
-2. The newest build's page is showing.
-3. The odd build installs. An even newest build leaves the existing Spider installation unchanged.",Manual
+2. Scroll to Previous Builds and tap it. Review all individual build rows.
+3. If an odd build exists, delete Spider if it is installed, then tap Install for that exact row and wait. If all builds are even, stop.","1. The TestFlight page for this game is showing.
+2. The greatest odd-numbered build is identified, regardless of where it appears in the list.
+3. The greatest odd build installs. An all-even list leaves the existing Spider installation unchanged.",Manual
 MM-01,Main Menu - All eight controls are visible,Spider Solitaire Unity > Main Menu,Functional,High,1. Open the app and wait until the menu finishes animating (a Game Center toast or sparkle can hide a label for a moment).,"1. Play, Stats, Options, Help, About, More Games, Choose Look, and the Spider logo are all on screen.",Manual
 ST-01,Statistics - Opens from the main menu,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.",1. The Statistics screen opens. The header reads Statistics. The main menu is gone.,Manual
 ST-03,Statistics - Page scrolls down to Reset Statistics,Spider Solitaire Unity > Statistics,Functional,Medium,"1. From the main menu, tap Stats.
@@ -150,15 +150,14 @@ TA-05,Ads - New within 30s of the Victory ad has no ad,Spider Solitaire Unity > 
 TA-06,Ads - New after 30s on Victory shows an ad,Spider Solitaire Unity > Ads,Functional,High,"1. Win again with Complete Game after more than 30 seconds on the table. Close that Victory ad, stay on Victory more than 30 seconds, then tap New.","1. An ad plays before the next table. Close the store X, then the ad X.",Manual
 TA-07,"Ads - Over 30s on the table, Back shows an ad then the menu",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds and tap Back.,"1. An ad plays. After the store X and the ad X, you are on the main menu — not the table.",Manual
 TA-08,Ads - Starting a game within 30s on the menu has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. After the Back ad closed onto the menu, wait under 30 seconds and resume or deal a game.",1. The table appears with no ad.,Manual
-TA-09,Ads - Starting a game after 30s on the menu shows an ad,Spider Solitaire Unity > Ads,Functional,High,"1. Leave a table with Back after more than 30 seconds, close that ad onto the menu, stay on the menu more than 30 seconds, then resume or deal.","1. An ad plays as you enter the game. This is the menu wait, not the same as the leave-game ad.",Manual
 TA-10,"Ads - Over 30s on the table, FAQ shows an ad",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds. Open the in-game menu and tap FAQ.,1. An ad plays. After it closes you can get back to the table.,Manual
 LS-01,Last Score - LAST SCORE opens Last Won Game Score,Spider Solitaire Unity > Last Score,Functional,Medium,"1. From the menu, tap Play, then LAST SCORE. Wi-Fi should be on.",1. A ranking screen opens. The header reads Last Won Game Score.,Manual
 LS-02,"Last Score - Arrow cycles week, month, overall, day",Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Won Game Score, tap the forward arrow beside ranking for four times, about two seconds apart.",1. The period moves week → month → overall → day → week. You stay on Last Won Game Score — the arrow must not leave the screen.,Manual
 LS-03,Last Score - Leaderboards opens Game Center,Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Score, tap leaderboards. You need a signed-in Apple ID.
-2. Tap Game Center's back arrow, then dismiss the sheet.","1. Game Center opens, headed Leaderboards.
+2. Tap Game Center's back arrow, then dismiss the sheet.","1. Game Center opens, headed Leaderboards. If a notice card appears instead (scores may take a little time to upload), tap OK — Leaderboards opens from that, do not tap the link again.
 2. Last Score is showing again.",Manual
 LS-04,Last Score - Achievements opens Game Center,Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Score, tap achievements.
-2. Tap back and dismiss the sheet.","1. Game Center opens, headed Achievements.
+2. Tap back and dismiss the sheet.","1. Game Center opens, headed Achievements. If the same notice card appears, tap OK — Achievements opens from that, do not tap the link again.
 2. Last Score is showing again.",Manual
 LS-05,Last Score - Back returns to the main menu,Spider Solitaire Unity > Last Score,Functional,Medium,"1. From Last Score, tap Back until you reach the menu.",1. The main menu is showing.,Manual
 AF-01,Ad-free - No leaves you on About,Spider Solitaire Unity > App Store / Mail,Functional,Medium,"1. On About, tap ad free version and tap No on the confirmation.",1. The card closes. Spider stays in front on About and the App Store does not open.,Manual

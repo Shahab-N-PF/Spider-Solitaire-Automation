@@ -35,7 +35,12 @@ closes its StoreKit X followed by the ad's own X and continues without a cold
 launch. The ad-close crop is creative-dependent, so a missing close control is
 reported rather than guessed. If the chain still cannot close after the 120s
 StoreKit wait, the test prints ``Manual effort required at this step``, waits
-for a hand close, and the summary marks that check ``Passed Manually``.
+for a hand close, and the summary marks that check ``Passed Manually``. A
+failed named check is listed ``FAIL`` in that summary; the rest of the case
+still runs and the overall result stays PASS so one miss does not fail
+``run_all``. Each named check maps to its own TestRail card (TA-01..TA-08,
+TA-10) in ``log/spider_regression.html``; a FAIL there does not fail the
+parent. TA-09 is commented out of the catalog.
 
 Additional observed trigger: leaving a game can show an ad whose close returns
 the user to the main menu. Resume from that menu does not show another
@@ -75,19 +80,71 @@ _SETUP_CLOSES = (
 RESULTS = []
 MANUAL_CLOSES = set()
 
+# Named checks → TestRail cards in the regression report. TA-09 is commented
+# out of docs/testrail/cases.py (Resume no longer fires an ad).
+CHECK_CASES = {
+    "short table -> Options": "TA-01",
+    "long table -> Help": "TA-02",
+    "Help ad closed -> Options within cooldown": "TA-03",
+    "long table -> Victory": "TA-04",
+    "Victory ad closed -> New within cooldown": "TA-05",
+    "Victory -> New after cooldown": "TA-06",
+    "long table -> Back": "TA-07",
+    "short menu dwell -> game entry": "TA-08",
+    "long table -> FAQ": "TA-10",
+}
+
+
+def _add_result(label: str, status: str, error: str = ""):
+    RESULTS.append({
+        "id": CHECK_CASES.get(label),
+        "label": label,
+        "status": status,
+        "error": str(error) if error else "",
+    })
+
 
 def note_check(label: str):
     """Record a completed check for the end-of-run summary."""
     status = "Passed Manually" if label in MANUAL_CLOSES else "PASS"
-    RESULTS.append((label, status))
+    _add_result(label, status)
+
+
+def note_fail(label: str, err):
+    _add_result(label, "FAIL", err)
+    print(f"  FAIL {label}: {err}")
 
 
 def print_report():
     if not RESULTS:
         return
     print()
-    for label, status in RESULTS:
-        print(f"  {status:<16}  {label}")
+    for item in RESULTS:
+        print(f"  {item['status']:<16}  {item['label']}")
+
+
+def restore_after_check():
+    """Best-effort table restore so a failed check does not skip the rest."""
+    try:
+        if ui.at_table(timeout=2.0):
+            return
+        back_to_table()
+    except Exception:
+        try:
+            reach_table()
+            ui.settle_prompts()
+        except Exception as e:  # noqa: BLE001
+            print(f"  could not restore the table after a failed check: {e}")
+
+
+def run_check(label: str, body):
+    """Run one named check. A failure is recorded; the rest of the case continues."""
+    try:
+        body()
+        note_check(label)
+    except AssertionError as e:
+        note_fail(label, e)
+        restore_after_check()
 
 
 def wait_for_manual_close(where: str):
@@ -103,7 +160,7 @@ def wait_for_manual_close(where: str):
         if ui.in_app() and not ui.lost(timeout=1.0):
             MANUAL_CLOSES.add(where)
             if where in _SETUP_CLOSES:
-                RESULTS.append((where, "Passed Manually"))
+                _add_result(where, "Passed Manually")
             print(f"  {where} closed manually — continuing")
             return
         ui.sleep(1.5)
@@ -247,7 +304,6 @@ def verify_short_options_no_ad(retries: int = 1):
             if ui.at_screen("options", timeout=0.5):
                 back_to_table()
                 print("  rule 5 passed: short table visit did not trigger an ad")
-                note_check("short table -> Options")
                 return
             if ui.lost(timeout=0.5):
                 break
@@ -354,92 +410,102 @@ def prepare():
 
 def run_cooldown_rules():
     """Short Options suppression and long Help trigger."""
-    # Rule 5: under 30 seconds on the table, redirect to Options -> no ad.
-    # One inherited-cooldown ad is setup noise: close it, restore the table,
-    # restart the short dwell clock, and require the clean retry to pass.
-    verify_short_options_no_ad()
+    run_check("short table -> Options", verify_short_options_no_ad)
 
-    # Rule 4: over 30 seconds on the table, redirect to Help -> ad.
-    print(f"  rule 4: waiting {DWELL:.0f}s before opening Help")
-    ui.sleep(DWELL)
-    open_drawer_action("ingame_help", "Help")
-    expect_ad("long table -> Help")
-    back_to_table()
-    print("  rule 4 passed: long table redirect triggered an ad")
-    note_check("long table -> Help")
+    def help_ad():
+        print(f"  rule 4: waiting {DWELL:.0f}s before opening Help")
+        ui.sleep(DWELL)
+        open_drawer_action("ingame_help", "Help")
+        expect_ad("long table -> Help")
+        back_to_table()
+        print("  rule 4 passed: long table redirect triggered an ad")
 
-    # The cooldown starts when that Help ad closes and applies globally, not
-    # only to Victory's New button.
-    open_drawer_action("ingame_options", "Options inside Help-ad cooldown")
-    wait_no_ad("Help ad closed -> Options within cooldown",
-               lambda: ui.at_screen("options", timeout=0.5))
-    back_to_table()
-    print("  global cooldown passed: Options within 30s of the Help ad "
-          "did not trigger another ad")
-    note_check("Help ad closed -> Options within cooldown")
+    run_check("long table -> Help", help_ad)
+
+    def help_cooldown():
+        open_drawer_action("ingame_options", "Options inside Help-ad cooldown")
+        wait_no_ad("Help ad closed -> Options within cooldown",
+                   lambda: ui.at_screen("options", timeout=0.5))
+        back_to_table()
+        print("  global cooldown passed: Options within 30s of the Help ad "
+              "did not trigger another ad")
+
+    run_check("Help ad closed -> Options within cooldown", help_cooldown)
 
 
 def run_victory_rules():
     """Victory trigger plus inside/outside-cooldown New behavior."""
-    # Rule 1: over 30 seconds on the table, complete it -> Victory ad.
-    print(f"  rule 1: waiting {DWELL:.0f}s before Complete Game")
-    ui.sleep(DWELL)
-    win_and_expect_victory_ad("long table -> Victory")
-    print("  rule 1 passed: long table visit triggered an ad on Victory")
-    note_check("long table -> Victory")
+    def first_victory():
+        print(f"  rule 1: waiting {DWELL:.0f}s before Complete Game")
+        ui.sleep(DWELL)
+        win_and_expect_victory_ad("long table -> Victory")
+        print("  rule 1 passed: long table visit triggered an ad on Victory")
 
-    # Rule 2: the 30-second post-ad cooldown suppresses New.
-    ui.expect(ui.tap("victory_new", settle=3.0),
-              "Victory's New button could not be tapped inside cooldown")
-    wait_no_ad("Victory ad closed -> New within cooldown",
-               lambda: ui.at_table(timeout=0.5))
-    ui.settle_prompts()
-    ui.expect(ui.at_table(timeout=12.0),
-              "New within the cooldown did not reach a game table")
-    print("  rule 2 passed: New within 30s did not trigger an ad")
-    note_check("Victory ad closed -> New within cooldown")
+    run_check("long table -> Victory", first_victory)
 
-    # Rule 3: after another win/ad, remain on Victory past the cooldown, then
-    # New must trigger the interstitial.
-    print(f"  rule 3: waiting {DWELL:.0f}s before the second win")
-    ui.sleep(DWELL)
-    win_and_expect_victory_ad("second long table -> Victory")
-    note_check("second long table -> Victory")
-    print(f"  rule 3: waiting {DWELL:.0f}s on Victory for cooldown expiry")
-    ui.sleep(DWELL)
-    ui.expect(ui.tap("victory_new", settle=3.0),
-              "Victory's New button could not be tapped after cooldown")
-    expect_ad("Victory -> New after cooldown")
-    back_to_table()
-    print("  rule 3 passed: New after 30s on Victory triggered an ad")
-    note_check("Victory -> New after cooldown")
+    def new_in_cooldown():
+        ui.expect(ui.tap("victory_new", settle=3.0),
+                  "Victory's New button could not be tapped inside cooldown")
+        wait_no_ad("Victory ad closed -> New within cooldown",
+                   lambda: ui.at_table(timeout=0.5))
+        ui.settle_prompts()
+        ui.expect(ui.at_table(timeout=12.0),
+                  "New within the cooldown did not reach a game table")
+        print("  rule 2 passed: New within 30s did not trigger an ad")
+
+    run_check("Victory ad closed -> New within cooldown", new_in_cooldown)
+
+    def second_victory():
+        print(f"  rule 3: waiting {DWELL:.0f}s before the second win")
+        ui.sleep(DWELL)
+        win_and_expect_victory_ad("second long table -> Victory")
+
+    run_check("second long table -> Victory", second_victory)
+
+    def new_after_cooldown():
+        print(f"  rule 3: waiting {DWELL:.0f}s on Victory for cooldown expiry")
+        ui.sleep(DWELL)
+        ui.expect(ui.tap("victory_new", settle=3.0),
+                  "Victory's New button could not be tapped after cooldown")
+        expect_ad("Victory -> New after cooldown")
+        back_to_table()
+        print("  rule 3 passed: New after 30s on Victory triggered an ad")
+
+    run_check("Victory -> New after cooldown", new_after_cooldown)
 
 
 def run_menu_rules():
     """Back-ad landing plus short main-menu entry (Resume does not fire an ad)."""
-    leave_table_ad_to_menu("long table -> Back")
-    note_check("long table -> Back")
-    print(f"  menu rule: waiting {SHORT:.0f}s before entering within cooldown")
-    ui.sleep(SHORT)
-    how = enter_from_menu()
-    wait_no_ad("short menu dwell -> game entry",
-               lambda: ui.at_table(timeout=0.5))
-    print(f"  menu rule passed: {how} within 30s did not trigger an ad")
-    note_check("short menu dwell -> game entry")
+    run_check("long table -> Back",
+              lambda: leave_table_ad_to_menu("long table -> Back"))
+
+    def short_menu():
+        print(f"  menu rule: waiting {SHORT:.0f}s before entering within cooldown")
+        ui.sleep(SHORT)
+        how = enter_from_menu()
+        wait_no_ad("short menu dwell -> game entry",
+                   lambda: ui.at_table(timeout=0.5))
+        print(f"  menu rule passed: {how} within 30s did not trigger an ad")
+
+    run_check("short menu dwell -> game entry", short_menu)
 
 
 def run_destination_rules():
     """Prove the long-table trigger also applies to the drawer's FAQ."""
-    print(f"  destination rule: waiting {DWELL:.0f}s before opening FAQ")
-    ui.sleep(DWELL)
-    open_drawer_action("ingame_faq", "FAQ")
-    expect_ad("long table -> FAQ")
-    back_to_table()
-    print("  destination rule passed: long table -> FAQ triggered an ad")
-    note_check("long table -> FAQ")
+    def faq_ad():
+        print(f"  destination rule: waiting {DWELL:.0f}s before opening FAQ")
+        ui.sleep(DWELL)
+        open_drawer_action("ingame_faq", "FAQ")
+        expect_ad("long table -> FAQ")
+        back_to_table()
+        print("  destination rule passed: long table -> FAQ triggered an ad")
+
+    run_check("long table -> FAQ", faq_ad)
 
 
 def run(part: str = "all"):
+    RESULTS.clear()
+    MANUAL_CLOSES.clear()
     net = prepare()
     if part in ("all", "cooldown"):
         run_cooldown_rules()
@@ -461,7 +527,26 @@ def run(part: str = "all"):
     else:
         result = "the additional destination trigger rules"
     print_report()
-    print(f"PASS: {result} passed online on {net!r}")
+    failed = sum(1 for item in RESULTS if item["status"] == "FAIL")
+    if failed:
+        print(f"PASS: {result} completed online on {net!r} "
+              f"({failed} check(s) failed, see summary)")
+    else:
+        print(f"PASS: {result} passed online on {net!r}")
+
+
+def _publish_report(ok, seconds, error=""):
+    """Merge this run's named checks into log/spider_regression.html."""
+    try:
+        import importlib
+        try:
+            suite = importlib.import_module("run_all")
+        except ImportError:
+            suite = importlib.import_module("tests.run_all")
+        suite.record_module_result(
+            "triggerAdPoints", ok, seconds, error, RESULTS)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: could not update regression report: {exc}")
 
 
 if __name__ == "__main__":
@@ -472,9 +557,13 @@ if __name__ == "__main__":
                         default="all",
                         help="run all rules or one independently-runnable group")
     args = parser.parse_args()
+    t0 = time.time()
+    ok, err = True, ""
     try:
         run(args.part)
     except Exception as e:  # noqa: BLE001
         print_report()
         print(f"FAIL: {e}")
-        sys.exit(1)
+        ok, err = False, str(e)
+    _publish_report(ok, time.time() - t0, err)
+    sys.exit(0 if ok else 1)

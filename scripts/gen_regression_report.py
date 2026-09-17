@@ -151,7 +151,7 @@ CASE_CATALOG = OrderedDict([
     ("triggerAdPoints", {
         "ids": [
             "TA-01", "TA-02", "TA-03", "TA-04", "TA-05",
-            "TA-06", "TA-07", "TA-08", "TA-09", "TA-10",
+            "TA-06", "TA-07", "TA-08", "TA-10",
         ],
         "shots": ["ad_back_on_table.png"],
     }),
@@ -243,6 +243,7 @@ body[data-filter="skipped"] .group:not([data-has~="skipped"]) { display:none; }
   margin-bottom:8px; overflow:hidden; border-left:8px solid #6f9e7a; }
 .case.failed { border-left-color:#b85a48; }
 .case.skipped { border-left-color:#d4b483; }
+.case.passed_manually { border-left-color:#c9a46c; }
 summary { list-style:none; cursor:pointer; display:flex; align-items:center;
   gap:12px; padding:12px 14px; }
 summary::-webkit-details-marker { display:none; }
@@ -342,10 +343,29 @@ def _chip(label, value):
             f'<span class="v">{html.escape(str(value or "—"))}</span></div>')
 
 
-def _status(parent, results):
+CHECK_STATUS = {
+    "PASS": "passed",
+    "FAIL": "failed",
+    "Passed Manually": "passed_manually",
+}
+
+
+def _status(parent, results, case_id=None):
     result = results.get(parent)
     if not result:
         return "skipped", None
+    checks = result.get("checks") or []
+    if case_id and checks:
+        match = next((c for c in checks if c.get("id") == case_id), None)
+        if match:
+            status = CHECK_STATUS.get(match.get("status"), "passed")
+            merged = dict(result)
+            merged["error"] = match.get("error") or ""
+            merged["check"] = match
+            return status, merged
+        if result.get("ok"):
+            return "skipped", result
+        return "failed", result
     return ("passed" if result.get("ok") else "failed"), result
 
 
@@ -353,6 +373,7 @@ STATUS_PILL = {
     "passed": "#6f9e7a",
     "failed": "#b85a48",
     "skipped": "#d4b483",
+    "passed_manually": "#c9a46c",
 }
 
 
@@ -369,14 +390,27 @@ def _case_card(case, parent, spec, status, result, uri_cache, open_failed=True):
     duration = _format_duration(result.get("seconds") if result else None)
     color = STATUS_PILL[status]
     detail = []
+    check = (result or {}).get("check") or {}
     if status == "skipped":
-        detail.append(
-            f'<p class="noshot">Not run in this invocation. '
-            f'Run <code>run_all.py {html.escape(parent)}</code> to '
-            "populate this case.</p>"
-        )
+        if result:
+            detail.append(
+                '<p class="noshot">Not exercised in this run. '
+                f'<code>{html.escape(parent)}</code> completed without '
+                "this check.</p>"
+            )
+        else:
+            detail.append(
+                f'<p class="noshot">Not run in this invocation. '
+                f'Run <code>run_all.py {html.escape(parent)}</code> to '
+                "populate this case.</p>"
+            )
     elif result and result.get("error"):
         detail.append(f'<pre class="msg">{html.escape(result["error"])}</pre>')
+    elif status == "passed_manually":
+        detail.append(
+            '<p class="noshot">Closed by hand after the automated closer '
+            "could not match the interstitial.</p>"
+        )
 
     shot_names = _shots_for(case_id, spec)
     found = []
@@ -407,13 +441,18 @@ def _case_card(case, parent, spec, status, result, uri_cache, open_failed=True):
     elif found:
         detail.append(f'<div class="shots">{"".join(found)}</div>')
     opened = " open" if (open_failed and status == "failed") else ""
+    css_class = "passed passed_manually" if status == "passed_manually" else status
+    pill = "passed manually" if status == "passed_manually" else status
+    parent_line = html.escape(parent)
+    if check.get("label"):
+        parent_line += f' · {html.escape(check["label"])}'
     return (
-        f'<details class="case {status}"{opened}>'
+        f'<details class="case {css_class}"{opened}>'
         f'<summary><span class="title">{title}</span>'
-        f'<span class="pill" style="background:{color}">{status}</span>'
+        f'<span class="pill" style="background:{color}">{pill}</span>'
         f'<span class="dur">{duration}</span></summary>'
         f'<div class="detail"><div class="evidence">Automated parent: '
-        f'{html.escape(parent)}</div>{"".join(detail)}</div></details>'
+        f'{parent_line}</div>{"".join(detail)}</div></details>'
     )
 
 
@@ -507,8 +546,9 @@ def build(results_path=None, out_path=None):
         case_id = case["id"]
         parent = mapped[case_id]
         spec = CASE_CATALOG[parent]
-        status, result = _status(parent, result_by_name)
-        counts[status] += 1
+        status, result = _status(parent, result_by_name, case_id)
+        count_key = "passed" if status == "passed_manually" else status
+        counts[count_key] += 1
         row = (case, parent, spec, status, result)
         cards_by_section.setdefault(case["section"].split(" > ")[-1], []).append(row)
         if status == "failed":
@@ -525,9 +565,15 @@ def build(results_path=None, out_path=None):
         body.append("</section>")
 
     for section, section_cases in cards_by_section.items():
-        passed = sum(status == "passed" for _, _, _, status, _ in section_cases)
+        passed = sum(
+            status in ("passed", "passed_manually")
+            for _, _, _, status, _ in section_cases
+        )
         total = len(section_cases)
-        present = " ".join(sorted({status for _, _, _, status, _ in section_cases}))
+        present = {status for _, _, _, status, _ in section_cases}
+        if "passed_manually" in present:
+            present.add("passed")
+        present = " ".join(sorted(present))
         body.append(f'<section class="group" data-has="{present}">')
         body.append(
             f'<h2 class="sec">{html.escape(section)}'

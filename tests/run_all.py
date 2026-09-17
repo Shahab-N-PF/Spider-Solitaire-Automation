@@ -211,6 +211,36 @@ def _screen_size_from_log():
         return ""
 
 
+def _module_checks(mod):
+    """Copy a test module's named-check RESULTS into the report ledger."""
+    raw = getattr(mod, "RESULTS", None)
+    if not isinstance(raw, list) or not raw:
+        return []
+    checks = []
+    for item in raw:
+        if isinstance(item, dict) and item.get("label"):
+            checks.append({
+                "id": item.get("id") or None,
+                "label": item["label"],
+                "status": item.get("status") or "PASS",
+                "error": item.get("error") or "",
+            })
+        elif isinstance(item, (tuple, list)) and len(item) >= 2:
+            checks.append({
+                "id": None,
+                "label": item[0],
+                "status": item[1],
+                "error": item[2] if len(item) > 2 else "",
+            })
+    return checks
+
+
+def _unpack_result(item):
+    name, ok, seconds, error, *rest = item
+    checks = rest[0] if rest else []
+    return name, ok, seconds, error, checks or []
+
+
 def _write_run_results(results, started_at):
     """Merge this invocation into the JSON consumed by the HTML generator."""
     os.makedirs(config.LOG, exist_ok=True)
@@ -227,14 +257,18 @@ def _write_run_results(results, started_at):
     }
     run_finished = time.time()
     run_at = _iso_now(run_finished)
-    for name, ok, seconds, error in results:
-        tests[name] = {
+    for item in results:
+        name, ok, seconds, error, checks = _unpack_result(item)
+        entry = {
             "name": name,
             "ok": bool(ok),
             "seconds": round(seconds, 3),
             "error": error,
             "run_at": run_at,
         }
+        if checks:
+            entry["checks"] = checks
+        tests[name] = entry
 
     ordered_names = list(dict.fromkeys(TESTS + list(tests)))
     payload = {
@@ -255,6 +289,16 @@ def _write_run_results(results, started_at):
         json.dump(payload, fh, indent=2, sort_keys=False)
         fh.write("\n")
     return payload
+
+
+def record_module_result(name, ok, seconds, error="", checks=None):
+    """Merge one standalone test (and its named checks) into the HTML report."""
+    started_at = time.time() - max(float(seconds or 0), 0)
+    _write_run_results(
+        [(name, bool(ok), seconds, error or "", checks or [])],
+        started_at,
+    )
+    _write_regression_report()
 
 
 def _write_regression_report():
@@ -389,10 +433,12 @@ def main():
         os.environ["TEST_NAME"] = name
         try:
             mod.run()
-            results.append((name, True, time.time() - t0, ""))
+            results.append(
+                (name, True, time.time() - t0, "", _module_checks(mod)))
         except Exception as e:  # noqa: BLE001
             print(f"FAIL: {e}")
-            results.append((name, False, time.time() - t0, str(e)))
+            results.append(
+                (name, False, time.time() - t0, str(e), _module_checks(mod)))
         finally:
             if previous_test is None:
                 os.environ.pop("TEST_NAME", None)
@@ -402,18 +448,25 @@ def main():
 
     print("\n" + "=" * 56)
     print("  functional tests (Unity build)")
-    passed = sum(1 for _, ok, _, _ in results if ok)
+    passed = sum(1 for item in results if _unpack_result(item)[1])
     unexpected = 0
-    for name, ok, dt, _ in results:
+    for item in results:
+        name, ok, dt, _, checks = _unpack_result(item)
         note = ""
+        failed_checks = sum(1 for c in checks if c.get("status") == "FAIL")
         if not ok and name in KNOWN_UNITY_GAPS:
             note = "   [known Unity gap]"
         elif not ok:
             unexpected += 1
+        elif failed_checks:
+            note = f"   [{failed_checks} check(s) failed]"
         print(f"  {'PASS' if ok else 'FAIL'}  {name:24} ({dt:5.1f}s){note}")
     print(f"  {passed}/{len(results)} passed")
 
-    gaps = [n for n, ok, _, _ in results if not ok and n in KNOWN_UNITY_GAPS]
+    gaps = [
+        name for name, ok, _, _, _ in (_unpack_result(item) for item in results)
+        if not ok and name in KNOWN_UNITY_GAPS
+    ]
     if gaps:
         print("\n  known Unity port gaps (expected failures, not rig problems):")
         for n in gaps:
