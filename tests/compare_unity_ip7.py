@@ -194,7 +194,7 @@ def _write_diff(name, changed, mask, frac):
     annotated[~mask] = (annotated[~mask] * 0.6).astype("uint8")
     combo = np.hstack([
         visual._label(base, "iPhone 7  -  Obj-C 7.42.5", "baseline"),
-        visual._label(annotated, "iPhone 7  -  Unity 8.0.0",
+        visual._label(annotated, "iPhone 7  -  Unity 8.0.2",
                       f"{frac * 100:.1f}% of compared pixels differ (red)"),
     ])
     out = os.path.join(config.LOG, "diff_ip7_" + name)

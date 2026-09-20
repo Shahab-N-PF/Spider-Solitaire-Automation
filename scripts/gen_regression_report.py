@@ -263,7 +263,8 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 }
 .filter:hover { transform:translateY(-1px); border-color:#acb7c7; }
 .filter:focus-visible,summary:focus-visible,.tool-button:focus-visible,
-.case-search input:focus-visible,.section-link:focus-visible {
+.case-search input:focus-visible,.section-link:focus-visible,
+.status-edit:focus-visible {
   outline:3px solid rgba(230,97,63,.24); outline-offset:2px;
 }
 .filter b { color:var(--ink); margin-left:3px; }
@@ -338,6 +339,18 @@ details[open] summary::after { transform:rotate(225deg) translate(-1px,-1px); }
 .failed .pill { color:var(--fail); background:var(--fail-bg); }
 .skipped .pill { color:var(--skip); background:var(--skip-bg); }
 .passed_manually .pill { color:var(--manual); background:var(--manual-bg); }
+.status-edit {
+  appearance:none; -webkit-appearance:none; cursor:pointer; flex:0 0 auto;
+  max-width:154px; padding:4px 20px 4px 8px; border:0; border-radius:999px;
+  font:inherit; font-size:9px; font-weight:780; letter-spacing:.4px;
+  text-transform:uppercase; white-space:nowrap;
+  background-repeat:no-repeat; background-position:right 7px center;
+  background-size:8px 8px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23786d66' d='M1 2.5l3 3 3-3'/%3E%3C/svg%3E");
+}
+.failed .status-edit { color:var(--fail); background-color:var(--fail-bg); }
+.skipped .status-edit { color:var(--skip); background-color:var(--skip-bg); }
+.passed_manually .status-edit { color:var(--manual); background-color:var(--manual-bg); }
 .dur { color:var(--muted); font-size:11px; min-width:58px; text-align:right; }
 .detail { padding:0 14px 14px 99px; }
 .note { color:var(--muted); font-size:12px; line-height:1.55; margin:0; }
@@ -377,6 +390,7 @@ footer { color:var(--muted); font-size:11px; text-align:center; margin-top:30px;
   .metric-head { font-size:10px; }
   .metric-value { font-size:26px; }
   .pill { display:none; }
+  .status-edit { display:inline-block; font-size:8px; max-width:132px; }
   .hero-stat { gap:14px; }
   .donut { width:110px; height:110px; flex-basis:110px; }
   .donut-hole { width:72px; height:72px; }
@@ -501,6 +515,28 @@ def _section_id(label):
     return f"section-{slug or 'cases'}"
 
 
+def _status_control(case_id, status):
+    """Editable badge for failed/skipped cards; static pill otherwise."""
+    if status not in ("failed", "skipped"):
+        pill = "passed manually" if status == "passed_manually" else status
+        return f'<span class="pill">{html.escape(pill)}</span>'
+    if status == "failed":
+        options = (
+            '<option value="failed" selected>Failed</option>'
+            '<option value="passed_manually">Passed manually</option>'
+        )
+    else:
+        options = (
+            '<option value="skipped" selected>Skipped</option>'
+            '<option value="passed_manually">Passed manually</option>'
+        )
+    safe_id = html.escape(case_id)
+    return (
+        f'<select class="status-edit" aria-label="Set status for {safe_id}">'
+        f'{options}</select>'
+    )
+
+
 def _case_card(case, parent, status, result, open_failed=True):
     """One expandable TestRail card, optionally opened when the case failed."""
     case_id = case["id"]
@@ -528,6 +564,11 @@ def _case_card(case, parent, status, result, open_failed=True):
             '<p class="note">Closed by hand after the automated closer '
             "could not match the interstitial.</p>"
         )
+    if status in ("failed", "skipped"):
+        detail.append(
+            '<p class="note review-note" hidden>'
+            "Marked Passed Manually after review.</p>"
+        )
 
     opened = " open" if (open_failed and status == "failed") else ""
     css_class = "passed passed_manually" if status == "passed_manually" else status
@@ -535,17 +576,18 @@ def _case_card(case, parent, status, result, open_failed=True):
     search_value = html.escape(
         f"{case_id} {case['title']}".casefold(), quote=True
     )
-    pill = "passed manually" if status == "passed_manually" else status
     parent_line = html.escape(parent)
     if check.get("label"):
         parent_line += f' · {html.escape(check["label"])}'
+    safe_id = html.escape(case_id, quote=True)
     return (
-        f'<details class="case {css_class}" data-status="{filter_status}" '
-        f'data-search="{search_value}"{opened}>'
+        f'<details class="case {css_class}" data-id="{safe_id}" '
+        f'data-original-status="{status}" data-current-status="{status}" '
+        f'data-status="{filter_status}" data-search="{search_value}"{opened}>'
         f'<summary><span class="status-mark" aria-hidden="true"></span>'
         f'<span class="case-id">{html.escape(case_id)}</span>'
         f'<span class="title">{title}</span>'
-        f'<span class="pill">{pill}</span>'
+        f'{_status_control(case_id, status)}'
         f'<span class="dur">{duration}</span></summary>'
         f'<div class="detail"><div class="evidence">Automated parent: '
         f'{parent_line}</div>{"".join(detail)}</div></details>'
@@ -576,10 +618,11 @@ def _donut(counts, executed, rate):
         headline = "Awaiting results"
         note = "Run the suite to populate this report."
     return f"""<div class="hero-stat">
-<div class="donut" style="background:{gradient}">
-<div class="donut-hole"><div class="donut-pct">{center}</div>
+<div class="donut" id="donut" style="background:{gradient}">
+<div class="donut-hole"><div class="donut-pct" id="donut-pct">{center}</div>
 <div class="donut-lbl">pass rate</div></div></div>
-<div class="score-copy"><strong>{headline}</strong><span>{note}<br>
+<div class="score-copy"><strong id="score-headline">{headline}</strong>
+<span id="score-note">{note}<br>
 {counts["passed"]}/{executed or 0} executed cases passed.</span></div>
 </div>"""
 
@@ -587,16 +630,15 @@ def _donut(counts, executed, rate):
 def _metric(kind, label, value, note):
     return f"""<article class="metric {kind}">
 <div class="metric-head"><span class="metric-dot"></span>{html.escape(label)}</div>
-<strong class="metric-value">{value}</strong>
+<strong class="metric-value" id="metric-{html.escape(kind)}">{value}</strong>
 <span class="metric-note">{html.escape(note)}</span>
 </article>"""
 
 
-def _release_banner(counts):
-    """Show release approval only when the report contains no failures."""
-    if counts["failed"]:
-        return ""
-    return """<section class="release-banner" aria-label="Release readiness">
+def _release_banner(counts, executed):
+    """Always emit the banner; hide it unless the run is green and executed."""
+    hidden = "" if (executed and not counts["failed"]) else " hidden"
+    return f"""<section class="release-banner" id="release-banner" aria-label="Release readiness"{hidden}>
 <div class="release-icon" aria-hidden="true">✓</div>
 <div class="release-copy">
 <strong>The build passed smoke, sanity and full regression testing, with
@@ -614,8 +656,231 @@ FILTER_JS = """
   var search = document.getElementById("case-search");
   var visibleCount = document.getElementById("visible-count");
   var emptyState = document.getElementById("empty-state");
-  var attention = document.querySelector(".attention");
+  var attention = document.getElementById("attention");
+  var releaseBanner = document.getElementById("release-banner");
+  var runState = document.getElementById("run-state");
+  var overrideNode = document.getElementById("status-overrides");
+  var fileHandle = null;
   var mode = "all";
+
+  function storageKey() {
+    return "spider-regression-status:" + (document.body.dataset.runId || "default");
+  }
+
+  function countKey(status) {
+    return status === "passed_manually" ? "passed" : status;
+  }
+
+  function filterStatus(status) {
+    return status === "passed_manually" ? "passed" : status;
+  }
+
+  function cardStatus(card) {
+    return card.dataset.currentStatus || "passed";
+  }
+
+  function applyStatus(card, status) {
+    card.dataset.currentStatus = status;
+    card.dataset.status = filterStatus(status);
+    card.classList.remove("passed", "failed", "skipped", "passed_manually");
+    if (status === "passed_manually") {
+      card.classList.add("passed", "passed_manually");
+    } else {
+      card.classList.add(status);
+    }
+    var select = card.querySelector(".status-edit");
+    if (select) {
+      select.value = status;
+      Array.from(select.options).forEach(function (opt) {
+        if (opt.value === status) opt.setAttribute("selected", "selected");
+        else opt.removeAttribute("selected");
+      });
+    }
+    var note = card.querySelector(".review-note");
+    if (note) {
+      note.hidden = !(status === "passed_manually" &&
+        card.dataset.originalStatus !== "passed_manually");
+    }
+  }
+
+  function countsFromCards() {
+    var counts = {passed: 0, failed: 0, skipped: 0};
+    document.querySelectorAll(".group > .case").forEach(function (card) {
+      counts[countKey(cardStatus(card))] += 1;
+    });
+    return counts;
+  }
+
+  function donutGradient(counts, executed) {
+    var total = Math.max(counts.passed + counts.failed + counts.skipped, 1);
+    var passPct = 100 * counts.passed / total;
+    var failPct = 100 * counts.failed / total;
+    var failEnd = passPct + failPct;
+    if (!executed) return "conic-gradient(#dfe5ee 0 100%)";
+    return "conic-gradient(#16835f 0 " + passPct.toFixed(2) + "%, #c23d4a " +
+      passPct.toFixed(2) + "% " + failEnd.toFixed(2) + "%, #d2a438 " +
+      failEnd.toFixed(2) + "% 100%)";
+  }
+
+  function recompute() {
+    var counts = countsFromCards();
+    var executed = counts.passed + counts.failed;
+    var rate = executed ? Math.round(100 * counts.passed / executed) : 0;
+    var headline, note, stateClass, stateLabel;
+    if (counts.failed) {
+      headline = "Review required";
+      note = counts.failed + " case" + (counts.failed === 1 ? "" : "s") +
+        " need attention.";
+      stateClass = "failed";
+      stateLabel = "Attention required";
+    } else if (executed) {
+      headline = "Run is healthy";
+      note = "All executed cases passed.";
+      stateClass = "passed";
+      stateLabel = "Run complete";
+    } else {
+      headline = "Awaiting results";
+      note = "Run the suite to populate this report.";
+      stateClass = "pending";
+      stateLabel = "Awaiting results";
+    }
+    document.getElementById("donut").style.background =
+      donutGradient(counts, executed);
+    document.getElementById("donut-pct").textContent =
+      executed ? rate + "%" : "—";
+    document.getElementById("score-headline").textContent = headline;
+    document.getElementById("score-note").innerHTML = note + "<br>" +
+      counts.passed + "/" + (executed || 0) + " executed cases passed.";
+    document.getElementById("metric-passed").textContent = counts.passed;
+    document.getElementById("metric-failed").textContent = counts.failed;
+    document.getElementById("metric-skipped").textContent = counts.skipped;
+    runState.className = "run-state " + stateClass;
+    runState.textContent = stateLabel;
+    if (releaseBanner) {
+      releaseBanner.hidden = !(executed && counts.failed === 0);
+    }
+    buttons.forEach(function (button) {
+      var key = button.getAttribute("data-filter");
+      var n = key === "all"
+        ? counts.passed + counts.failed + counts.skipped
+        : counts[key];
+      button.querySelector("b").textContent = n;
+    });
+    groups.forEach(function (group) {
+      var passed = 0;
+      var total = 0;
+      group.querySelectorAll(":scope > .case").forEach(function (card) {
+        total += 1;
+        var status = cardStatus(card);
+        if (status === "passed" || status === "passed_manually") passed += 1;
+      });
+      var stat = group.querySelector(".secstat");
+      var fill = group.querySelector(".section-fill");
+      if (stat) stat.textContent = passed + "/" + total + " passed";
+      if (fill) fill.style.width = (total ? (100 * passed / total) : 0) + "%";
+    });
+    if (attention) {
+      var failedLeft = 0;
+      attention.querySelectorAll(":scope > .case").forEach(function (card) {
+        if (cardStatus(card) === "failed") failedLeft += 1;
+      });
+      var lead = attention.querySelector(".lead");
+      var countEl = attention.querySelector(".attention-count");
+      if (lead) {
+        lead.textContent = failedLeft + " failed case" +
+          (failedLeft === 1 ? "" : "s") + " from this run";
+      }
+      if (countEl) countEl.textContent = failedLeft;
+    }
+    apply();
+  }
+
+  function collectOverrides() {
+    var overrides = {};
+    document.querySelectorAll(".group > .case").forEach(function (card) {
+      var current = cardStatus(card);
+      if (current !== card.dataset.originalStatus) {
+        overrides[card.dataset.id] = current;
+      }
+    });
+    return overrides;
+  }
+
+  function persistOverrides() {
+    var json = JSON.stringify(collectOverrides());
+    if (overrideNode) overrideNode.textContent = json;
+    try { localStorage.setItem(storageKey(), json); } catch (err) {}
+    return json;
+  }
+
+  function readOverrides() {
+    var fromFile = {};
+    var fromStore = {};
+    try {
+      fromFile = JSON.parse((overrideNode && overrideNode.textContent) || "{}") || {};
+    } catch (err) {}
+    try {
+      fromStore = JSON.parse(localStorage.getItem(storageKey()) || "{}") || {};
+    } catch (err) {}
+    var merged = {};
+    Object.keys(fromFile).forEach(function (id) { merged[id] = fromFile[id]; });
+    Object.keys(fromStore).forEach(function (id) { merged[id] = fromStore[id]; });
+    return merged;
+  }
+
+  function restoreOverrides() {
+    var overrides = readOverrides();
+    Object.keys(overrides).forEach(function (id) {
+      document.querySelectorAll('.case[data-id="' + id + '"]').forEach(
+        function (card) { applyStatus(card, overrides[id]); }
+      );
+    });
+  }
+
+  function reportHtml() {
+    persistOverrides();
+    return "<!doctype html>\\n" + document.documentElement.outerHTML;
+  }
+
+  function downloadReport(html) {
+    var blob = new Blob([html], {type: "text/html;charset=utf-8"});
+    var link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "spider_regression.html";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+  }
+
+  async function writeReportFile(html) {
+    if (fileHandle) {
+      var writable = await fileHandle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    }
+    if (!window.showSaveFilePicker) return false;
+    fileHandle = await window.showSaveFilePicker({
+      suggestedName: "spider_regression.html",
+      types: [{description: "HTML report", accept: {"text/html": [".html"]}}]
+    });
+    var stream = await fileHandle.createWritable();
+    await stream.write(html);
+    await stream.close();
+    return true;
+  }
+
+  async function saveReport() {
+    var html = reportHtml();
+    try {
+      if (await writeReportFile(html)) return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      fileHandle = null;
+    }
+    downloadReport(html);
+  }
 
   function apply() {
     var query = (search.value || "").trim().toLowerCase();
@@ -643,11 +908,42 @@ FILTER_JS = """
       );
       if (link) link.hidden = group.hidden;
     });
-    if (attention) attention.hidden = mode !== "all" || query !== "";
+    if (attention) {
+      var failedLeft = 0;
+      attention.querySelectorAll(":scope > .case").forEach(function (card) {
+        var show = cardStatus(card) === "failed";
+        card.hidden = !show;
+        if (show) failedLeft += 1;
+      });
+      attention.hidden = failedLeft === 0 || mode !== "all" || query !== "";
+    }
     visibleCount.textContent = visible + " of " +
       document.querySelectorAll(".group > .case").length + " shown";
     emptyState.hidden = visible !== 0;
   }
+
+  function stopToggle(event) {
+    event.stopPropagation();
+  }
+
+  document.querySelectorAll(".status-edit").forEach(function (select) {
+    ["click", "mousedown", "pointerdown", "keydown"].forEach(function (type) {
+      select.addEventListener(type, stopToggle);
+    });
+    select.addEventListener("change", function () {
+      var card = select.closest(".case");
+      var status = select.value;
+      var id = card.dataset.id;
+      document.querySelectorAll('.case[data-id="' + id + '"]').forEach(
+        function (clone) { applyStatus(clone, status); }
+      );
+      recompute();
+      persistOverrides();
+      if (fileHandle) {
+        writeReportFile(reportHtml()).catch(function () { fileHandle = null; });
+      }
+    });
+  });
 
   buttons.forEach(function (button) {
     button.addEventListener("click", function () {
@@ -666,7 +962,10 @@ FILTER_JS = """
       card.open = false;
     });
   });
-  apply();
+  var saveButton = document.getElementById("save-report");
+  if (saveButton) saveButton.addEventListener("click", function () { saveReport(); });
+  restoreOverrides();
+  recompute();
 })();
 """
 
@@ -720,7 +1019,8 @@ def build(results_path=None, out_path=None):
 
     if failed_rows:
         body.append(
-            '<section class="attention"><div class="attention-head"><div>'
+            '<section class="attention" id="attention">'
+            '<div class="attention-head"><div>'
             '<h2>Needs attention</h2>'
             f'<p class="lead">{len(failed_rows)} failed case'
             f'{"s" if len(failed_rows) != 1 else ""} from this run</p></div>'
@@ -790,14 +1090,16 @@ def build(results_path=None, out_path=None):
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spider Solitaire — Regression Report</title>
-<style>{CSS}</style></head><body><div class="wrap">
+<style>{CSS}</style></head>
+<body data-run-id="{html.escape(str(payload.get("finished") or payload.get("started") or "none"), quote=True)}">
+<div class="wrap">
 <div class="hero">
 <div class="hero-copy"><div class="eyebrow"><span class="eyebrow-dot"></span>
 Quality assurance report</div>
 <div class="brand">{header_mark}<div><h1>Spider Solitaire</h1>
 <div class="sub">Unity functional regression · {html.escape(run_time)}</div></div></div>
 </div>
-<div class="run-state {run_state_class}">{run_state_label}</div>
+<div class="run-state {run_state_class}" id="run-state">{run_state_label}</div>
 </div>
 <section class="overview" aria-label="Run summary">
 <article class="score-card"><div class="panel-label">Overall quality</div>
@@ -808,7 +1110,7 @@ Quality assurance report</div>
 {_metric("skipped", "Skipped", counts["skipped"], "Not exercised")}
 </div>
 </section>
-{_release_banner(counts)}
+{_release_banner(counts, executed)}
 <section class="meta-panel"><div class="meta-head"><h2>Run environment</h2>
 <span>Captured from the connected test device</span></div>
 <div class="chips">
@@ -829,6 +1131,7 @@ Quality assurance report</div>
 autocomplete="off"></label>
 {_filters(counts)}
 <div class="tool-buttons">
+<button class="tool-button" id="save-report" type="button">Save report</button>
 <button class="tool-button" id="expand-visible" type="button">Expand visible</button>
 <button class="tool-button" id="collapse-all" type="button">Collapse all</button>
 </div>
@@ -842,7 +1145,8 @@ autocomplete="off"></label>
 {"".join(body)}
 <footer>Generated by scripts/gen_regression_report.py · test screenshots remain
 available separately in log/ and are not embedded here.</footer>
-</div><script>{FILTER_JS}</script></body></html>
+</div><script type="application/json" id="status-overrides">{{}}</script>
+<script>{FILTER_JS}</script></body></html>
 """
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
