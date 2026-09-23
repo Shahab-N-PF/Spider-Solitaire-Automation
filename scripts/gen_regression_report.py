@@ -12,6 +12,7 @@ Run:
 """
 import argparse
 import base64
+import csv
 import html
 import json
 import os
@@ -22,6 +23,9 @@ from datetime import datetime
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEADER_LOGO = os.path.join(REPO, "reports", "spider_report_header.jpg")
+MANUAL_CASES_CSV = os.path.join(
+    REPO, "docs", "testrail", "manual_spider_solitaire_8.0.3_regression.csv"
+)
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "docs", "testrail"))
 import config  # noqa: E402
@@ -162,11 +166,33 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 .run-state.passed::before { background:#53d9a5; box-shadow:0 0 0 4px rgba(83,217,165,.14); }
 .run-state.failed::before { background:#ff7f89; box-shadow:0 0 0 4px rgba(255,127,137,.14); }
 .run-state.pending::before { background:#f6cf68; box-shadow:0 0 0 4px rgba(246,207,104,.14); }
-.overview { display:grid; grid-template-columns:minmax(280px,1.05fr) 1.95fr; gap:18px; margin-bottom:18px; }
-.score-card,.metric,.meta-panel,.toolbar,.attention,.group {
+.coverage-strip {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  margin-bottom:12px; padding:13px 18px; border:1px solid var(--line);
+  border-radius:14px; color:var(--muted); background:var(--surface);
+  box-shadow:var(--shadow); font-size:12px;
+}
+.coverage-strip strong { color:var(--ink); font-size:13px; }
+.verification-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px; margin-bottom:18px; }
+.score-card,.metric,.meta-panel,.toolbar,.attention,.group,.coverage-strip {
   background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
 }
 .score-card { border-radius:18px; padding:22px; }
+.verification-card { min-width:0; }
+.verification-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px; margin-top:18px; }
+.verification-stat { min-width:0; padding:10px 11px; border:1px solid #e5eaf1;
+  border-radius:11px; background:var(--surface-soft); }
+.verification-stat .k { display:flex; align-items:center; gap:6px; color:var(--muted);
+  font-size:9px; font-weight:750; letter-spacing:.55px; text-transform:uppercase; }
+.verification-stat .k::before { content:""; width:6px; height:6px; flex:0 0 6px;
+  border-radius:50%; background:#98a2b3; }
+.verification-stat.passed .k::before { background:var(--pass); }
+.verification-stat.failed .k::before { background:var(--fail); }
+.verification-stat.skipped .k::before { background:#c49a2e; }
+.verification-stat .v { display:block; margin-top:5px; color:var(--ink);
+  font-size:22px; font-weight:780; line-height:1; }
 .panel-label { color:var(--muted); font-size:11px; font-weight:750;
   letter-spacing:1px; text-transform:uppercase; }
 .release-banner {
@@ -188,7 +214,6 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 }
 .release-copy { position:relative; z-index:1; flex:1; }
 .release-copy strong { display:block; font-size:14px; line-height:1.45; }
-.release-copy span { display:block; margin-top:3px; color:#26705a; font-size:12px; }
 .teamwork-mark { position:relative; z-index:1; display:flex; margin-right:5px; }
 .teamwork-mark i {
   display:block; width:19px; height:19px; margin-left:-5px;
@@ -221,6 +246,31 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 .metric-value { display:block; margin-top:28px; font-size:38px; font-weight:780;
   line-height:1; letter-spacing:-1px; }
 .metric-note { display:block; margin-top:8px; color:var(--muted); font-size:12px; }
+.manual-verification {
+  margin-top:26px; padding:22px; border:1px solid var(--line); border-radius:18px;
+  background:var(--surface); box-shadow:var(--shadow); scroll-margin-top:154px;
+}
+.manual-head { display:flex; align-items:flex-start; justify-content:space-between;
+  gap:18px; margin-bottom:16px; }
+.manual-head h2 { margin:0; font-size:19px; letter-spacing:-.2px; }
+.manual-head p { max-width:68ch; margin:5px 0 0; color:var(--muted);
+  font-size:12px; line-height:1.5; }
+.manual-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px; margin-bottom:20px; }
+.manual-stat { padding:13px 14px; border:1px solid #e5eaf1; border-radius:12px;
+  background:var(--surface-soft); }
+.manual-stat .k { display:block; color:var(--muted); font-size:10px;
+  font-weight:750; letter-spacing:.65px; text-transform:uppercase; }
+.manual-stat .v { display:block; margin-top:4px; font-size:25px; font-weight:780;
+  line-height:1; }
+.manual-category { margin:20px 2px 8px; color:var(--accent-deep); font-size:11px;
+  font-weight:780; letter-spacing:.7px; text-transform:uppercase; }
+.manual-category:first-of-type { margin-top:0; }
+.manual-case .case-id { flex-basis:66px; }
+.manual-case .detail { padding-left:113px; }
+.case.selectable .detail { padding-left:126px; }
+.manual-case.selectable .detail { padding-left:140px; }
+.manual-case.passed .status-edit { color:var(--pass); background-color:var(--pass-bg); }
 .meta-panel { margin-bottom:18px; padding:20px 22px; border-radius:18px; }
 .meta-head { display:flex; align-items:center; justify-content:space-between;
   gap:12px; margin-bottom:15px; }
@@ -263,7 +313,8 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 }
 .filter:hover { transform:translateY(-1px); border-color:#acb7c7; }
 .filter:focus-visible,summary:focus-visible,.tool-button:focus-visible,
-.case-search input:focus-visible,.section-link:focus-visible {
+.case-search input:focus-visible,.section-link:focus-visible,
+.status-edit:focus-visible,#bulk-status:focus-visible,.case-check:focus-visible {
   outline:3px solid rgba(230,97,63,.24); outline-offset:2px;
 }
 .filter b { color:var(--ink); margin-left:3px; }
@@ -289,6 +340,34 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
   transition:color .15s ease,background .15s ease,border-color .15s ease;
 }
 .section-link:hover { color:var(--accent-deep); border-color:#efd0c5; background:#fff7f3; }
+.bulk-bar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px;
+  margin:12px -2px -1px; padding:12px 2px 0; border-top:1px solid #eee4dd;
+}
+.bulk-select-all {
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  color:var(--ink); font-size:11px; font-weight:650;
+}
+.bulk-select-all input,.case-check {
+  width:15px; height:15px; margin:0; accent-color:var(--accent-deep); cursor:pointer;
+}
+.case-pick { display:flex; align-items:center; flex:0 0 15px; cursor:pointer; }
+.case.selected { border-color:#e8b39f; box-shadow:0 0 0 2px rgba(230,97,63,.16); }
+.bulk-count { color:var(--muted); font-size:11px; font-weight:650; min-width:72px; }
+.bulk-apply-label {
+  display:inline-flex; align-items:center; gap:7px;
+  color:var(--muted); font-size:11px; font-weight:650;
+}
+#bulk-status {
+  appearance:none; -webkit-appearance:none; height:34px;
+  padding:0 28px 0 12px; border:1px solid var(--line); border-radius:999px;
+  color:var(--ink); background-color:var(--surface-soft);
+  font:inherit; font-size:11px; font-weight:650;
+  background-repeat:no-repeat; background-position:right 10px center;
+  background-size:8px 8px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23786d66' d='M1 2.5l3 3 3-3'/%3E%3C/svg%3E");
+}
+.tool-button:disabled { opacity:.45; cursor:not-allowed; }
 [hidden] { display:none !important; }
 .attention { margin-bottom:20px; padding:22px; border-color:#f1c8cc;
   border-radius:18px; background:linear-gradient(145deg,#fff,#fff7f8); }
@@ -338,6 +417,18 @@ details[open] summary::after { transform:rotate(225deg) translate(-1px,-1px); }
 .failed .pill { color:var(--fail); background:var(--fail-bg); }
 .skipped .pill { color:var(--skip); background:var(--skip-bg); }
 .passed_manually .pill { color:var(--manual); background:var(--manual-bg); }
+.status-edit {
+  appearance:none; -webkit-appearance:none; cursor:pointer; flex:0 0 auto;
+  max-width:154px; padding:4px 20px 4px 8px; border:0; border-radius:999px;
+  font:inherit; font-size:9px; font-weight:780; letter-spacing:.4px;
+  text-transform:uppercase; white-space:nowrap;
+  background-repeat:no-repeat; background-position:right 7px center;
+  background-size:8px 8px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23786d66' d='M1 2.5l3 3 3-3'/%3E%3C/svg%3E");
+}
+.failed .status-edit { color:var(--fail); background-color:var(--fail-bg); }
+.skipped .status-edit { color:var(--skip); background-color:var(--skip-bg); }
+.passed_manually .status-edit { color:var(--manual); background-color:var(--manual-bg); }
 .dur { color:var(--muted); font-size:11px; min-width:58px; text-align:right; }
 .detail { padding:0 14px 14px 99px; }
 .note { color:var(--muted); font-size:12px; line-height:1.55; margin:0; }
@@ -350,7 +441,7 @@ details[open] summary::after { transform:rotate(225deg) translate(-1px,-1px); }
 .evidence::before { content:""; width:6px; height:6px; border-radius:50%; background:#7a8daf; }
 footer { color:var(--muted); font-size:11px; text-align:center; margin-top:30px; }
 @media (max-width:920px) {
-  .overview { grid-template-columns:1fr; }
+  .verification-grid { grid-template-columns:1fr; }
   .chips { grid-template-columns:repeat(3,1fr); }
 }
 @media (max-width:680px) {
@@ -361,22 +452,30 @@ footer { color:var(--muted); font-size:11px; text-align:center; margin-top:30px;
   .metric { min-height:126px; padding:16px 13px; }
   .metric-value { margin-top:20px; font-size:30px; }
   .metric-note { display:none; }
+  .coverage-strip { align-items:flex-start; flex-direction:column; }
+  .verification-stats { grid-template-columns:repeat(2,1fr); }
   .chips { grid-template-columns:repeat(2,1fr); }
   .toolbar { position:static; }
   .toolbar-top { align-items:flex-start; flex-direction:column; }
   .toolbar-controls { justify-content:flex-start; width:100%; }
   .case-search,.case-search input { width:100%; }
   .filters { justify-content:flex-start; }
-  .group,.attention,.score-card,.meta-panel { padding:16px; }
+  .group,.attention,.score-card,.meta-panel,.manual-verification { padding:16px; }
+  .manual-stats { grid-template-columns:repeat(2,1fr); }
   .section-track { display:none; }
   .case-id { flex-basis:45px; }
+  .manual-case .case-id { flex-basis:58px; }
   .dur { display:none; }
   .detail { padding-left:79px; }
+  .manual-case .detail { padding-left:92px; }
+  .case.selectable .detail { padding-left:106px; }
+  .manual-case.selectable .detail { padding-left:119px; }
 }
 @media (max-width:430px) {
   .metric-head { font-size:10px; }
   .metric-value { font-size:26px; }
   .pill { display:none; }
+  .status-edit { display:inline-block; font-size:8px; max-width:132px; }
   .hero-stat { gap:14px; }
   .donut { width:110px; height:110px; flex-basis:110px; }
   .donut-hole { width:72px; height:72px; }
@@ -384,9 +483,10 @@ footer { color:var(--muted); font-size:11px; text-align:center; margin-top:30px;
 @media print {
   body { background:#fff; }
   .wrap { max-width:none; padding:0; }
-  .hero,.score-card,.metric,.meta-panel,.toolbar,.attention,.group { box-shadow:none; }
+  .hero,.score-card,.metric,.meta-panel,.toolbar,.attention,.group,.coverage-strip,
+  .manual-verification { box-shadow:none; }
   .toolbar { position:static; }
-  .filters { display:none; }
+  .filters,.bulk-bar,.case-pick { display:none; }
   .case { break-inside:avoid; }
 }
 """
@@ -465,6 +565,49 @@ def _load_results(path):
         return {}
 
 
+def _load_manual_cases(path):
+    """Load the manual-only TestRail export and reject ambiguous inputs."""
+    required = {"ID", "Title", "Case ID", "Priority", "Section", "Type"}
+    try:
+        with open(path, newline="", encoding="utf-8-sig") as fh:
+            reader = csv.DictReader(fh)
+            missing = required - set(reader.fieldnames or [])
+            if missing:
+                raise ValueError(
+                    "manual case CSV is missing column(s): "
+                    + ", ".join(sorted(missing))
+                )
+            cases = []
+            seen = set()
+            for line_number, row in enumerate(reader, start=2):
+                case_id = (row.get("Case ID") or "").strip()
+                title = (row.get("Title") or "").strip()
+                section = (row.get("Section") or "").strip()
+                if not case_id or not title or not section:
+                    raise ValueError(
+                        f"manual case CSV line {line_number} requires "
+                        "Case ID, Title, and Section"
+                    )
+                if case_id in seen:
+                    raise ValueError(
+                        f"manual case CSV contains duplicate Case ID {case_id}"
+                    )
+                seen.add(case_id)
+                cases.append({
+                    "id": case_id,
+                    "test_id": (row.get("ID") or "").strip(),
+                    "title": title,
+                    "section": section,
+                    "priority": (row.get("Priority") or "—").strip(),
+                    "type": (row.get("Type") or "—").strip(),
+                })
+    except OSError as exc:
+        raise ValueError(f"cannot read manual case CSV {path}: {exc}") from exc
+    if not cases:
+        raise ValueError(f"manual case CSV contains no cases: {path}")
+    return cases
+
+
 def _chip(label, value):
     return (f'<div class="chip"><span class="k">{html.escape(label)}</span>'
             f'<span class="v">{html.escape(str(value or "—"))}</span></div>')
@@ -501,6 +644,77 @@ def _section_id(label):
     return f"section-{slug or 'cases'}"
 
 
+def _case_pick(case_id):
+    safe_id = html.escape(case_id)
+    return (
+        f'<label class="case-pick">'
+        f'<input type="checkbox" class="case-check" '
+        f'aria-label="Select {safe_id}"></label>'
+    )
+
+
+def _status_control(case_id, status):
+    """Editable badge for failed/skipped cards; static pill otherwise."""
+    if status not in ("failed", "skipped"):
+        pill = "passed manually" if status == "passed_manually" else status
+        return f'<span class="pill">{html.escape(pill)}</span>'
+    if status == "failed":
+        options = (
+            '<option value="failed" selected>Failed</option>'
+            '<option value="passed_manually">Passed manually</option>'
+        )
+    else:
+        options = (
+            '<option value="skipped" selected>Skipped</option>'
+            '<option value="passed_manually">Passed manually</option>'
+        )
+    safe_id = html.escape(case_id)
+    return (
+        f'<select class="status-edit" aria-label="Set status for {safe_id}">'
+        f'{options}</select>'
+    )
+
+
+def _manual_status_control(case_id):
+    safe_id = html.escape(case_id)
+    return (
+        f'<select class="status-edit manual-status-edit" '
+        f'aria-label="Set manual status for {safe_id}">'
+        '<option value="passed">Passed</option>'
+        '<option value="failed">Failed</option>'
+        '<option value="skipped" selected>Skipped</option>'
+        "</select>"
+    )
+
+
+def _manual_case_card(case):
+    case_id = case["id"]
+    safe_id = html.escape(case_id, quote=True)
+    title = html.escape(case["title"])
+    search_value = html.escape(
+        f"{case_id} {case['test_id']} {case['title']} {case['section']}".casefold(),
+        quote=True,
+    )
+    context = " · ".join(
+        html.escape(value)
+        for value in (case["section"], case["priority"], case["type"])
+    )
+    return (
+        f'<details class="case manual-case skipped selectable" data-id="{safe_id}" '
+        'data-manual="true" data-original-status="skipped" '
+        f'data-current-status="skipped" data-status="skipped" '
+        f'data-search="{search_value}">'
+        f'<summary>{_case_pick(case_id)}'
+        '<span class="status-mark" aria-hidden="true"></span>'
+        f'<span class="case-id">{html.escape(case_id)}</span>'
+        f'<span class="title">{title}</span>'
+        f'{_manual_status_control(case_id)}</summary>'
+        f'<div class="detail"><div class="evidence">{context}</div>'
+        '<p class="note">Manual-only coverage. Set the result after verifying '
+        "this case on the device.</p></div></details>"
+    )
+
+
 def _case_card(case, parent, status, result, open_failed=True):
     """One expandable TestRail card, optionally opened when the case failed."""
     case_id = case["id"]
@@ -528,24 +742,34 @@ def _case_card(case, parent, status, result, open_failed=True):
             '<p class="note">Closed by hand after the automated closer '
             "could not match the interstitial.</p>"
         )
+    if status in ("failed", "skipped"):
+        detail.append(
+            '<p class="note review-note" hidden>'
+            "Marked Passed Manually after review.</p>"
+        )
 
     opened = " open" if (open_failed and status == "failed") else ""
     css_class = "passed passed_manually" if status == "passed_manually" else status
+    selectable = status in ("failed", "skipped")
+    if selectable:
+        css_class += " selectable"
     filter_status = "passed" if status == "passed_manually" else status
     search_value = html.escape(
         f"{case_id} {case['title']}".casefold(), quote=True
     )
-    pill = "passed manually" if status == "passed_manually" else status
     parent_line = html.escape(parent)
     if check.get("label"):
         parent_line += f' · {html.escape(check["label"])}'
+    safe_id = html.escape(case_id, quote=True)
+    pick = _case_pick(case_id) if selectable else ""
     return (
-        f'<details class="case {css_class}" data-status="{filter_status}" '
-        f'data-search="{search_value}"{opened}>'
-        f'<summary><span class="status-mark" aria-hidden="true"></span>'
+        f'<details class="case {css_class}" data-id="{safe_id}" '
+        f'data-original-status="{status}" data-current-status="{status}" '
+        f'data-status="{filter_status}" data-search="{search_value}"{opened}>'
+        f'<summary>{pick}<span class="status-mark" aria-hidden="true"></span>'
         f'<span class="case-id">{html.escape(case_id)}</span>'
         f'<span class="title">{title}</span>'
-        f'<span class="pill">{pill}</span>'
+        f'{_status_control(case_id, status)}'
         f'<span class="dur">{duration}</span></summary>'
         f'<div class="detail"><div class="evidence">Automated parent: '
         f'{parent_line}</div>{"".join(detail)}</div></details>'
@@ -576,32 +800,51 @@ def _donut(counts, executed, rate):
         headline = "Awaiting results"
         note = "Run the suite to populate this report."
     return f"""<div class="hero-stat">
-<div class="donut" style="background:{gradient}">
-<div class="donut-hole"><div class="donut-pct">{center}</div>
+<div class="donut" id="donut" style="background:{gradient}">
+<div class="donut-hole"><div class="donut-pct" id="donut-pct">{center}</div>
 <div class="donut-lbl">pass rate</div></div></div>
-<div class="score-copy"><strong>{headline}</strong><span>{note}<br>
+<div class="score-copy"><strong id="score-headline">{headline}</strong>
+<span id="score-note">{note}<br>
 {counts["passed"]}/{executed or 0} executed cases passed.</span></div>
 </div>"""
+
+
+def _manual_donut(total):
+    return f"""<div class="hero-stat">
+<div class="donut" id="manual-donut"
+style="background:conic-gradient(#d2a438 0 100%)">
+<div class="donut-hole"><div class="donut-pct" id="manual-donut-value">0/{total}</div>
+<div class="donut-lbl">reviewed</div></div></div>
+<div class="score-copy"><strong id="manual-score-headline">Awaiting manual review</strong>
+<span id="manual-score-note">0 completed · {total} awaiting review.</span></div>
+</div>"""
+
+
+def _verification_stat(kind, label, value, element_id=None):
+    identifier = f' id="{html.escape(element_id)}"' if element_id else ""
+    return (
+        f'<div class="verification-stat {html.escape(kind)}">'
+        f'<span class="k">{html.escape(label)}</span>'
+        f'<strong class="v"{identifier}>{value}</strong></div>'
+    )
 
 
 def _metric(kind, label, value, note):
     return f"""<article class="metric {kind}">
 <div class="metric-head"><span class="metric-dot"></span>{html.escape(label)}</div>
-<strong class="metric-value">{value}</strong>
+<strong class="metric-value" id="metric-{html.escape(kind)}">{value}</strong>
 <span class="metric-note">{html.escape(note)}</span>
 </article>"""
 
 
-def _release_banner(counts):
-    """Show release approval only when the report contains no failures."""
-    if counts["failed"]:
-        return ""
-    return """<section class="release-banner" aria-label="Release readiness">
+def _release_banner():
+    """Emit the banner hidden; live automated/manual scores decide visibility."""
+    return """<section class="release-banner" id="release-banner"
+aria-label="Release readiness" hidden>
 <div class="release-icon" aria-hidden="true">✓</div>
 <div class="release-copy">
 <strong>The build passed smoke, sanity and full regression testing, with
 stability confirmed and no blocking issues identified.</strong>
-<span>Build is approved for release.</span>
 </div>
 <div class="teamwork-mark" aria-hidden="true"><i></i><i></i><i></i></div>
 </section>"""
@@ -614,8 +857,376 @@ FILTER_JS = """
   var search = document.getElementById("case-search");
   var visibleCount = document.getElementById("visible-count");
   var emptyState = document.getElementById("empty-state");
-  var attention = document.querySelector(".attention");
+  var attention = document.getElementById("attention");
+  var releaseBanner = document.getElementById("release-banner");
+  var runState = document.getElementById("run-state");
+  var overrideNode = document.getElementById("status-overrides");
+  var fileHandle = null;
   var mode = "all";
+
+  function storageKey() {
+    return "spider-regression-status:" + (document.body.dataset.runId || "default");
+  }
+
+  function countKey(status) {
+    return status === "passed_manually" ? "passed" : status;
+  }
+
+  function filterStatus(status) {
+    return status === "passed_manually" ? "passed" : status;
+  }
+
+  function cardStatus(card) {
+    return card.dataset.currentStatus || "passed";
+  }
+
+  function applyStatus(card, status) {
+    card.dataset.currentStatus = status;
+    card.dataset.status = filterStatus(status);
+    card.classList.remove("passed", "failed", "skipped", "passed_manually");
+    if (status === "passed_manually") {
+      card.classList.add("passed", "passed_manually");
+    } else {
+      card.classList.add(status);
+    }
+    var select = card.querySelector(".status-edit");
+    if (select) {
+      select.value = status;
+      Array.from(select.options).forEach(function (opt) {
+        if (opt.value === status) opt.setAttribute("selected", "selected");
+        else opt.removeAttribute("selected");
+      });
+    }
+    var note = card.querySelector(".review-note");
+    if (note) {
+      note.hidden = !(status === "passed_manually" &&
+        card.dataset.originalStatus !== "passed_manually");
+    }
+  }
+
+  function selectableCards() {
+    return Array.from(document.querySelectorAll(
+      ".group > .case.selectable, .manual-case"
+    ));
+  }
+
+  function visibleSelectableCards() {
+    return selectableCards().filter(function (card) { return !card.hidden; });
+  }
+
+  function selectedCards() {
+    return visibleSelectableCards().filter(function (card) {
+      var box = card.querySelector(".case-check");
+      return box && box.checked;
+    });
+  }
+
+  function setCardSelected(card, on) {
+    var box = card.querySelector(".case-check");
+    if (box) box.checked = !!on;
+    card.classList.toggle("selected", !!on);
+  }
+
+  function syncBulkBar() {
+    var selected = selectedCards();
+    var visible = visibleSelectableCards();
+    var master = document.getElementById("bulk-select-visible");
+    var count = document.getElementById("bulk-count");
+    var applyBtn = document.getElementById("bulk-apply");
+    if (count) count.textContent = selected.length + " selected";
+    if (applyBtn) applyBtn.disabled = selected.length === 0;
+    if (master) {
+      master.checked = visible.length > 0 && selected.length === visible.length;
+      master.indeterminate = selected.length > 0 &&
+        selected.length < visible.length;
+    }
+    selectableCards().forEach(function (card) {
+      var box = card.querySelector(".case-check");
+      card.classList.toggle("selected", !!(box && box.checked && !card.hidden));
+    });
+  }
+
+  function mappedStatus(card, status) {
+    if (status === "passed" && card.getAttribute("data-manual") !== "true") {
+      return "passed_manually";
+    }
+    return status;
+  }
+
+  function canApply(card, status) {
+    var select = card.querySelector(".status-edit");
+    if (!select) return false;
+    var next = mappedStatus(card, status);
+    return Array.from(select.options).some(function (opt) {
+      return opt.value === next;
+    });
+  }
+
+  function applyBulk() {
+    var statusInput = document.getElementById("bulk-status");
+    if (!statusInput) return;
+    var status = statusInput.value;
+    var applied = {};
+    selectedCards().forEach(function (card) {
+      var id = card.dataset.id;
+      if (!id || applied[id] || !canApply(card, status)) return;
+      applied[id] = true;
+      var next = mappedStatus(card, status);
+      document.querySelectorAll('.case[data-id="' + id + '"]').forEach(
+        function (clone) { applyStatus(clone, next); }
+      );
+    });
+    recompute();
+    persistOverrides();
+    if (fileHandle) {
+      writeReportFile(reportHtml()).catch(function () { fileHandle = null; });
+    }
+  }
+
+  function countsFromCards() {
+    var counts = {passed: 0, failed: 0, skipped: 0};
+    document.querySelectorAll(".group > .case").forEach(function (card) {
+      counts[countKey(cardStatus(card))] += 1;
+    });
+    return counts;
+  }
+
+  function countsFromAllCases() {
+    var counts = {passed: 0, failed: 0, skipped: 0};
+    document.querySelectorAll(".group > .case, .manual-case").forEach(
+      function (card) {
+        counts[countKey(cardStatus(card))] += 1;
+      }
+    );
+    return counts;
+  }
+
+  function manualStatusGradient(counts) {
+    var total = Math.max(counts.passed + counts.failed + counts.skipped, 1);
+    var passPct = 100 * counts.passed / total;
+    var failPct = 100 * counts.failed / total;
+    var failEnd = passPct + failPct;
+    return "conic-gradient(#16835f 0 " + passPct.toFixed(2) + "%, #c23d4a " +
+      passPct.toFixed(2) + "% " + failEnd.toFixed(2) + "%, #d2a438 " +
+      failEnd.toFixed(2) + "% 100%)";
+  }
+
+  function recomputeManual(automatedCounts) {
+    var counts = {passed: 0, failed: 0, skipped: 0};
+    var cards = document.querySelectorAll(".manual-case");
+    cards.forEach(function (card) {
+      counts[countKey(cardStatus(card))] += 1;
+    });
+    var values = {
+      total: cards.length,
+      passed: counts.passed,
+      failed: counts.failed,
+      skipped: counts.skipped
+    };
+    Object.keys(values).forEach(function (key) {
+      ["manual-" + key, "manual-top-" + key].forEach(function (id) {
+        var node = document.getElementById(id);
+        if (node) node.textContent = values[key];
+      });
+    });
+    var reviewed = counts.passed + counts.failed;
+    document.getElementById("manual-donut").style.background =
+      manualStatusGradient(counts);
+    document.getElementById("manual-donut-value").textContent =
+      reviewed + "/" + cards.length;
+    var headline = counts.failed
+      ? "Manual failures need review"
+      : (!reviewed
+        ? "Awaiting manual review"
+        : (counts.skipped ? "Manual review in progress" : "Manual review complete"));
+    document.getElementById("manual-score-headline").textContent = headline;
+    document.getElementById("manual-score-note").textContent =
+      counts.passed + " passed · " + counts.failed + " failed · " +
+      counts.skipped + " skipped.";
+    var automatedTotal = automatedCounts.passed + automatedCounts.failed +
+      automatedCounts.skipped;
+    var combinedTotal = automatedTotal + cards.length;
+    document.getElementById("coverage-summary").textContent =
+      combinedTotal + " total cases · " + automatedTotal + " automated · " +
+      cards.length + " manual · " + counts.skipped +
+      " awaiting manual review";
+    return cards.length ? (100 * reviewed / cards.length) : 0;
+  }
+
+  function donutGradient(counts, executed) {
+    var total = Math.max(counts.passed + counts.failed + counts.skipped, 1);
+    var passPct = 100 * counts.passed / total;
+    var failPct = 100 * counts.failed / total;
+    var failEnd = passPct + failPct;
+    if (!executed) return "conic-gradient(#dfe5ee 0 100%)";
+    return "conic-gradient(#16835f 0 " + passPct.toFixed(2) + "%, #c23d4a " +
+      passPct.toFixed(2) + "% " + failEnd.toFixed(2) + "%, #d2a438 " +
+      failEnd.toFixed(2) + "% 100%)";
+  }
+
+  function recompute() {
+    var counts = countsFromCards();
+    var allCounts = countsFromAllCases();
+    var executed = counts.passed + counts.failed;
+    var exactRate = executed ? (100 * counts.passed / executed) : 0;
+    var rate = Math.round(exactRate);
+    var manualRate = recomputeManual(counts);
+    var averageRate = (exactRate + manualRate) / 2;
+    var headline, note, stateClass, stateLabel;
+    if (counts.failed) {
+      headline = "Review required";
+      note = counts.failed + " case" + (counts.failed === 1 ? "" : "s") +
+        " need attention.";
+      stateClass = "failed";
+      stateLabel = "Attention required";
+    } else if (executed) {
+      headline = "Run is healthy";
+      note = "All executed cases passed.";
+      stateClass = "passed";
+      stateLabel = "Run complete";
+    } else {
+      headline = "Awaiting results";
+      note = "Run the suite to populate this report.";
+      stateClass = "pending";
+      stateLabel = "Awaiting results";
+    }
+    document.getElementById("donut").style.background =
+      donutGradient(counts, executed);
+    document.getElementById("donut-pct").textContent =
+      executed ? rate + "%" : "—";
+    document.getElementById("score-headline").textContent = headline;
+    document.getElementById("score-note").innerHTML = note + "<br>" +
+      counts.passed + "/" + (executed || 0) + " executed cases passed.";
+    document.getElementById("metric-passed").textContent = counts.passed;
+    document.getElementById("metric-failed").textContent = counts.failed;
+    document.getElementById("metric-skipped").textContent = counts.skipped;
+    runState.className = "run-state " + stateClass;
+    runState.textContent = stateLabel;
+    if (releaseBanner) {
+      releaseBanner.hidden = !(executed && averageRate > 92);
+    }
+    buttons.forEach(function (button) {
+      var key = button.getAttribute("data-filter");
+      var n = key === "all"
+        ? allCounts.passed + allCounts.failed + allCounts.skipped
+        : allCounts[key];
+      button.querySelector("b").textContent = n;
+    });
+    groups.forEach(function (group) {
+      var passed = 0;
+      var total = 0;
+      group.querySelectorAll(":scope > .case").forEach(function (card) {
+        total += 1;
+        var status = cardStatus(card);
+        if (status === "passed" || status === "passed_manually") passed += 1;
+      });
+      var stat = group.querySelector(".secstat");
+      var fill = group.querySelector(".section-fill");
+      if (stat) stat.textContent = passed + "/" + total + " passed";
+      if (fill) fill.style.width = (total ? (100 * passed / total) : 0) + "%";
+    });
+    if (attention) {
+      var failedLeft = 0;
+      attention.querySelectorAll(":scope > .case").forEach(function (card) {
+        if (cardStatus(card) === "failed") failedLeft += 1;
+      });
+      var lead = attention.querySelector(".lead");
+      var countEl = attention.querySelector(".attention-count");
+      if (lead) {
+        lead.textContent = failedLeft + " failed case" +
+          (failedLeft === 1 ? "" : "s") + " from this run";
+      }
+      if (countEl) countEl.textContent = failedLeft;
+    }
+    apply();
+  }
+
+  function collectOverrides() {
+    var overrides = {};
+    document.querySelectorAll(".case[data-id]").forEach(function (card) {
+      var current = cardStatus(card);
+      if (current !== card.dataset.originalStatus) {
+        overrides[card.dataset.id] = current;
+      }
+    });
+    return overrides;
+  }
+
+  function persistOverrides() {
+    var json = JSON.stringify(collectOverrides());
+    if (overrideNode) overrideNode.textContent = json;
+    try { localStorage.setItem(storageKey(), json); } catch (err) {}
+    return json;
+  }
+
+  function readOverrides() {
+    var fromFile = {};
+    var fromStore = {};
+    try {
+      fromFile = JSON.parse((overrideNode && overrideNode.textContent) || "{}") || {};
+    } catch (err) {}
+    try {
+      fromStore = JSON.parse(localStorage.getItem(storageKey()) || "{}") || {};
+    } catch (err) {}
+    var merged = {};
+    Object.keys(fromFile).forEach(function (id) { merged[id] = fromFile[id]; });
+    Object.keys(fromStore).forEach(function (id) { merged[id] = fromStore[id]; });
+    return merged;
+  }
+
+  function restoreOverrides() {
+    var overrides = readOverrides();
+    Object.keys(overrides).forEach(function (id) {
+      document.querySelectorAll('.case[data-id="' + id + '"]').forEach(
+        function (card) { applyStatus(card, overrides[id]); }
+      );
+    });
+  }
+
+  function reportHtml() {
+    persistOverrides();
+    return "<!doctype html>\\n" + document.documentElement.outerHTML;
+  }
+
+  function downloadReport(html) {
+    var blob = new Blob([html], {type: "text/html;charset=utf-8"});
+    var link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "spider_regression.html";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+  }
+
+  async function writeReportFile(html) {
+    if (fileHandle) {
+      var writable = await fileHandle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      return true;
+    }
+    if (!window.showSaveFilePicker) return false;
+    fileHandle = await window.showSaveFilePicker({
+      suggestedName: "spider_regression.html",
+      types: [{description: "HTML report", accept: {"text/html": [".html"]}}]
+    });
+    var stream = await fileHandle.createWritable();
+    await stream.write(html);
+    await stream.close();
+    return true;
+  }
+
+  async function saveReport() {
+    var html = reportHtml();
+    try {
+      if (await writeReportFile(html)) return;
+    } catch (err) {
+      if (err && err.name === "AbortError") return;
+      fileHandle = null;
+    }
+    downloadReport(html);
+  }
 
   function apply() {
     var query = (search.value || "").trim().toLowerCase();
@@ -643,11 +1254,101 @@ FILTER_JS = """
       );
       if (link) link.hidden = group.hidden;
     });
-    if (attention) attention.hidden = mode !== "all" || query !== "";
+    var manual = document.getElementById("manual-verification");
+    if (manual) {
+      var manualVisible = 0;
+      manual.querySelectorAll(".manual-case").forEach(function (card) {
+        var statusMatch = mode === "all" || card.dataset.status === mode;
+        var searchMatch = !query || card.dataset.search.indexOf(query) !== -1;
+        card.hidden = !(statusMatch && searchMatch);
+        if (!card.hidden) {
+          manualVisible += 1;
+          visible += 1;
+        }
+      });
+      manual.querySelectorAll(".manual-category").forEach(function (heading) {
+        var categoryVisible = 0;
+        var sibling = heading.nextElementSibling;
+        while (sibling && !sibling.classList.contains("manual-category")) {
+          if (sibling.classList.contains("manual-case") && !sibling.hidden) {
+            categoryVisible += 1;
+          }
+          sibling = sibling.nextElementSibling;
+        }
+        heading.hidden = categoryVisible === 0;
+      });
+      manual.hidden = manualVisible === 0;
+      var manualLink = document.querySelector(
+        '.section-link[data-target="manual-verification"]'
+      );
+      if (manualLink) manualLink.hidden = manual.hidden;
+    }
+    if (attention) {
+      var failedLeft = 0;
+      attention.querySelectorAll(":scope > .case").forEach(function (card) {
+        var show = cardStatus(card) === "failed";
+        card.hidden = !show;
+        if (show) failedLeft += 1;
+      });
+      attention.hidden = failedLeft === 0 || mode !== "all" || query !== "";
+    }
     visibleCount.textContent = visible + " of " +
-      document.querySelectorAll(".group > .case").length + " shown";
+      document.querySelectorAll(".group > .case, .manual-case").length + " shown";
     emptyState.hidden = visible !== 0;
+    selectableCards().forEach(function (card) {
+      if (card.hidden) setCardSelected(card, false);
+    });
+    syncBulkBar();
   }
+
+  function stopToggle(event) {
+    event.stopPropagation();
+  }
+
+  document.querySelectorAll(".status-edit").forEach(function (select) {
+    ["click", "mousedown", "pointerdown", "keydown"].forEach(function (type) {
+      select.addEventListener(type, stopToggle);
+    });
+    select.addEventListener("change", function () {
+      var card = select.closest(".case");
+      var status = select.value;
+      var id = card.dataset.id;
+      document.querySelectorAll('.case[data-id="' + id + '"]').forEach(
+        function (clone) { applyStatus(clone, status); }
+      );
+      recompute();
+      persistOverrides();
+      if (fileHandle) {
+        writeReportFile(reportHtml()).catch(function () { fileHandle = null; });
+      }
+    });
+  });
+
+  document.querySelectorAll(".case-pick, .case-check").forEach(function (node) {
+    ["click", "mousedown", "pointerdown", "keydown"].forEach(function (type) {
+      node.addEventListener(type, stopToggle);
+    });
+  });
+  document.querySelectorAll(".case-check").forEach(function (box) {
+    box.addEventListener("change", function (event) {
+      event.stopPropagation();
+      var card = box.closest(".case");
+      if (card) card.classList.toggle("selected", box.checked);
+      syncBulkBar();
+    });
+  });
+  var master = document.getElementById("bulk-select-visible");
+  if (master) {
+    master.addEventListener("change", function () {
+      var on = master.checked;
+      visibleSelectableCards().forEach(function (card) {
+        setCardSelected(card, on);
+      });
+      syncBulkBar();
+    });
+  }
+  var bulkApply = document.getElementById("bulk-apply");
+  if (bulkApply) bulkApply.addEventListener("click", applyBulk);
 
   buttons.forEach(function (button) {
     button.addEventListener("click", function () {
@@ -657,28 +1358,33 @@ FILTER_JS = """
   });
   search.addEventListener("input", apply);
   document.getElementById("expand-visible").addEventListener("click", function () {
-    document.querySelectorAll(".group > .case:not([hidden])").forEach(function (card) {
-      if (!card.closest(".group").hidden) card.open = true;
-    });
+    document.querySelectorAll(
+      ".group > .case:not([hidden]), .manual-case:not([hidden])"
+    ).forEach(function (card) { card.open = true; });
   });
   document.getElementById("collapse-all").addEventListener("click", function () {
     document.querySelectorAll("details.case").forEach(function (card) {
       card.open = false;
     });
   });
-  apply();
+  var saveButton = document.getElementById("save-report");
+  if (saveButton) saveButton.addEventListener("click", function () { saveReport(); });
+  restoreOverrides();
+  recompute();
 })();
 """
 
 
-def _filters(counts):
+def _filters(counts, manual_total=0):
     """All / Passed / Failed / Skipped chips for the case list."""
-    total = sum(counts.values())
+    combined = dict(counts)
+    combined["skipped"] += manual_total
+    total = sum(combined.values())
     chips = [
         ("all", "All", total),
-        ("passed", "Passed", counts["passed"]),
-        ("failed", "Failed", counts["failed"]),
-        ("skipped", "Skipped", counts["skipped"]),
+        ("passed", "Passed", combined["passed"]),
+        ("failed", "Failed", combined["failed"]),
+        ("skipped", "Skipped", combined["skipped"]),
     ]
     buttons = []
     for key, label, n in chips:
@@ -691,11 +1397,13 @@ def _filters(counts):
     return f'<div class="filters" role="group" aria-label="Filter cases">{"".join(buttons)}</div>'
 
 
-def build(results_path=None, out_path=None):
+def build(results_path=None, out_path=None, manual_cases_path=None):
     """Generate the report and return its output path."""
     cases, mapped = _validate_catalog()
     results_path = results_path or os.path.join(config.LOG, "run_results.json")
     out_path = out_path or os.path.join(config.LOG, "spider_regression.html")
+    manual_cases_path = manual_cases_path or MANUAL_CASES_CSV
+    manual_cases = _load_manual_cases(manual_cases_path)
     payload = _load_results(results_path)
     result_by_name = {
         item["name"]: item for item in payload.get("tests", [])
@@ -720,7 +1428,8 @@ def build(results_path=None, out_path=None):
 
     if failed_rows:
         body.append(
-            '<section class="attention"><div class="attention-head"><div>'
+            '<section class="attention" id="attention">'
+            '<div class="attention-head"><div>'
             '<h2>Needs attention</h2>'
             f'<p class="lead">{len(failed_rows)} failed case'
             f'{"s" if len(failed_rows) != 1 else ""} from this run</p></div>'
@@ -774,6 +1483,33 @@ def build(results_path=None, out_path=None):
     ) if x).strip()
     if not app_value:
         app_value = "—"
+    manual_body = [
+        '<section class="manual-verification" id="manual-verification">',
+        '<div class="manual-head"><div><h2>Manually verified</h2>'
+        '<p>Cases outside the automation suite. They begin as Skipped; set each '
+        "result after checking it on the device. These results are reported "
+        "separately and do not change automated release readiness.</p></div></div>",
+        '<div class="manual-stats" aria-label="Manual verification summary">',
+        f'<div class="manual-stat"><span class="k">Total cases</span>'
+        f'<strong class="v" id="manual-total">{len(manual_cases)}</strong></div>',
+        '<div class="manual-stat"><span class="k">Passed</span>'
+        '<strong class="v" id="manual-passed">0</strong></div>',
+        '<div class="manual-stat"><span class="k">Failed</span>'
+        '<strong class="v" id="manual-failed">0</strong></div>',
+        '<div class="manual-stat"><span class="k">Skipped</span>'
+        f'<strong class="v" id="manual-skipped">{len(manual_cases)}</strong></div>',
+        "</div>",
+    ]
+    current_manual_section = None
+    for case in manual_cases:
+        if case["section"] != current_manual_section:
+            current_manual_section = case["section"]
+            manual_body.append(
+                f'<h3 class="manual-category">{html.escape(current_manual_section)}</h3>'
+            )
+        manual_body.append(_manual_case_card(case))
+    manual_body.append("</section>")
+
     logo_uri = _jpeg_data_uri(HEADER_LOGO)
     header_mark = (
         f'<img class="mark" src="{logo_uri}" alt="Spider Solitaire logo">'
@@ -790,25 +1526,44 @@ def build(results_path=None, out_path=None):
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spider Solitaire — Regression Report</title>
-<style>{CSS}</style></head><body><div class="wrap">
+<style>{CSS}</style></head>
+<body data-run-id="{html.escape(str(payload.get("finished") or payload.get("started") or "none"), quote=True)}">
+<div class="wrap">
 <div class="hero">
 <div class="hero-copy"><div class="eyebrow"><span class="eyebrow-dot"></span>
 Quality assurance report</div>
 <div class="brand">{header_mark}<div><h1>Spider Solitaire</h1>
 <div class="sub">Unity functional regression · {html.escape(run_time)}</div></div></div>
 </div>
-<div class="run-state {run_state_class}">{run_state_label}</div>
+<div class="run-state {run_state_class}" id="run-state">{run_state_label}</div>
 </div>
-<section class="overview" aria-label="Run summary">
-<article class="score-card"><div class="panel-label">Overall quality</div>
-{_donut(counts, executed, rate)}</article>
-<div class="metric-grid">
-{_metric("passed", "Passed", counts["passed"], "Ready for review")}
-{_metric("failed", "Failed", counts["failed"], "Require attention")}
-{_metric("skipped", "Skipped", counts["skipped"], "Not exercised")}
-</div>
+<section class="coverage-strip" aria-label="Verification coverage">
+<strong>Verification coverage</strong>
+<span id="coverage-summary">{sum(counts.values()) + len(manual_cases)} total cases ·
+{sum(counts.values())} automated · {len(manual_cases)} manual ·
+{len(manual_cases)} awaiting manual review</span>
 </section>
-{_release_banner(counts)}
+<section class="verification-grid" aria-label="Run summary">
+<article class="score-card verification-card">
+<div class="panel-label">Automated verification</div>
+{_donut(counts, executed, rate)}
+<div class="verification-stats">
+{_verification_stat("total", "Total", sum(counts.values()), "metric-total")}
+{_verification_stat("passed", "Passed", counts["passed"], "metric-passed")}
+{_verification_stat("failed", "Failed", counts["failed"], "metric-failed")}
+{_verification_stat("skipped", "Skipped", counts["skipped"], "metric-skipped")}
+</div></article>
+<article class="score-card verification-card">
+<div class="panel-label">Manual verification</div>
+{_manual_donut(len(manual_cases))}
+<div class="verification-stats">
+{_verification_stat("total", "Total", len(manual_cases), "manual-top-total")}
+{_verification_stat("passed", "Passed", 0, "manual-top-passed")}
+{_verification_stat("failed", "Failed", 0, "manual-top-failed")}
+{_verification_stat("skipped", "Skipped", len(manual_cases), "manual-top-skipped")}
+</div></article>
+</section>
+{_release_banner()}
 <section class="meta-panel"><div class="meta-head"><h2>Run environment</h2>
 <span>Captured from the connected test device</span></div>
 <div class="chips">
@@ -822,27 +1577,44 @@ Quality assurance report</div>
 <div class="toolbar">
 <div class="toolbar-top">
 <div class="toolbar-copy"><strong>Test cases</strong>
-<span id="visible-count">{sum(counts.values())} of {sum(counts.values())} shown</span></div>
+<span id="visible-count">{sum(counts.values()) + len(manual_cases)} of {sum(counts.values()) + len(manual_cases)} shown</span></div>
 <div class="toolbar-controls">
 <label class="case-search"><span class="sr-only">Search test cases</span>
 <input id="case-search" type="search" placeholder="Search ID or case title"
 autocomplete="off"></label>
-{_filters(counts)}
+{_filters(counts, len(manual_cases))}
 <div class="tool-buttons">
+<button class="tool-button" id="save-report" type="button">Save report</button>
 <button class="tool-button" id="expand-visible" type="button">Expand visible</button>
 <button class="tool-button" id="collapse-all" type="button">Collapse all</button>
 </div>
 </div></div>
-<nav class="section-nav" aria-label="Report sections">{"".join(section_links)}</nav>
+<div class="bulk-bar" id="bulk-bar">
+<label class="bulk-select-all"><input type="checkbox" id="bulk-select-visible">
+<span>Select visible</span></label>
+<span class="bulk-count" id="bulk-count">0 selected</span>
+<label class="bulk-apply-label" for="bulk-status">Set status</label>
+<select id="bulk-status" aria-label="Status to apply to selected cases">
+<option value="passed">Passed</option>
+<option value="failed">Failed</option>
+<option value="skipped">Skipped</option>
+</select>
+<button class="tool-button" id="bulk-apply" type="button" disabled>Apply</button>
+</div>
+<nav class="section-nav" aria-label="Report sections">{"".join(section_links)}
+<a class="section-link" href="#manual-verification"
+data-target="manual-verification">Manually verified</a></nav>
 </div>
 <section class="empty-state" id="empty-state" hidden>
 <strong>No matching test cases</strong>
 <span>Try a different search term or status filter.</span>
 </section>
 {"".join(body)}
+{"".join(manual_body)}
 <footer>Generated by scripts/gen_regression_report.py · test screenshots remain
 available separately in log/ and are not embedded here.</footer>
-</div><script>{FILTER_JS}</script></body></html>
+</div><script type="application/json" id="status-overrides">{{}}</script>
+<script>{FILTER_JS}</script></body></html>
 """
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as fh:
@@ -854,8 +1626,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--results", default=os.path.join(config.LOG, "run_results.json"))
     parser.add_argument("--out", default=os.path.join(config.LOG, "spider_regression.html"))
+    parser.add_argument("--manual-cases", default=MANUAL_CASES_CSV)
     args = parser.parse_args(argv)
-    print(f"wrote {build(args.results, args.out)}")
+    print(f"wrote {build(args.results, args.out, args.manual_cases)}")
 
 
 if __name__ == "__main__":

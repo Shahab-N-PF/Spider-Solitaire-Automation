@@ -6,7 +6,7 @@ The Obj-C baseline is constant, so it's embedded once per screen; each version
 contributes its own Unity capture, diff image, diff%, findings, and per-screen
 notes. Switching version swaps all of that (and re-ranks the screen cards).
 
-Wired for iPhone 7 (builds 341 / 337 / 335), iPad (builds 337 / 335), and
+Wired for iPhone 7 (builds 382 / 343 / 341 / 337 / 335), iPad (builds 337 / 335), and
 iPhone 14 Pro Max (build 341). Add a device/version by extending DEVICES below
 with the capture dir + curated findings.
 
@@ -158,6 +158,42 @@ IP7_V343_VERDICT = ("Build 343's <b>portrait</b> UI is effectively <b>unchanged 
                     "plus the lowercase 'options' title. The real movement in build 343 is on the landscape side — "
                     "see the landscape report.")
 IP7_V343_BUGS = set()
+
+# ── iPhone 7 PORTRAIT: build 382 (2026-09-18) — marketing 8.0.2 ───────────────
+# 16/17 screens (Victory · Best skipped). Manual tidevice walk on Kaala.
+IP7_V382_NOTES = {
+    "MainMenu.png": "Promo-icon strip present (post-win menu). Diff is logo shading, menu-label typography and the left-icon art; sparkle-glow is volatile. Bottom house-ad is masked.",
+    "more_games_icons.png": "Same settled menu as Main Menu — left 5-icon cross-promo strip present.",
+    "DifficultyLevels.png": "Easy–Expert arc, smiley cursor at Hard, LAST SCORE ribbon. Diff is typography + the rotating house-ad (masked).",
+    "Play.png": "Chrome-only (dealt cards masked). Unity has no bottom ad banner; top-bar / hint typography differ.",
+    "InGameMenu.png": "Peak screen (26.9%). The 3×2 tray (replay/abandon/options · new/help/FAQ) is in the right place; Unity's wood + button rendering is much redder / more saturated than Obj-C, so the whole tray lights up. House-ad (Smash Fest vs Freecell) sits on the tray. Dealt cards masked. Not a layout bug.",
+    "VictoryScreen1.png": "First victory / This Week ranking — no promo strip, help/new/stats RED, no Dev Panel button. Score block masked. 4.4%.",
+    "VictoryScreen2.png": "Not captured this run (skipped).",
+    "LastScore.png": "'Last Won Game Score' from the menu. Date / won-count / score table masked; header + labels are a close match (3.0%).",
+    "OptionsPage.png": "Sounds + Cards match. Diff is heavier label typography. Card Bouncing was OFF in this capture (Obj-C baseline ON) — a setting, not a missing control.",
+    "StatsPage.png": "Top of Statistics (overall + Easy / Medium / Hard). Values differ from the fresh-install baseline (games were won on this device) and are not masked here. Markers decorative.",
+    "StatsResetBtn.png": "Scrolled to Reset Statistics; per-run values masked. Remaining diff is typography + the Reset label.",
+    "HelpPage.png": "Header illustration + single Introduction + Rules, correct Spider text. Diff is typography / line-wrap (7.7%).",
+    "MoreGames.png": "Curtain page (Solitaire + Sudoku² + Card Games). Smiley tap-cursors are animated (volatile); Unity's Solitaire FREE pill / cursor frame differ from the baseline.",
+    "SpiderAboutPage.png": "'Spider ▷ Solitaire' divider, links correct. Only real delta is version 8.0.2 vs baseline 7.42.5 (3.2%).",
+    "SpiderFAQ.png": "Spider's own FAQ; 'How do I play the game?' appears once (not duplicated). Diff is typography / line-wrap (16.6%).",
+    "choose_look_surface.png": "Surface tab, 9 swatches, Simulate Depth toggle; modal well-positioned (5.7%).",
+    "choose_look_cards.png": "Cards tab, 6 designs, 'symbols' spelled correctly; modal well-positioned (9.4%).",
+}
+IP7_V382_FINDINGS = [
+    ("ok", "No content bugs", "FAQ is Spider's own text with a single first question; About keeps its ▷ divider and reads 8.0.2; the menu promo strip is present; Victory · Score has red help/new/stats, no promo strip, and no Dev Panel button.", "regression check"),
+    ("layout", "In-game menu is the peak (27%)", "The pause tray is the correct 3×2 portrait grid, but Unity paints the wood and buttons much redder than Obj-C, so the whole tray diffs. House-ad creative also differs. Not a rearranged layout.", "In-Game Menu"),
+    ("layout", "Systemic typography / line-wrap drift", "Body text is still heavier and wraps differently — the main remaining diff on FAQ (17%), Options (15%), Stats · Reset (15%), More Games (15%) and Stats (14%). Unchanged in kind from 343.", "systemic"),
+    ("ok", "Closest screens", "Last Score 3.0%, About 3.2% (version string), Victory · Score 4.4%. Help 7.7% and both Choose Look tabs stay in single digits.", "About · Last Score · Victory"),
+    ("minor", "Victory · Best not captured", "The second victory / promo-strip win screen was skipped on this walk, so the switcher has 16 of 17 portrait screens for 382.", "Victory · Best"),
+]
+IP7_V382_VERDICT = ("Build 382 (marketing <b>8.0.2</b>) on iPhone 7 portrait — <b>16/17</b> screens, "
+                    "<b>no content bugs</b>. FAQ, About, the promo strip and Victory · Score all hold. "
+                    "The peak is the <b>in-game menu at 27%</b>: the 3×2 tray is in the right place, but "
+                    "Unity's wood/button rendering is much redder than Obj-C. Everything else tracks the "
+                    "familiar <b>typography / line-wrap drift</b> (FAQ 17%, Options 15%). Closest matches: "
+                    "Last Score 3%, About 3%, Victory · Score 4%. Victory · Best was skipped this run.")
+IP7_V382_BUGS = set()
 
 # ── iPhone 7 LANDSCAPE: build 343 (first landscape measurement) ───────────────
 IP7L_V343_NOTES = {
@@ -372,6 +408,10 @@ DEVICES = {
         "diff_prefix": "diff_ip7_", "zoom": True,   # trial: click-to-enlarge lightbox
         "out": os.path.join(REPO, "reports", "iPhone7_Unity_Report.html"),
         "versions": [
+            {"id": "v382", "label": "382", "date": "2026-09-18",
+             "unity_dir": os.path.join(REPO, "log", "ip7_unity_382"),
+             "verdict": IP7_V382_VERDICT, "findings": IP7_V382_FINDINGS,
+             "notes": IP7_V382_NOTES, "bugs": IP7_V382_BUGS},
             {"id": "v343", "label": "343", "date": "2026-08-04",
              "unity_dir": os.path.join(REPO, "log", "ip7_unity_343"),
              "verdict": IP7_V343_VERDICT, "findings": IP7_V343_FINDINGS,
@@ -381,7 +421,7 @@ DEVICES = {
              "verdict": IP7_V341_VERDICT, "findings": IP7_V341_FINDINGS,
              "notes": IP7_V341_NOTES, "bugs": IP7_V341_BUGS},
             {"id": "v3", "label": "337", "date": "2026-07-30",
-             "unity_dir": os.path.join(REPO, "log", "ip7_unity"),
+             "unity_dir": os.path.join(REPO, "log", "ip7_unity_337"),
              "verdict": IP7_V3_VERDICT, "findings": IP7_V3_FINDINGS,
              "notes": C7.META, "bugs": IP7_V3_BUGS},
             {"id": "v2", "label": "335", "date": "2026-07-27",
@@ -492,6 +532,10 @@ def build(dev):
 
     versions_js = []
     for v in dev["versions"]:
+        captured = sum(1 for n in order if os.path.isfile(os.path.join(v["unity_dir"], n)))
+        if captured == 0:
+            print(f"  skip {v['label']}: no captures in {v['unity_dir']}")
+            continue
         C.UNITY_DIR = v["unity_dir"]
         results = [C.compare_one(n, C.SPECS[n]["ignore"], C.SPECS[n].get("common")) for n in order]
         ok = [r for r in results if r["status"] == "ok"]
@@ -701,7 +745,8 @@ function render(vid){
   document.getElementById('tiles').innerHTML = v.tiles;
   document.getElementById('findings').innerHTML = v.findings;
   document.querySelectorAll('#vswitch button').forEach(b => b.classList.toggle('on', b.dataset.v === vid));
-  const ranked = [...DATA.order].sort((a,b) => (v.screens[b].pct) - (v.screens[a].pct));
+  DATA.order.forEach(name => { cards[name].hidden = !v.screens[name]; });
+  const ranked = [...DATA.order].filter(n => v.screens[n]).sort((a,b) => v.screens[b].pct - v.screens[a].pct);
   ranked.forEach(name => {
     const s = v.screens[name], c = cards[name];
     c.className = 'card s-' + s.sev;
