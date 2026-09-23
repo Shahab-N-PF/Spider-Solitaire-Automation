@@ -110,6 +110,22 @@ are not embedded in the report; the original captures remain available
 separately in `log/`. Standalone cases remain SKIPPED until run through the
 runner, for example `./.venv/bin/python tests/run_all.py verifyAds`.
 
+The report also has a separate **Manually verified** section sourced from
+`docs/testrail/manual_spider_solitaire_8.0.3_regression.csv`. Its cases are not
+covered by the automation suite, start as **Skipped**, and can be changed to
+Passed / Failed / Skipped in the HTML. Their Total / Passed / Failed / Skipped
+statistics update live and stay separate from the automated score and release
+verdict. The top Test cases toolbar includes both automated and manual cases in
+its totals, search, and status filters. Select visible editable cards in the
+toolbar and apply Passed / Failed / Skipped in bulk; automated failed or skipped
+cards become **Passed Manually** when bulk-marked Passed. The manager summary at the top shows
+separate Automated and Manual donuts plus a combined coverage line, so manual
+completion and failures are visible without changing automated release health.
+The release-approval banner appears only when the average of the automated pass
+rate and manual review-completion rate is strictly greater than 92%.
+Use **Save report** to keep manual status changes in a shareable HTML copy;
+browser-local changes also survive an ordinary refresh.
+
 > **WDA must be running** (`./scripts/wda.sh`, own tab) and the **iPhone
 > unlocked** for any of this to work — WDA listens on `http://127.0.0.1:8100`.
 > Always use the project venv (`./.venv/bin/python`), never system `python`.

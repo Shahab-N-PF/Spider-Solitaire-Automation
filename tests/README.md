@@ -82,6 +82,22 @@ results into that ledger, so a full offline run followed by
 `run_all.py verifyAds` fills in the Ads cards without erasing the earlier
 results.
 
+Below the automated case groups, the dashboard renders a separate **Manually
+verified** section from
+`docs/testrail/manual_spider_solitaire_8.0.3_regression.csv`. All manual-only
+cases start as **Skipped** and have an editable Passed / Failed / Skipped
+selector. Their Total / Passed / Failed / Skipped counters are independent:
+manual failures do not change the automated donut, run state, attention panel,
+or release verdict. The top Test cases toolbar aggregates both sets for its
+total, search, and Passed / Failed / Skipped filters, and can bulk-select visible
+editable cards to set Passed / Failed / Skipped (automated failed or skipped
+cards become **Passed Manually** when bulk-marked Passed). A manager summary at the
+top presents separate Automated and Manual donuts and a combined coverage line;
+the manual donut is completion-oriented (`reviewed / total`). Changes persist
+in browser storage; use **Save report** to write them into a shareable HTML file.
+The release-approval banner is shown only when
+`(automated pass rate + manual completion rate) / 2 > 92%`.
+
 **The suite is destructive.** It ends with `resetStats`, which permanently wipes
 local statistics on the device (Game Center scores are untouched). That is safe
 where it sits — everything that reads or depends on play history has already run,
