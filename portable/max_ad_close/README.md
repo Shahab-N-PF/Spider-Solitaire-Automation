@@ -117,8 +117,7 @@ close_interstitial_chain(adapter, "leaving the game",
 ```
 
 Spider wiring (this repo) looks the same, with `unity_ui` as `ui` and
-`reopen` as `ui.is_on("dev_max_debugger") or (ui.open_dev_panel() and
-ui.tap("dev_max_debugger", settle=4.0))`.
+`reopen` as `ui.tap_max_debugger()` (Dev Panel, then Debug, then Max Debugger).
 
 ## Pin AppLovin
 

@@ -185,6 +185,13 @@ CROPS_IP11 = {
     # this stops at the same x as its neighbour rather than chasing text that
     # is not drawn. Source: log/unity_screens/SpiderAboutDevPanelOpen.png.
     "dev_max_debugger": ("SpiderAboutDevPanelOpen.png", (592, 1298, 824, 1344)),
+    # 8.0.3 moved those two rows behind parent items. The root list on About is
+    # Layout / Debug / Interaction / Gameplay (log/devpanel_root.png, 828x1792).
+    # dev_debug is (590, 1354, 824, 1413) and dev_gameplay is (590, 1483, 824, 1542).
+    # They live in assets_unity/ only. They are not in CROPS: the iphone14 gate
+    # scores older captures that do not contain this submenu. The child crops
+    # above still match once the parent row is open (Complete Game under
+    # Gameplay, Max Debugger under Debug).
     # The victory screen, now reachable via that cheat. Anchored on the
     # "current / rank / best" header rather than the won/abandoned counters or the
     # score block, which change with every win. Kept left of x=587 so the Dev

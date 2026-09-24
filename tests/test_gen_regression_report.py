@@ -20,28 +20,31 @@ class ManualRegressionReportTests(unittest.TestCase):
             with open(output, encoding="utf-8") as fh:
                 document = fh.read()
             self.assertEqual(
-                document.count('class="case manual-case skipped selectable"'), 35
+                document.count('class="case manual-case skipped selectable"'), 46
             )
-            self.assertIn('id="manual-total">35<', document)
+            self.assertIn('id="manual-total">46<', document)
             self.assertIn('id="manual-passed">0<', document)
             self.assertIn('id="manual-failed">0<', document)
-            self.assertIn('id="manual-skipped">35<', document)
+            self.assertIn('id="manual-skipped">46<', document)
             self.assertIn('data-id="C126829"', document)
             self.assertIn('data-id="C126856"', document)
+            self.assertIn('data-id="C128602"', document)
+            self.assertIn('data-id="C128612"', document)
+            self.assertIn(">Localization<", document)
             self.assertIn("do not change automated release readiness", document)
-            self.assertIn("135 of 135 shown", document)
+            self.assertIn("146 of 146 shown", document)
             self.assertIn("Automated verification", document)
             self.assertIn("Manual verification", document)
-            self.assertIn('id="manual-donut-value">0/35<', document)
+            self.assertIn('id="manual-donut-value">0/46<', document)
             self.assertIn(
-                'id="coverage-summary">135 total cases ·\n'
-                "100 automated · 35 manual ·\n"
-                "35 awaiting manual review",
+                'id="coverage-summary">146 total cases ·\n'
+                "100 automated · 46 manual ·\n"
+                "46 awaiting manual review",
                 document,
             )
-            self.assertIn('data-filter="all" aria-pressed="true">All <b>135</b>', document)
+            self.assertIn('data-filter="all" aria-pressed="true">All <b>146</b>', document)
             self.assertIn(
-                'data-filter="skipped" aria-pressed="false">Skipped <b>135</b>',
+                'data-filter="skipped" aria-pressed="false">Skipped <b>146</b>',
                 document,
             )
             self.assertIn("averageRate > 92", document)
@@ -52,7 +55,7 @@ class ManualRegressionReportTests(unittest.TestCase):
             self.assertIn('id="bulk-select-visible"', document)
             self.assertIn('id="bulk-status"', document)
             self.assertIn('id="bulk-apply"', document)
-            self.assertEqual(document.count('class="case-check"'), 135)
+            self.assertEqual(document.count('class="case-check"'), 146)
 
     def test_manual_csv_rejects_duplicate_case_ids(self):
         with tempfile.TemporaryDirectory() as tmp:

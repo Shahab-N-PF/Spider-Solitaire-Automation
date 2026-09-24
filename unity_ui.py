@@ -94,6 +94,11 @@ THRESH = {
     "look_cards_tab": 0.88,
     "in_game_menu": 0.72,
     "last_score_next": 0.85,
+    # dev_debug — the word is short and sits on the same white row chrome as
+    # every other Dev Panel entry. On the Debug submenu (where the row itself
+    # is gone) the crop still scores 0.713 against a neighbour. Its true match
+    # is 1.0, so 0.85 keeps the root row and drops that neighbour.
+    "dev_debug": 0.85,
 }
 
 
@@ -2653,9 +2658,9 @@ def close_ingame_menu(timeout: float = 4.0) -> bool:
 # ── Dev Panel (the QA cheats) ─────────────────────────────────────
 # The Unity build keeps a developer panel behind the same hidden gesture the
 # Obj-C build used for its QA cheats: 5 rapid taps on the About screen's spider
-# emblem reveal a "Dev Panel" button, and tapping that expands a list —
-# surface / language / card-back pickers, "Complete Game", "Max Debugger",
-# "Kill Banner Ad", "PT Debugger", "Screen Stats".
+# emblem reveal a "Dev Panel" button, and tapping that expands a list. On 8.0.3
+# the root list is Layout / Debug / Interaction / Gameplay. "Complete Game"
+# is inside Gameplay. "Max Debugger" is inside Debug.
 #
 # "Complete Game" is the synthetic win. It acts on the ACTIVE game, so firing it
 # from the About screen does nothing at all (measured: 0.00% of the screen) —
@@ -2666,6 +2671,12 @@ def close_ingame_menu(timeout: float = 4.0) -> bool:
 # column, which is exactly where the main menu draws its labels — so on_menu()
 # and to_menu() cannot confirm the menu while it is up. Navigate with controls
 # that stay clear of it (About's top-left back, Play, Easy) or close it first.
+# Closing is a second tap on the Dev Panel button, including from a submenu.
+
+# Root rows that prove the panel is expanded on its first list, and the nested
+# rows that prove a submenu is up. Any of them means the overlay is open.
+_DEV_ROOT_MARKS = ("dev_debug", "dev_gameplay")
+_DEV_OPEN_MARKS = ("dev_debug", "dev_gameplay", "dev_complete_game", "dev_max_debugger")
 def unlock_dev_panel(taps: int = 5, timeout: float = 6.0) -> bool:
     """From the About screen, reveal the Dev Panel button. Idempotent.
 
@@ -2682,19 +2693,38 @@ def unlock_dev_panel(taps: int = 5, timeout: float = 6.0) -> bool:
     return seen("dev_panel", timeout)
 
 
+def dev_panel_open() -> bool:
+    """True when the Dev Panel overlay is expanded, root list or a submenu."""
+    return any(is_on(name) for name in _DEV_OPEN_MARKS)
+
+
+def _seen_any(names, timeout: float = 4.0) -> bool:
+    """Poll until one of `names` is on screen or `timeout` elapses."""
+    deadline = time.time() + timeout
+    while True:
+        if any(is_on(name) for name in names):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.2)
+
+
 def open_dev_panel(from_menu: bool = True) -> bool:
     """Arm the cheats: unlock on About and expand the panel. Idempotent.
 
     Once unlocked the button is on every screen, so a re-run that starts on the
     game table expands from HERE. Walking to About via the menu would tap back
     off the table, and online that fires an interstitial.
+
+    Success is the root list (Debug / Gameplay) or a submenu already open.
+    Complete Game and Max Debugger are not on that first list in 8.0.3.
     """
-    if is_on("dev_complete_game"):
+    if dev_panel_open():
         return True
     if is_on("dev_panel"):
         if not tap("dev_panel", settle=2.0):
             return False
-        return seen("dev_complete_game", 4.0)
+        return _seen_any(_DEV_ROOT_MARKS, 4.0)
     if from_menu and not tap("menu_about", settle=2.5):
         return False
     if not at_screen("about", 6.0):
@@ -2703,39 +2733,83 @@ def open_dev_panel(from_menu: bool = True) -> bool:
         return False
     if not tap("dev_panel", settle=2.0):
         return False
-    return seen("dev_complete_game", 4.0)
+    return _seen_any(_DEV_ROOT_MARKS, 4.0)
 
 
 def close_dev_panel(settle: float = 1.5) -> bool:
-    """Collapse the overlay so on_menu()/to_menu() can see the menu again."""
-    if not is_on("dev_complete_game"):
+    """Collapse the overlay by tapping the Dev Panel button again.
+
+    Works from the root list and from the Gameplay / Debug submenus. A second
+    tap on that button closes the whole overlay.
+    """
+    if not dev_panel_open():
         return True
     if not tap("dev_panel", settle=settle):
         return False
-    return not seen("dev_complete_game", 1.0)
+    deadline = time.time() + 1.5
+    while True:
+        if not dev_panel_open():
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.2)
+
+
+def _show_dev_row(section: str, row: str) -> bool:
+    """Leave `row` visible. Open `section` from the root list when it is not.
+
+    If the other submenu is up, collapse and expand again so the root list
+    (Debug / Gameplay) is showing before the section tap.
+    """
+    if is_on(row):
+        return True
+    if not is_on(section):
+        if dev_panel_open() and not close_dev_panel():
+            return False
+        if not open_dev_panel(from_menu=False) and not open_dev_panel():
+            return False
+    if is_on(row):
+        return True
+    if not tap(section, settle=1.5):
+        return False
+    return seen(row, 4.0)
 
 
 def complete_game(settle: float = 5.0) -> bool:
-    """Fire the QA synthetic win. Needs a game ACTIVE and the panel armed."""
-    if not is_on("dev_complete_game"):
+    """Fire the QA synthetic win. Needs a game ACTIVE and the panel armed.
+
+    8.0.3 path: Dev Panel, then Gameplay, then Complete Game.
+    """
+    if not _show_dev_row("dev_gameplay", "dev_complete_game"):
         return False
     return tap("dev_complete_game", settle=settle)
+
+
+def tap_max_debugger(settle: float = 4.0) -> bool:
+    """Open MAX's mediation debugger row. 8.0.3 path: Dev Panel, Debug, then it."""
+    if not _show_dev_row("dev_debug", "dev_max_debugger"):
+        return False
+    return tap("dev_max_debugger", settle=settle)
 
 
 def win_current_game(timeout: float = 10.0) -> bool:
     """Win the game ALREADY on the table with the QA cheat. True once on victory.
 
     Needs the Dev Panel button showing (openDebugTools / unlock_dev_panel) and the
-    table up. Leaves the panel EXPANDED over the victory screen — call
-    close_dev_panel() before navigating, or to_menu() cannot see the menu labels
-    the overlay covers.
+    table up. Expands the panel, taps Gameplay, then Complete Game. Leaves the
+    panel EXPANDED over the victory screen — tap the Dev Panel button again
+    (close_dev_panel) before asserting on the victory screen, or to_menu()
+    cannot see the menu labels the overlay covers. triggerAdPoints waits until
+    its victory ad has closed before that tap.
     """
     settle_prompts()            # the "Did you know?" tip lands AFTER the deal and
                                 # swallows taps until answered
-    if not is_on("dev_complete_game"):          # not expanded yet
+    if not dev_panel_open():
         if not is_on("dev_panel"):
             return False
         if not tap("dev_panel", settle=2.0):
+            return False
+        if not _seen_any(_DEV_ROOT_MARKS, 4.0):
             return False
     if not complete_game():
         return False
