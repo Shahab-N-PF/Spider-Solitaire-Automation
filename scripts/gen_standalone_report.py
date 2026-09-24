@@ -13,6 +13,7 @@ Run:  ./.venv/bin/python scripts/gen_standalone_report.py ip7 343 \
 Out:  reports/<Device>_Build<label>_Screens.html   (override with --out)
 """
 import argparse
+import html
 import os
 import sys
 
@@ -20,7 +21,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "scripts"))
 
-from gen_versioned_report import DEVICES, LABELS, uri, sev_of  # noqa: E402
+import card_size  # noqa: E402
+from gen_versioned_report import DEVICES, LABELS, uri, sev_of, _play_note  # noqa: E402
 
 # A handful of screens per page, so embed noticeably bigger than the full report
 # (which has to fit 4 builds x 17 screens under the 16MB artifact cap).
@@ -73,7 +75,12 @@ def build(dev, version, screens, out_path):
         b = uri(os.path.join(C.BASE_DIR, n), cw, cq)
         u = uri(os.path.join(version["unity_dir"], n), cw, cq)
         d = uri(os.path.join(REPO, "log", dev["diff_prefix"] + n), dw, dq)
-        note = version["notes"].get(n, "")
+        note = _play_note(n, version["notes"].get(n, ""))
+        sized = r.get("cards")
+        cards_html = ""
+        if sized:
+            fail = " fail" if sized.get("fail") else ""
+            cards_html = f'<p class="cardsz{fail}">{html.escape(card_size.line(sized))}</p>'
         cards += f"""
   <article class="card s-{sev}">
     <div class="ch"><h3>{LABELS.get(n, n)}</h3><span class="pill s-{sev}">{pct:.1f}%</span></div>
@@ -93,6 +100,7 @@ def build(dev, version, screens, out_path):
         {'<button class="zoombtn" type="button">⤢ Enlarge</button>' if zoom else ''}
       </div>
       <p class="note">{note}</p>
+      {cards_html}
     </div>
   </article>"""
 
@@ -157,6 +165,8 @@ h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4.4vw,42px);line
 .seg button{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:transparent;border:0;padding:5px 12px;cursor:pointer}
 .seg button.on{background:var(--gold);color:#1a130a;font-weight:700}
 .note{margin:0;color:var(--muted);font-size:13px}
+.cardsz{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--ok)}
+.cardsz.fail{color:var(--bad)}
 .segrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .zoombtn{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:9px;padding:5px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
 .zoombtn:hover{color:var(--ink);border-color:var(--gold)}
