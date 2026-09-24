@@ -119,6 +119,7 @@ def run():
               f"the ad-free card should offer two buttons (No, Yes) but "
               f"{len(buttons)} were found at {buttons} — the wrong card may be "
               f"up, and answering it blind could tap the wrong thing")
+    yes_shot = ui.shoot("AdFreeVersionYes")
     ui.expect(ui.answer_card(1, settle=4.0), "could not press Yes on the ad-free card")
     print("  the link raises a No/Yes card; answered Yes")
 
@@ -163,8 +164,9 @@ def run():
 
     # 12-13. Leave the app where every other test expects to find it.
     ui.expect(ui.to_menu(), "could not return to the main menu after About")
+    back_shot = ui.shoot("AdFreeVersionBackAbout")
     print(f"PASS: About's 'ad free version' opens the App Store and switching "
-          f"back returns to About (see {shot})")
+          f"back returns to About (see {no_shot}, {yes_shot}, {shot}, {back_shot})")
 
 
 if __name__ == "__main__":

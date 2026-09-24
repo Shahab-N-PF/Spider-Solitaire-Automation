@@ -136,6 +136,157 @@ TESTS = [
     "verifyHelpShiftOnline",    # come online, Contact Us opens PeopleFun Support
 ]
 
+# Passing-screen evidence for each automated TestRail case. The names are
+# screenshot stems under config.LOG. A single settled screen may prove several
+# related criteria; transient interactions get their own capture in the test
+# where possible.
+CASE_SHOTS = {
+    "installFromTestFlight": {"FL-06": ["TestFlightBuild"]},
+    "verifyFirstLaunch": {
+        "FL-01": ["first_launch"],
+        "FL-02": ["first_launch_tc_card"],
+        "FL-03": ["first_launch_att"],
+        "FL-04": ["first_launch_terms_page"],
+        "FL-05": ["first_launch_privacy_page"],
+    },
+    "verifyMainMenu": {"MM-01": ["MainMenu"]},
+    "verifyStatsPage": {
+        "ST-01": ["StatsPage"],
+        "ST-03": ["StatsResetBtn"],
+        "ST-04": ["StatsBackMenu"],
+    },
+    "verifyOptions": {
+        "OP-01": ["OptionsPage"],
+        "OP-03": ["options_applause_min", "options_applause_max",
+                  "options_applause_mid"],
+        "OP-04": ["options_applause_persist"],
+        "OP-05": ["options_auto_mute_toggle"],
+        "OP-06": ["options_card_lowering_min", "options_card_lowering_max",
+                  "options_card_lowering_mid"],
+        "OP-07": ["options_use_hearts_toggle"],
+    },
+    "verifyHelpShift": {"HS-02": ["HelpShift"]},
+    "verifyHelpShiftOnline": {"HS-01": ["HelpShiftOnline"]},
+    "verifyHelpPage": {
+        "HP-01": ["HelpPage"],
+        "HP-02": ["HelpPageBottom"],
+        "HP-03": ["HelpBackMenu"],
+    },
+    "verifySpiderLogo": {
+        "AB-01": ["SpiderAboutPage"],
+        "AB-03": ["SpiderAboutPage"],
+        "AB-04": ["SpiderFAQ"],
+        "AB-05": ["SpiderFAQBottom"],
+        "AB-06": ["SpiderLogoAbout"],
+    },
+    "verifyMoreGamesBtn": {
+        "MG-01": ["MoreGames"],
+        "MG-02": ["MoreGamesBottom"],
+        "MG-03": ["MoreGamesBackMenu"],
+    },
+    "verifyPlay": {
+        "PL-01": ["DifficultyLevels"],
+        "PL-02": ["DifficultyLevels"],
+        "PL-03": ["Play"],
+    },
+    "verifyAbandonNo": {"PL-04": ["AbandonNo"]},
+    "openDebugTools": {
+        "QA-02": ["debug_tools_hidden"],
+        "QA-03": ["debug_tools"],
+        "QA-04": ["debug_tools_hidden"],
+    },
+    "verifyGamePlay": {
+        "GP-01": ["GamePlay"],
+        "GP-02": ["dealt"],
+        "GP-03": ["undone"],
+        "GP-04": ["GamePlayLowered"],
+        "GP-05": ["GamePlayRaised"],
+        "GP-06": ["hint_1"],
+        "GP-07": ["InGameMenu"],
+        "GP-08": ["GamePlayHearts"],
+        "GP-09": ["GamePlaySpades"],
+        "GP-10": ["_strip_rich_off"],
+        "GP-11": ["_strip_rich_on"],
+        "GP-14": ["postnew"],
+    },
+    "verifyVictory": {
+        "VI-01": ["VictoryScreen"],
+        "VI-02": ["VictoryScreen"],
+        "VI-03": ["VictoryScreen"],
+        "VI-04": ["VictoryBackMenu"],
+    },
+    "verifyDifficultyLevels": {
+        "DL-01": ["unity_difficulty_medium", "unity_victory_medium"],
+        "DL-02": ["unity_difficulty_hard", "unity_victory_hard"],
+        "DL-03": ["unity_difficulty_bold", "unity_victory_bold"],
+        "DL-04": ["unity_difficulty_expert", "unity_victory_expert"],
+    },
+    "verifyMoreGamesIcons": {
+        "PI-01": ["more_games_icons"],
+        "PI-02": ["promo_store_promo_solitaire"],
+        "PI-03": ["promo_store_promo_sudoku2"],
+        "PI-04": ["promo_store_promo_cardgames"],
+        "PI-05": ["promo_store_promo_freecell"],
+        "PI-06": ["promo_store_promo_spiderette"],
+    },
+    "resetStats": {
+        "RS-01": ["ResetStats"],
+        "RS-02": ["ResetStatsAfter"],
+    },
+    "verifyResetCancelled": {
+        "RS-03": ["StatsResetCancelledAfter"],
+    },
+    "verifyChooseLook": {
+        "CL-01": ["choose_look_surface"],
+        "CL-03": ["choose_look_cards"],
+        "CL-04": ["choose_look_table"],
+        "CL-05": ["choose_look_table"],
+    },
+    "verifyAds": {
+        "AD-01": ["ad_dev_panel"],
+        "AD-02": ["ad_max_debugger"],
+        "AD-03": ["ad_ads_section"],
+        "AD-04": ["ad_applovin"],
+        "AD-06": ["ad_back_on_table"],
+        "AD-07": ["ad_back_on_table"],
+    },
+    "triggerAdPoints": {
+        "TA-01": ["trigger_TA-01"],
+        "TA-02": ["trigger_TA-02"],
+        "TA-03": ["trigger_TA-03"],
+        "TA-04": ["trigger_TA-04"],
+        "TA-05": ["trigger_TA-05"],
+        "TA-06": ["trigger_TA-06"],
+        "TA-07": ["trigger_TA-07"],
+        "TA-08": ["trigger_TA-08"],
+        "TA-10": ["trigger_TA-10"],
+    },
+    "visitLastScore": {
+        "LS-01": ["unity_last_score"],
+        "LS-02": ["unity_last_score_tap4"],
+        "LS-03": ["unity_game_center_leaderboards"],
+        "LS-04": ["unity_game_center_achievements"],
+        "LS-05": ["LastScoreBackMenu"],
+    },
+    "verifyAdFreeVersion": {
+        "AF-01": ["AdFreeVersionNo"],
+        "AF-02": ["AdFreeVersionNo"],
+        "AF-03": ["AdFreeVersionYes"],
+        "AF-04": ["AdFreeVersionBackAbout"],
+    },
+    "submitFeedback": {
+        "FB-02": ["FeedbackAlert"],
+        "FB-03": ["SubmitFeedback"],
+        "FB-04": ["SubmitFeedback"],
+        "FB-05": ["SubmitFeedback"],
+        "FB-06": ["FeedbackBackMenu"],
+    },
+    "verifyRelaunch": {
+        "RL-01": ["relaunch_quick"],
+        "RL-02": ["relaunch_long"],
+    },
+}
+
 # Tests that are currently EXPECTED to fail because the Unity port dropped the
 # feature. They still run and still report FAIL — a known regression should stay
 # visible — but the summary names them so a red run is not mistaken for a broken
@@ -219,12 +370,15 @@ def _module_checks(mod):
     checks = []
     for item in raw:
         if isinstance(item, dict) and item.get("label"):
-            checks.append({
+            check = {
                 "id": item.get("id") or None,
                 "label": item["label"],
                 "status": item.get("status") or "PASS",
                 "error": item.get("error") or "",
-            })
+            }
+            if item.get("shots"):
+                check["shots"] = list(item["shots"])
+            checks.append(check)
         elif isinstance(item, (tuple, list)) and len(item) >= 2:
             checks.append({
                 "id": None,
@@ -233,6 +387,30 @@ def _module_checks(mod):
                 "error": item[2] if len(item) > 2 else "",
             })
     return checks
+
+
+def _checks_for_run(name, mod, ok):
+    """Return per-case results, attaching the passing evidence captures."""
+    checks = _module_checks(mod)
+    shots = CASE_SHOTS.get(name, {})
+    if checks:
+        for check in checks:
+            case_shots = shots.get(check.get("id"))
+            if case_shots and "shots" not in check:
+                check["shots"] = list(case_shots)
+        return checks
+    if not ok:
+        return []
+    return [
+        {
+            "id": case_id,
+            "label": f"passing evidence for {case_id}",
+            "status": "PASS",
+            "error": "",
+            "shots": list(case_shots),
+        }
+        for case_id, case_shots in shots.items()
+    ]
 
 
 def _unpack_result(item):
@@ -433,12 +611,16 @@ def main():
         os.environ["TEST_NAME"] = name
         try:
             mod.run()
+            ok = True
             results.append(
-                (name, True, time.time() - t0, "", _module_checks(mod)))
+                (name, ok, time.time() - t0, "",
+                 _checks_for_run(name, mod, ok)))
         except Exception as e:  # noqa: BLE001
             print(f"FAIL: {e}")
+            ok = False
             results.append(
-                (name, False, time.time() - t0, str(e), _module_checks(mod)))
+                (name, ok, time.time() - t0, str(e),
+                 _checks_for_run(name, mod, ok)))
         finally:
             if previous_test is None:
                 os.environ.pop("TEST_NAME", None)

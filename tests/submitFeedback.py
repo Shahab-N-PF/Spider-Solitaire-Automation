@@ -103,6 +103,7 @@ def run():
               f"tapping 'submit feedback' did not raise the feedback prompt — the "
               f"alert on screen reads {prompt!r}. An empty string means no alert "
               f"came up at all, so the link did nothing.")
+    alert_shot = ui.shoot("FeedbackAlert")
 
     # 6. Press Write Email — the RIGHT-hand button. Index 0 is Cancel, and the
     #    count is asserted first so a different dialog cannot be answered blind.
@@ -183,9 +184,10 @@ def run():
               "neither About nor the main menu")
     print(f"  switching back returns to the game, on {landed}")
     ui.expect(ui.to_menu(), "could not reach the main menu after coming back")
+    menu_shot = ui.shoot("FeedbackBackMenu")
     print(f"PASS: 'submit feedback' opens a mail draft whose subject names the "
           f"game, version, device model and iOS version; draft discarded, "
-          f"nothing sent (see {shot})")
+          f"nothing sent (see {alert_shot}, {shot}, {menu_shot})")
 
 
 if __name__ == "__main__":

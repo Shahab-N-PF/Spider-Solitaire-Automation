@@ -117,12 +117,14 @@ def check_toggle(label, human):
     ui.expect(after is not None, f"the '{human}' toggle vanished after being tapped")
     ui.expect(after != before,
               f"tapping the '{human}' toggle left it {_s(before)} — the control is dead")
+    shot = ui.shoot(f"options_{label.removeprefix('opt_')}_toggle")
 
     back = ui.tap_toggle(label)
     ui.expect(back == before,
               f"the '{human}' toggle would not go back to {_s(before)} "
               f"(it is {_s(back)}) — it flips one way only")
-    print(f"  toggle '{human}': {_s(before)} -> {_s(after)} -> {_s(back)}")
+    print(f"  toggle '{human}': {_s(before)} -> {_s(after)} -> {_s(back)} "
+          f"(see {shot})")
 
 
 def check_slider(label, human):
@@ -140,18 +142,21 @@ def check_slider(label, human):
     ui.expect(lo is not None and lo <= 0.02,
               f"dragging the '{human}' slider to the left end left it at {lo} — "
               f"it does not reach its minimum")
+    low_shot = ui.shoot(f"options_{label.removeprefix('opt_')}_min")
 
     hi = ui.slider_drag(label, 1.0)
     ui.expect(hi is not None and hi >= 0.98,
               f"dragging the '{human}' slider to the right end left it at {hi} — "
               f"it does not reach its maximum")
+    high_shot = ui.shoot(f"options_{label.removeprefix('opt_')}_max")
 
     mid = ui.slider_set(label, MID)
     ui.expect(mid is not None and 0.2 < mid < 0.8,
               f"dragging the '{human}' slider to mid-track left it at {mid} — "
               f"it only snaps to the ends")
+    mid_shot = ui.shoot(f"options_{label.removeprefix('opt_')}_mid")
     print(f"  slider '{human}': {start:.2f} -> min {lo:.2f} -> max {hi:.2f} "
-          f"-> mid {mid:.2f}")
+          f"-> mid {mid:.2f} (see {low_shot}, {high_shot}, {mid_shot})")
 
 
 def check_persists(label, human):
@@ -178,7 +183,9 @@ def check_persists(label, human):
     ui.expect(now is not None and abs(now - was) <= 0.05,
               f"the '{human}' slider was left at {was:.2f} but reads {now} after "
               f"leaving Options and coming back — the setting is not being kept")
-    print(f"  '{human}' kept {was:.2f} across leaving and reopening Options")
+    shot = ui.shoot(f"options_{label.removeprefix('opt_')}_persist")
+    print(f"  '{human}' kept {was:.2f} across leaving and reopening Options "
+          f"(see {shot})")
 
 
 def reset():

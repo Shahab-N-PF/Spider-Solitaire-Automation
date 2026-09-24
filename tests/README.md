@@ -68,8 +68,10 @@ Run it alone with `./.venv/bin/python tests/installFromTestFlight.py`.
 
 After a run, open `log/spider_regression.html` for the lightweight,
 self-contained regression dashboard. It has one expandable card for every
-TestRail case and the parent test's PASS/FAIL result. Screenshots are not
-embedded; the original captures remain available separately in `log/`. The
+TestRail case and the parent test's PASS/FAIL result. Automated cases whose
+result ledger contains `shots` show lossless full-resolution passing-screen
+thumbnails in their cards; the original captures remain available separately
+in `log/`. The
 standalone cases appear as SKIPPED until they are run through the runner, for
 example `run_all.py verifyAds`; a direct `python tests/verifyAds.py` run does
 not update the report ledger. `triggerAdPoints` is the exception: it writes

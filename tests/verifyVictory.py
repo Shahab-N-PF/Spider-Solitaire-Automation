@@ -109,7 +109,8 @@ def run():
     # fine, so long as the menu is reachable. to_menu() is a no-op once there.
     ui.expect(ui.to_menu(),
               "tapping 'back' on the victory screen did not lead to the main menu")
-    print("  'back' leaves the victory screen and reaches the main menu")
+    menu = ui.shoot("VictoryBackMenu")
+    print(f"  'back' leaves the victory screen and reaches the main menu (see {menu})")
 
     print(f"PASS: the victory screen renders and can be left — see {shot}")
 

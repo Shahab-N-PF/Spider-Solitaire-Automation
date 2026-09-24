@@ -38,9 +38,10 @@ def run():
     bottom = ui.shoot("StatsResetBtn")
 
     ui.expect(ui.to_menu(), "could not return to the main menu after Stats")
+    menu = ui.shoot("StatsBackMenu")
     print(f"PASS: Statistics opened (verified 'Statistics' header + Game Center), "
           f"scrolled to 'Reset Statistics' (not tapped), and returned "
-          f"(see {shot}, {bottom})")
+          f"(see {shot}, {bottom}, {menu})")
 
 
 if __name__ == "__main__":

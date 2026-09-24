@@ -49,7 +49,8 @@ def run():
     print(f"  accepted {confirmed} confirmation dialog(s) — {shot}")
 
     ui.expect(ui.to_menu(), "did not get back to the main menu after resetting")
-    print("PASS: local statistics reset and returned to the main menu")
+    after = ui.shoot("ResetStatsAfter")
+    print(f"PASS: local statistics reset and returned to the main menu (see {after})")
 
 
 if __name__ == "__main__":

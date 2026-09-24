@@ -57,11 +57,10 @@ test sets were built for are:
 
 | What | Why | If you don't have it |
 |---|---|---|
-| This GitHub repo | the code, baselines and the signed WDA | ask the repo owner |
 | **TestFlight** invite for Spider (`com.fingerarts.Spider`) | there is no app to test otherwise | ask whoever manages the FingerArts builds |
 | Apple Developer team **`4528523FZZ`** (USERWISE SERVICES LLC) | **only** if your device is not in the list above | ask the team admin |
 
-Most people need the first two and not the third.
+The GitHub repository is public. Clone it, or download the ZIP. No GitHub account is required for the ZIP. Most people need the TestFlight invite and not the Apple team.
 
 ---
 
@@ -97,19 +96,18 @@ python3 --version
 
 ## 4. Clone and build the Python environment
 
+The repository is public. No GitHub account is required to download the ZIP:
+<https://github.com/Shahab-N-PF/Spider-Solitaire-Automation/archive/refs/heads/main.zip>
+
+To clone instead:
+
 ```bash
-git clone git@github.com:Shahab-N-PF/Spider-Solitaire-Automation.git
+git clone https://github.com/Shahab-N-PF/Spider-Solitaire-Automation.git
 cd Spider-Solitaire-Automation
 ./scripts/setup.sh
 ```
 
-If that clone fails with a permission error you have no SSH key on GitHub. Either
-[add one](https://github.com/settings/keys), or clone over HTTPS instead and sign in
-when prompted:
-
-```bash
-git clone https://github.com/Shahab-N-PF/Spider-Solitaire-Automation.git
-```
+If you downloaded the ZIP, unzip it, `cd` into that folder, and run `./scripts/setup.sh`.
 
 That creates `.venv/` and installs airtest, poco and tidevice. **Always run things with
 `./.venv/bin/python`**, never a system `python3` — the plain one has none of these.

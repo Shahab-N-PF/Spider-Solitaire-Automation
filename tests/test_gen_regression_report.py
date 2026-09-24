@@ -3,11 +3,48 @@ import json
 import os
 import tempfile
 import unittest
+from PIL import Image
 
 from scripts import gen_regression_report as report
 
 
 class ManualRegressionReportTests(unittest.TestCase):
+    def test_automated_case_embeds_passing_shot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            results = os.path.join(tmp, "results.json")
+            output = os.path.join(tmp, "report.html")
+            shot = os.path.join(tmp, "passing.png")
+            Image.new("RGB", (20, 20), (12, 34, 56)).save(shot)
+            with open(results, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "tests": [
+                            {
+                                "name": "verifyFirstLaunch",
+                                "ok": True,
+                                "seconds": 1,
+                                "error": "",
+                                "checks": [
+                                    {
+                                        "id": "FL-02",
+                                        "label": "Terms & Conditions card",
+                                        "status": "PASS",
+                                        "error": "",
+                                        "shots": [shot[:-4]],
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    fh,
+                )
+
+            report.build(results, output)
+            with open(output, encoding="utf-8") as fh:
+                document = fh.read()
+            self.assertIn('class="case-shot"', document)
+            self.assertIn("data:image/webp;base64,", document)
+
     def test_manual_cases_render_separately_and_start_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             results = os.path.join(tmp, "results.json")

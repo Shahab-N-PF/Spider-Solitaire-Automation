@@ -95,19 +95,26 @@ CHECK_CASES = {
 }
 
 
-def _add_result(label: str, status: str, error: str = ""):
-    RESULTS.append({
+def _add_result(label: str, status: str, error: str = "", shots=None):
+    entry = {
         "id": CHECK_CASES.get(label),
         "label": label,
         "status": status,
         "error": str(error) if error else "",
-    })
+    }
+    if shots:
+        entry["shots"] = [
+            os.path.splitext(os.path.basename(shot))[0] for shot in shots
+        ]
+    RESULTS.append(entry)
 
 
 def note_check(label: str):
     """Record a completed check for the end-of-run summary."""
     status = "Passed Manually" if label in MANUAL_CLOSES else "PASS"
-    _add_result(label, status)
+    case_id = CHECK_CASES.get(label)
+    shot = ui.shoot(f"trigger_{case_id}") if case_id else None
+    _add_result(label, status, shots=[shot] if shot else [])
 
 
 def note_fail(label: str, err):

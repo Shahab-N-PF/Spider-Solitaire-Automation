@@ -104,7 +104,8 @@ def run():
     ui.expect(ui.tap("menu_logo", settle=2.5), "the menu logo could not be tapped")
     ui.expect(ui.at_screen("about"),
               "tapping the Spider logo did not open the About screen")
-    print("  the menu logo opens About as well")
+    logo_about = ui.shoot("SpiderLogoAbout")
+    print(f"  the menu logo opens About as well (see {logo_about})")
 
     ui.expect(ui.to_menu(), "could not return to the main menu after About")
     print("PASS: About reachable from both the About button and the logo; links "

@@ -108,11 +108,12 @@ def run():
     # Leave the screen as we found it, so a suite run continues from the menu.
     ui.expect(ui.back(settle=2.0), "the Last Score screen's 'back' was not found")
     ui.expect(ui.to_menu(), "could not get back to the main menu afterwards")
+    menu = ui.shoot("LastScoreBackMenu")
 
     links = " and ".join(f"'{link}'" for link, _, _, _ in GAME_CENTER)
     print(f"PASS: 'Last Score' opens the 'Last Won Game Score' ranking view, its "
           f"forward arrow takes {TAPS} taps, and {links} each open and close "
-          f"Game Center (see {shot})")
+          f"Game Center (see {shot}, {menu})")
 
 
 def step_period(before_shot: str):
