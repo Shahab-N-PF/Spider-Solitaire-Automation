@@ -2,8 +2,8 @@
 """Test: the victory screen. [UNITY]
 
 Steps:
-  1. win a game using the QA cheat (Dev Panel -> Complete Game);
-  2. close the Dev Panel so its overlay isn't covering what we assert on;
+  1. win a game using the QA cheat (Dev Panel -> Gameplay -> Complete Game);
+  2. tap Dev Panel again so its overlay isn't covering what we assert on;
   3. assert the victory screen renders all of its parts;
   4. assert the footer names the level that was actually played;
   5. leave via the screen's own "back" control, landing on the main menu.
@@ -11,7 +11,9 @@ Steps:
 Why a cheat and not a real win: winning Spider legitimately takes hundreds of
 correct moves, which no UI test can drive. The Obj-C suite used that build's QA
 cheat for the same reason. The Unity equivalent is the Dev Panel's "Complete
-Game", wrapped as ui.win_game(). Without it the victory screens are untestable.
+Game", reached through Gameplay and wrapped as ui.win_game(). Without it the
+victory screens are untestable. After the win, tap Dev Panel again to close
+the overlay before asserting on the screen.
 
 REQUIRES tests/openDebugTools.py TO HAVE RUN FIRST. This test does not perform
 the unlock gesture itself (win_game(arm=False)) — openDebugTools owns it, and
@@ -68,8 +70,9 @@ PARTS = {
 
 
 def run():
-    # 1-2. win via the QA cheat, then get the panel overlay out of the way — it
-    #      sits over the right-hand column, which is where the stats button is.
+    # 1-2. win via Dev Panel -> Gameplay -> Complete Game, then tap Dev Panel
+    #      again. The overlay sits over the right-hand column, which is where
+    #      the stats button is.
     ui.expect(ui.launch_to_menu(), "could not reach the main menu")
     ui.expect(ui.is_on("dev_panel"),
               "the Dev Panel button is not showing, so the cheat this test needs "
@@ -77,8 +80,10 @@ def run():
               "the unlock gesture. (Note a restart of the app hides the button "
               "again, so nothing may cold-launch in between.)")
     ui.expect(ui.win_game(LEVEL, arm=False),
-              f"could not win a {LEVEL} game with the Dev Panel cheat")
-    ui.expect(ui.close_dev_panel(), "could not close the Dev Panel overlay")
+              f"could not win a {LEVEL} game via Dev Panel, Gameplay, "
+              f"Complete Game")
+    ui.expect(ui.close_dev_panel(),
+              "could not close the Dev Panel by tapping it again")
     shot = ui.shoot("VictoryScreen")
 
     # 3. every element renders.

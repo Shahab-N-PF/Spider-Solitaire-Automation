@@ -6,9 +6,10 @@
 **Chunks 1-3 of a rebuild.** verifyAds is being rebuilt around the Dev Panel's
 "Max Debugger" — AppLovin MAX's own mediation debugger — instead of watching
 banners from the outside. Chunks 1-2: online, into the app, into the Dev Panel
-whether or not it was already unlocked, into the debugger, down to its **Ads**
-section, into **Select Live Network** (or **Live Network** when one is already
-selected), and **AppLovin** selected as the live network. Chunk 3: close those
+whether or not it was already unlocked, then Debug, then Max Debugger,
+down to its **Ads** section, into **Select Live Network** (or **Live Network**
+when one is already selected), and **AppLovin** selected as the live network.
+Chunk 3: close those
 overlays, reach a game (resume if one is paused,
 otherwise deal Easy), wait ~30s, tap back, and walk the interstitial chain —
 StoreKit product-sheet X, then the ad's own X — landing back on the **game
@@ -96,7 +97,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unity_ui as ui  # noqa: E402
 
-BUTTON = "dev_max_debugger"
 LIVE_NETWORK = "Select Live Network"
 LIVE_NETWORK_SELECTED = "Live Network"
 NETWORK = "AppLovin"
@@ -204,7 +204,7 @@ def _close_debugger_overlays():
         ui.expect(ui.close_max_debugger(),
                   "could not close the debugger; its 'Done' button is top-left "
                   "('Share' sits beside it)")
-    if ui.is_on("dev_complete_game"):
+    if ui.dev_panel_open():
         ui.expect(ui.close_dev_panel(),
                   "could not collapse the Dev Panel overlay")
 
@@ -344,17 +344,17 @@ def run():
               "below it — the wordmark is inert), and the gesture TOGGLES, so a "
               "second burst hides it again.")
 
-    # 4. The button's presence is asserted separately from tapping it, so
-    #    "the panel did not open" and "Max Debugger is gone from the panel"
-    #    stay two different failures.
-    ui.expect(ui.is_on(BUTTON),
-              "the Dev Panel opened but has no 'Max Debugger' button — the "
-              "panel's contents may have changed in this build")
+    # 4. Debug is on the root list. Max Debugger is the next list, so its
+    #    absence is a different failure from "the panel did not open".
+    ui.expect(ui.is_on("dev_debug") or ui.is_on("dev_max_debugger"),
+              "the Dev Panel opened but has no 'Debug' row — the panel's "
+              "contents may have changed in this build")
     panel = ui.shoot("ad_dev_panel")
-    print(f"  Dev Panel is open and offers Max Debugger — see {panel}")
+    print(f"  Dev Panel is open — Max Debugger is under Debug — see {panel}")
 
-    # 5-6. Open the debugger. Chunk 2 continues from here.
-    ui.expect(ui.tap(BUTTON, settle=4.0), "the 'Max Debugger' button could not be tapped")
+    # 5-6. Debug, then Max Debugger. Chunk 2 continues from here.
+    ui.expect(ui.tap_max_debugger(),
+              "the 'Max Debugger' row could not be opened from Debug")
     ui.expect(ui.on_max_debugger(),
               f"tapping 'Max Debugger' did not open MAX's mediation debugger "
               f"— {ui.MAX_DEBUGGER!r} is not in the accessibility tree. The "
@@ -374,10 +374,8 @@ def run():
         print("  Ads section not in view — reopening the debugger from the top")
         ui.expect(ui.close_max_debugger(),
                   "could not close the debugger to reset its scroll")
-        ui.expect(ui.is_on(BUTTON) or ui.open_dev_panel(),
-                  "Dev Panel is gone after closing the debugger")
-        ui.expect(ui.tap(BUTTON, settle=4.0),
-                  "could not reopen Max Debugger after a failed scroll")
+        ui.expect(ui.tap_max_debugger(),
+                  "could not reopen Max Debugger from Debug after a failed scroll")
         ui.expect(ui.on_max_debugger(),
                   "reopening Max Debugger did not bring it back")
         row_label = _scroll_to_live_network(max_swipes=SWIPES)

@@ -17,8 +17,9 @@ Use this workflow whenever the ad's own X is not matched while verifying
 
 Before the five trigger rules begin, the Dev Panel must be available:
 
-- If the panel is already open (`dev_complete_game` is visible), leave it open
-  until the prerequisite closes it for the test.
+- If the panel is already open (`ui.dev_panel_open()` — Debug, Gameplay,
+  Complete Game, or Max Debugger is visible), leave it open until the
+  prerequisite closes it for the test.
 - If the panel is closed but its button (`dev_panel`) is visible, skip the
   unlock gesture and expand it from the current screen.
 - If neither is visible, enable it first with `ui.open_dev_panel()`. That

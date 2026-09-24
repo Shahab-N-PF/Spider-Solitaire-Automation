@@ -358,7 +358,7 @@ def win_and_expect_victory_ad(label: str):
 
 def ensure_dev_panel():
     """Make the Dev Panel available without repeating its unlock gesture."""
-    if ui.is_on("dev_complete_game"):
+    if ui.dev_panel_open():
         print("  Dev Panel is already open — skipping enable steps")
         return
     if ui.is_on("dev_panel"):
@@ -380,7 +380,7 @@ def clear_startup_overlays():
     if ui.on_max_debugger(timeout=2.0):
         ui.expect(ui.close_max_debugger(),
                   "could not close the leftover MAX debugger")
-    if ui.is_on("dev_complete_game"):
+    if ui.dev_panel_open():
         ui.expect(ui.close_dev_panel(),
                   "could not collapse the leftover Dev Panel")
 

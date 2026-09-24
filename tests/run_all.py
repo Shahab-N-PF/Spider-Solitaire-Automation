@@ -372,7 +372,7 @@ REQUIRED = [
     "ingame_replay", "ingame_abandon", "ingame_options", "ingame_new",
     "ingame_help", "ingame_faq",
     # QA cheat + the victory screen it makes reachable
-    "dev_complete_game", "screen_victory", "victory_ranking",
+    "dev_gameplay", "dev_complete_game", "screen_victory", "victory_ranking",
     "victory_leaderboards", "victory_achieve", "victory_help", "victory_new",
     "victory_stats", "victory_level_easy", "about_back", "stats_back",
     # the card suit pips verifyGamePlay reads to prove "Use Hearts" reached the

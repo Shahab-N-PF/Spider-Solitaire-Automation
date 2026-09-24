@@ -2,7 +2,8 @@
 """Test: every difficulty level deals a playable game, and can be WON. [UNITY]
 
 Per level: menu -> Play -> the level -> the game table -> win it with the QA
-cheat -> the victory screen -> leave by that screen's own "back" control.
+cheat (Dev Panel -> Gameplay -> Complete Game) -> tap Dev Panel again to close
+it -> the victory screen -> leave by that screen's own "back" control.
 A failure on one level is recorded rather than aborting, so a single run reports
 exactly which levels are broken.
 
@@ -84,11 +85,12 @@ def play_and_win(level: str):
     print(f"  {level}: dealt a game — {shot}")
 
     ui.expect(ui.win_current_game(),
-              f"[{level}] the Dev Panel's 'Complete Game' cheat did not lead to "
-              f"the victory screen — see {shot}")
-    # Close the overlay BEFORE capturing, so the shot shows the victory screen
-    # rather than the panel sitting over it.
-    ui.expect(ui.close_dev_panel(), f"[{level}] could not close the Dev Panel overlay")
+              f"[{level}] Dev Panel -> Gameplay -> Complete Game did not lead "
+              f"to the victory screen — see {shot}")
+    # Tap Dev Panel again BEFORE capturing, so the shot shows the victory
+    # screen rather than the Gameplay list sitting over it.
+    ui.expect(ui.close_dev_panel(),
+              f"[{level}] could not close the Dev Panel by tapping it again")
     won = ui.shoot(f"unity_victory_{level}")
     print(f"  {level}: won via the cheat — {won}")
 
