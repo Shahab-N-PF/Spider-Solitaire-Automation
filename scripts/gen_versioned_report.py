@@ -160,15 +160,15 @@ IP7_V343_VERDICT = ("Build 343's <b>portrait</b> UI is effectively <b>unchanged 
 IP7_V343_BUGS = set()
 
 # ── iPhone 7 PORTRAIT: build 382 (2026-09-18) — marketing 8.0.2 ───────────────
-# 16/17 screens (Victory · Best skipped). Manual tidevice walk on Kaala.
+# 17/17 screens. Victory · Best added 2026-09-23. Manual tidevice walk on Kaala.
 IP7_V382_NOTES = {
     "MainMenu.png": "Promo-icon strip present (post-win menu). Diff is logo shading, menu-label typography and the left-icon art; sparkle-glow is volatile. Bottom house-ad is masked.",
     "more_games_icons.png": "Same settled menu as Main Menu — left 5-icon cross-promo strip present.",
     "DifficultyLevels.png": "Easy–Expert arc, smiley cursor at Hard, LAST SCORE ribbon. Diff is typography + the rotating house-ad (masked).",
     "Play.png": "Chrome-only (dealt cards masked). Unity has no bottom ad banner; top-bar / hint typography differ.",
-    "InGameMenu.png": "Peak screen (26.9%). The 3×2 tray (replay/abandon/options · new/help/FAQ) is in the right place; Unity's wood + button rendering is much redder / more saturated than Obj-C, so the whole tray lights up. House-ad (Smash Fest vs Freecell) sits on the tray. Dealt cards masked. Not a layout bug.",
+    "InGameMenu.png": "Peak screen (26.9%). The 3×2 tray (replay/abandon/options · new/help/FAQ) is in the right place; Unity's wood + button rendering is much redder / more saturated than Obj-C, so the whole tray lights up. House-ad creative differs (Spiderette vs Solitaire) and is masked, as are the dealt cards. Not a layout bug.",
     "VictoryScreen1.png": "First victory / This Week ranking — no promo strip, help/new/stats RED, no Dev Panel button. Score block masked. 4.4%.",
-    "VictoryScreen2.png": "Not captured this run (skipped).",
+    "VictoryScreen2.png": "Second victory with the promo strip ('more fun with us!'), help/new/stats RED, no Dev Panel button. Score block masked. House-ad creative differs and is masked. 5.2%.",
     "LastScore.png": "'Last Won Game Score' from the menu. Date / won-count / score table masked; header + labels are a close match (3.0%).",
     "OptionsPage.png": "Sounds + Cards match. Diff is heavier label typography. Card Bouncing was OFF in this capture (Obj-C baseline ON) — a setting, not a missing control.",
     "StatsPage.png": "Top of Statistics (overall + Easy / Medium / Hard). Values differ from the fresh-install baseline (games were won on this device) and are not masked here. Markers decorative.",
@@ -181,18 +181,17 @@ IP7_V382_NOTES = {
     "choose_look_cards.png": "Cards tab, 6 designs, 'symbols' spelled correctly; modal well-positioned (9.4%).",
 }
 IP7_V382_FINDINGS = [
-    ("ok", "No content bugs", "FAQ is Spider's own text with a single first question; About keeps its ▷ divider and reads 8.0.2; the menu promo strip is present; Victory · Score has red help/new/stats, no promo strip, and no Dev Panel button.", "regression check"),
+    ("ok", "No content bugs", "FAQ is Spider's own text with a single first question; About keeps its ▷ divider and reads 8.0.2; the menu promo strip is present; Victory · Score has red help/new/stats, no promo strip, and no Dev Panel button. Victory · Best has the promo strip, the same red buttons, and no Dev Panel button.", "regression check"),
     ("layout", "In-game menu is the peak (27%)", "The pause tray is the correct 3×2 portrait grid, but Unity paints the wood and buttons much redder than Obj-C, so the whole tray diffs. House-ad creative also differs. Not a rearranged layout.", "In-Game Menu"),
     ("layout", "Systemic typography / line-wrap drift", "Body text is still heavier and wraps differently — the main remaining diff on FAQ (17%), Options (15%), Stats · Reset (15%), More Games (15%) and Stats (14%). Unchanged in kind from 343.", "systemic"),
-    ("ok", "Closest screens", "Last Score 3.0%, About 3.2% (version string), Victory · Score 4.4%. Help 7.7% and both Choose Look tabs stay in single digits.", "About · Last Score · Victory"),
-    ("minor", "Victory · Best not captured", "The second victory / promo-strip win screen was skipped on this walk, so the switcher has 16 of 17 portrait screens for 382.", "Victory · Best"),
+    ("ok", "Closest screens", "Last Score 3.0%, About 3.2% (version string), Victory · Score 4.4%, Victory · Best 5.2%. Help 7.7% and both Choose Look tabs stay in single digits.", "About · Last Score · Victory"),
 ]
-IP7_V382_VERDICT = ("Build 382 (marketing <b>8.0.2</b>) on iPhone 7 portrait — <b>16/17</b> screens, "
-                    "<b>no content bugs</b>. FAQ, About, the promo strip and Victory · Score all hold. "
+IP7_V382_VERDICT = ("Build 382 (marketing <b>8.0.2</b>) on iPhone 7 portrait — <b>17/17</b> screens, "
+                    "<b>no content bugs</b>. FAQ, About, the promo strip and both victory screens hold. "
                     "The peak is the <b>in-game menu at 27%</b>: the 3×2 tray is in the right place, but "
                     "Unity's wood/button rendering is much redder than Obj-C. Everything else tracks the "
                     "familiar <b>typography / line-wrap drift</b> (FAQ 17%, Options 15%). Closest matches: "
-                    "Last Score 3%, About 3%, Victory · Score 4%. Victory · Best was skipped this run.")
+                    "Last Score 3%, About 3%, Victory · Score 4%, Victory · Best 5%.")
 IP7_V382_BUGS = set()
 
 # ── iPhone 7 LANDSCAPE: build 343 (first landscape measurement) ───────────────

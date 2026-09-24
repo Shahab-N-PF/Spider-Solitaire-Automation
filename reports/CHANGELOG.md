@@ -416,10 +416,11 @@ Stats markers `*` vs `✻`; systemic typography drift.
 
 ### Build 382 — 2026-09-18  *(latest)*
 Report: `reports/iPhone7_Unity_Report.html` (build switcher 382 / 343 / 341 / 337 / 335) · captures `log/ip7_unity_382/`.
-Marketing version **8.0.2**. 16/17 portrait screens (Victory · Best skipped). Manual tidevice walk.
+Standalone (382 only, all 17 screens): `reports/iPhone7_Build382_Screens.html`.
+Marketing version **8.0.2**. 17/17 portrait screens. Manual tidevice walk.
 
 Peak diffs: In-Game Menu 27% · FAQ 17% · More Games 15% · Options 15% · Stats · Reset 15% · Stats 14%.
-Closest: Last Score 3.0% · About 3.2% (8.0.2 vs 7.42.5) · Victory · Score 4.4%.
+Closest: Last Score 3.0% · About 3.2% (8.0.2 vs 7.42.5) · Victory · Score 4.4% · Victory · Best 5.2%.
 
 **vs build 343: no new content bugs.** FAQ still Spider's own text with a single first question;
 About divider holds; promo strip present; Victory · Score still red buttons / no strip / no Dev Panel.
@@ -428,7 +429,10 @@ Text screens track 343 (FAQ 17% vs 17%, Options 15% vs 15%).
 **New / still open:**
 - Peak moved from FAQ (~17%) to the **in-game menu (27%)** — 3×2 tray is in the right place; Unity's wood/button rendering is much redder than Obj-C. House-ad creative also differs.
 - Systemic typography / line-wrap drift unchanged in kind.
-- Victory · Best not captured this walk.
+
+**Victory · Best added 2026-09-23.** `VictoryScreen2.png` was missing from the 382 walk. The new capture diffs at **5.2%**: promo strip present, help/new/stats red, no Dev Panel button. Score block and house ad are masked.
+
+**Recapture 2026-09-23.** The In-Game Menu Obj-C baseline and the Unity 382 capture were re-shot. Compared pixels are unchanged at **26.9%** — the tray matches the previous baseline outside the status bar, dealt cards, and house-ad banner. The new pair's banner is Solitaire (Obj-C) vs Spiderette (Unity).
 
 ### Build 343 — 2026-08-04
 Report: `reports/iPhone7_Unity_Report.html` (build switcher 343 / 341 / 337 / 335) · captures `log/ip7_unity_343/`.
