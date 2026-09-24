@@ -22,6 +22,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "tests"))
 
 import cv2  # noqa: E402
+import card_size  # noqa: E402
 import compare_unity_ip7 as C7  # noqa: E402
 import compare_unity_ip7_landscape as C7L  # noqa: E402
 import compare_unity_ipad as CI  # noqa: E402
@@ -518,6 +519,16 @@ def tiles_html(ok, bugcount):
         for k, v, d in tiles)
 
 
+def _play_note(name, note):
+    """The tableau stays masked. Card size is a separate check, so say so."""
+    if name != "Play.png":
+        return note
+    extra = ("Tableau pixels stay masked because the deal is random. "
+             "Card width, rank and suit size are compared to the Obj-C baseline "
+             "on their own, and the screen fails when Unity is more than 3% larger.")
+    return (note + " " + extra).strip()
+
+
 def build(dev):
     C = dev["module"]
     base_dir = C.BASE_DIR
@@ -541,13 +552,16 @@ def build(dev):
         screens = {}
         for r in ok:
             n = r["name"]
+            cards = r.get("cards")
             screens[n] = {
                 "pct": round(r["diff_pct"], 1),
                 "sev": sev_of(r["diff_pct"]),
                 "unity": uri(os.path.join(v["unity_dir"], n), cw, cq),
                 "diff": uri(os.path.join(REPO, "log", dev["diff_prefix"] + n), diff_w, dq),
-                "note": v["notes"].get(n, ""),
+                "note": _play_note(n, v["notes"].get(n, "")),
                 "bug": n in v["bugs"],
+                "cards": card_size.line(cards) if cards else "",
+                "cardsFail": bool(cards and cards.get("fail")),
             }
         versions_js.append({
             "id": v["id"], "label": v["label"], "date": v["date"],
@@ -641,6 +655,8 @@ h1{font-family:var(--disp);font-weight:700;font-size:clamp(26px,4.4vw,42px);line
 .seg button{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:transparent;border:0;padding:5px 12px;cursor:pointer}
 .seg button.on{background:var(--gold);color:#1a130a;font-weight:700}
 .note{margin:0;color:var(--muted);font-size:13px}
+.cardsz{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--ok)}
+.cardsz.fail{color:var(--bad)}
 .segrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .zoombtn{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:9px;padding:5px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
 .zoombtn:hover{color:var(--ink);border-color:var(--gold)}
@@ -708,6 +724,7 @@ DATA.order.forEach(name => {
         ${ZOOM ? '<button class="zoombtn" type="button">⤢ Enlarge</button>' : ''}
       </div>
       <p class="note"></p>
+      <p class="cardsz" hidden></p>
     </div>`;
   grid.appendChild(c);
   cards[name] = c;
@@ -754,6 +771,10 @@ function render(vid){
     c.querySelector('.t').src = s.unity;
     c.querySelector('.diffimg').src = s.diff;
     c.querySelector('.note').textContent = s.note;
+    const cz = c.querySelector('.cardsz');
+    cz.hidden = !s.cards;
+    cz.textContent = s.cards || '';
+    cz.className = 'cardsz' + (s.cardsFail ? ' fail' : '');
     grid.appendChild(c); // re-order by rank
   });
 }

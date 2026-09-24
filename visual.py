@@ -23,6 +23,7 @@ import os
 import cv2
 import numpy as np
 
+import card_size
 import config
 
 # Per-device (config.BASELINES): the default is <root>/baselines (iPhone 11 — the
@@ -164,12 +165,20 @@ def compare(name, ignore=None, max_diff=0.005):
     changed_px = int((changed > 0).sum())
     frac = (changed_px / compared) if compared else 0.0
     has_volatile = os.path.exists(_volatile_path(name))
-    status = "fail" if frac > max_diff else "pass"
+    cards = None
+    if name == "Play.png":
+        base_bgr = cv2.imread(os.path.join(BASELINES, name))
+        cur_bgr = cv2.imread(os.path.join(config.LOG, name))
+        if base_bgr is not None and cur_bgr is not None:
+            if base_bgr.shape != cur_bgr.shape:
+                base_bgr = cv2.resize(base_bgr, (cur_bgr.shape[1], cur_bgr.shape[0]))
+            cards = card_size.compare(base_bgr, cur_bgr, GAME_TABLE_CARDS)
+    status = "fail" if frac > max_diff or (cards and cards["fail"]) else "pass"
 
     diff_path = _write_diff(name, changed, mask, frac) if status == "fail" else None
     return {"name": name, "status": status, "diff_pct": frac * 100,
             "max_diff_pct": max_diff * 100, "has_volatile": has_volatile,
-            "diff": diff_path}
+            "diff": diff_path, "cards": cards}
 
 
 def _label(img, line1, line2=""):
@@ -205,12 +214,16 @@ def _write_diff(name, changed, mask, frac):
         cv2.rectangle(annotated, (x - 3, y - 3), (x + w + 3, y + h + 3),
                       (0, 255, 255), 3)
     annotated[~mask] = (annotated[~mask] * 0.6).astype("uint8")
+    crop = None
+    if name == "Play.png":
+        base, annotated, crop = card_size.mark(base, annotated, cur, GAME_TABLE_CARDS)
 
     combo = np.hstack([
         _label(base, "BASELINE (previous build)", "exact-pixel compare"),
         _label(annotated, "CAPTURED (this run)",
                f"{frac * 100:.1f}% of pixels differ (red)"),
     ])
+    combo = card_size.stack_crop(combo, crop)
     out = os.path.join(config.LOG, "diff_" + name)
     cv2.imwrite(out, combo)
     return out

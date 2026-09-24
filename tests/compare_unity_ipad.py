@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
+import card_size  # noqa: E402
 import config  # noqa: E402
 import visual  # noqa: E402
 
@@ -128,7 +129,12 @@ def compare_one(name, ignore, common=None):
     changed_px = int((changed > 0).sum())
     frac = (changed_px / compared) if compared else 0.0
     diff_path = _write_diff(name, changed, mask, frac)
-    return {"name": name, "status": "ok", "diff_pct": frac * 100, "diff": diff_path}
+    result = {"name": name, "status": "ok", "diff_pct": frac * 100, "diff": diff_path}
+    if name == "Play.png":
+        base_bgr = cv2.imread(os.path.join(BASE_DIR, name))
+        cur_bgr = cv2.imread(os.path.join(UNITY_DIR, name))
+        result["cards"] = card_size.compare(base_bgr, cur_bgr, GAME_TABLE_CARDS)
+    return result
 
 
 def _write_diff(name, changed, mask, frac):
@@ -145,11 +151,15 @@ def _write_diff(name, changed, mask, frac):
         cv2.rectangle(annotated, (x - 3, y - 3), (x + w + 3, y + h + 3),
                       (0, 255, 255), 3)
     annotated[~mask] = (annotated[~mask] * 0.6).astype("uint8")
+    crop = None
+    if name == "Play.png":
+        base, annotated, crop = card_size.mark(base, annotated, cur, GAME_TABLE_CARDS)
     combo = np.hstack([
         visual._label(base, "iPad  -  Obj-C 7.42.5", "baseline"),
         visual._label(annotated, "iPad  -  Unity 8.0.0",
                       f"{frac * 100:.1f}% of compared pixels differ (red)"),
     ])
+    combo = card_size.stack_crop(combo, crop)
     out = os.path.join(config.LOG, "diff_ipad_" + name)
     cv2.imwrite(out, combo)
     return out
@@ -166,6 +176,8 @@ def run(report=False):
     for r in sorted(ok, key=lambda r: r["diff_pct"], reverse=True):
         flag = "  <-- large" if r["diff_pct"] > SPECS[r["name"]]["max_diff"] * 100 else ""
         print(f"  {r['name']:<26} {r['diff_pct']:6.2f}% differ{flag}")
+        if r.get("cards"):
+            print(f"  {'':26} {card_size.line(r['cards'])}")
     for r in bad:
         print(f"  {r['name']:<26} [{r['status']}]")
     print("  " + "-" * 58)
