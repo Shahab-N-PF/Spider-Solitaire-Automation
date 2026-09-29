@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spider Solitaire · Obj-C vs Unity wipe slider</title>
+<style>
+:root{--felt:#123F32;--felt2:#0c2c23;--cream:#F4EFE3;--burg:#6B1E23;--gold:#E0B34A;--ink:#1b1b1b;--muted:#5b5b52}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--cream);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+.page{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+header{text-align:center}
+header h1{margin:0;font-size:20px;color:var(--felt)}
+header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.card{background:var(--felt2);border-radius:14px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.25);width:min(92vw,calc((100vh - 200px) * .75));max-width:640px}
+.ch{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;color:#fff}
+.ch b{font-size:15px}
+.pill{font:700 13px ui-monospace,Menlo,monospace;color:var(--gold);background:rgba(224,179,74,.16);padding:3px 9px;border-radius:20px}
+.wipe{position:relative;width:100%;aspect-ratio:3/4;overflow:hidden;touch-action:none;background:#000}
+.wipe img{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;user-select:none;-webkit-user-drag:none}
+.wipe .t{clip-path:inset(0 0 0 50%)}
+.wipe .d{display:none}
+.card[data-mode="diff"] .wipe .d{display:block}
+.card[data-mode="diff"] .hdl,.card[data-mode="diff"] .lab,.card[data-mode="diff"] input{display:none}
+.hdl{position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--gold);transform:translateX(-1px);pointer-events:none}
+.hdl::after{content:"\2194";position:absolute;top:50%;left:50%;width:34px;height:34px;transform:translate(-50%,-50%);border-radius:50%;background:var(--gold);color:#2a1d05;font:700 18px/34px sans-serif;text-align:center;box-shadow:0 1px 8px rgba(0,0,0,.5)}
+.wipe{cursor:ew-resize}
+.wipe input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;pointer-events:none}
+.lab{position:absolute;top:10px;font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:rgba(0,0,0,.55);padding:4px 9px;border-radius:20px;pointer-events:none}
+.lab.l{left:10px}.lab.r{right:10px}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px}
+.seg{display:inline-flex;border:1px solid rgba(255,255,255,.2);border-radius:9px;overflow:hidden}
+.seg button{font:12px ui-monospace,Menlo,monospace;color:#cfd8d3;background:transparent;border:0;padding:6px 14px;cursor:pointer}
+.seg button.on{background:var(--gold);color:#1a130a;font-weight:700}
+.hint{color:#cfd8d3;font-size:12px}
+footer{color:var(--muted);font-size:12px;text-align:center;max-width:640px}
+footer b{color:var(--burg)}
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>UI pixel comparison &middot; Main Menu (iPad)</h1>
+    <p>Objective-C 7.42.5 baseline vs Unity 8.0.0 (build 337)</p>
+  </header>
+  <div class="card" data-mode="wipe">
+    <div class="ch"><b>Main Menu</b><span class="pill">13.1% differ</span></div>
+    <div class="wipe">
+      <img class="b" src="objc.jpg" alt="Obj-C baseline">
+      <img class="t" src="unity.jpg" alt="Unity build">
+      <img class="d" src="diff.jpg" alt="Changed pixels in red">
+      <span class="hdl"></span>
+      <input type="range" min="0" max="100" step="0.1" value="50" aria-label="wipe">
+      <span class="lab l">Obj-C</span><span class="lab r">Unity</span>
+    </div>
+    <div class="foot">
+      <div class="seg"><button class="on" data-m="wipe">Wipe</button><button data-m="diff">Diff</button></div>
+      <span class="hint" id="hint">Drag across the screen</span>
+    </div>
+  </div>
+  <footer>Diff view: changed pixels in <b>red</b>, boxed; status bar and ad banner masked. The Obj-C baseline is the source of truth.</footer>
+</div>
+<script>
+const card = document.querySelector('.card');
+const top_ = card.querySelector('.t'), hdl = card.querySelector('.hdl'), range = card.querySelector('input');
+const hint = document.getElementById('hint');
+const wipe = card.querySelector('.wipe');
+const set = v => { v = Math.max(0, Math.min(100, v)); top_.style.clipPath = 'inset(0 0 0 ' + v + '%)'; hdl.style.left = v + '%'; range.value = v; };
+const fromEvent = e => { const r = wipe.getBoundingClientRect(); set((e.clientX - r.left) / r.width * 100); };
+range.addEventListener('input', e => set(+e.target.value));
+let dragging = false;
+wipe.addEventListener('pointerdown', e => { dragging = true; wipe.setPointerCapture(e.pointerId); fromEvent(e); e.preventDefault(); });
+wipe.addEventListener('pointermove', e => { if (dragging) fromEvent(e); });
+wipe.addEventListener('pointerup', () => { dragging = false; });
+wipe.addEventListener('pointercancel', () => { dragging = false; });
+set(50);
+card.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  card.dataset.mode = b.dataset.m;
+  card.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+  hint.textContent = b.dataset.m === 'diff' ? 'Red = pixels that differ from Obj-C' : 'Drag across the screen';
+}));
+</script>
+</body>
+</html>
