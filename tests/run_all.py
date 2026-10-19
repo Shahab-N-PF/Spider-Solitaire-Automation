@@ -201,7 +201,7 @@ CASE_SHOTS = {
         "GP-03": ["undone"],
         "GP-04": ["GamePlayLowered"],
         "GP-05": ["GamePlayRaised"],
-        "GP-06": ["hint_1"],
+        "GP-06": ["_board_hint_1"],
         "GP-07": ["InGameMenu"],
         "GP-08": ["GamePlayHearts"],
         "GP-09": ["GamePlaySpades"],
@@ -214,6 +214,7 @@ CASE_SHOTS = {
         "VI-02": ["VictoryScreen"],
         "VI-03": ["VictoryScreen"],
         "VI-04": ["VictoryBackMenu"],
+        "VI-05": ["VictoryScreen"],
     },
     "verifyDifficultyLevels": {
         "DL-01": ["unity_difficulty_medium", "unity_victory_medium"],
@@ -245,8 +246,8 @@ CASE_SHOTS = {
     "verifyAds": {
         "AD-01": ["ad_dev_panel"],
         "AD-02": ["ad_max_debugger"],
-        "AD-03": ["ad_ads_section"],
-        "AD-04": ["ad_applovin"],
+        "AD-03": ["ad_test_mode_section"],
+        "AD-04": ["ad_pangle"],
         "AD-06": ["ad_back_on_table"],
         "AD-07": ["ad_back_on_table"],
     },
@@ -260,6 +261,9 @@ CASE_SHOTS = {
         "TA-07": ["trigger_TA-07"],
         "TA-08": ["trigger_TA-08"],
         "TA-10": ["trigger_TA-10"],
+        "TA-11": ["trigger_TA-11"],
+        "TA-12": ["trigger_TA-12"],
+        "TA-13": ["trigger_TA-13"],
     },
     "visitLastScore": {
         "LS-01": ["unity_last_score"],
@@ -378,6 +382,9 @@ def _module_checks(mod):
             }
             if item.get("shots"):
                 check["shots"] = list(item["shots"])
+            for key in ("ad_seconds", "ad_cooldown_left"):
+                if key in item:
+                    check[key] = item[key]
             checks.append(check)
         elif isinstance(item, (tuple, list)) and len(item) >= 2:
             checks.append({

@@ -3,7 +3,8 @@
 
 Per level: menu -> Play -> the level -> the game table -> win it with the QA
 cheat (Dev Panel -> Gameplay -> Complete Game) -> tap Dev Panel again to close
-it -> the victory screen -> leave by that screen's own "back" control.
+it -> the victory screen, whose score / time / moves / run rows must all show
+data -> leave by that screen's own "back" control.
 A failure on one level is recorded rather than aborting, so a single run reports
 exactly which levels are broken.
 
@@ -93,6 +94,9 @@ def play_and_win(level: str):
               f"[{level}] could not close the Dev Panel by tapping it again")
     won = ui.shoot(f"unity_victory_{level}")
     print(f"  {level}: won via the cheat — {won}")
+    # Read now, assert after leaving, so a missing row does not strand the next
+    # level on this screen.
+    problems = ui.victory_rows_problems()
 
     # Leave the way verifyVictory does: back may land on the menu directly or on
     # the table it came from, so assert the tap landed and then that the menu is
@@ -103,6 +107,11 @@ def play_and_win(level: str):
     ui.expect(ui.to_menu(),
               f"[{level}] tapping 'back' on the victory screen did not lead to "
               f"the main menu")
+    ui.expect(not problems,
+              f"[{level}] the victory screen's stat rows are incomplete: "
+              f"{'; '.join(problems)} (expected score, time, moves and run) "
+              f"— see {won}")
+    print(f"  {level}: stat rows score, time, moves and run all show data")
 
 
 def ensure_cheat(level: str):

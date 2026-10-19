@@ -69,6 +69,10 @@ LINK = "about_adfree"
 # Asserted as well as the bundle id: the id only says "an App Store page",
 # and the point of an ad-free link is WHICH product it reaches.
 EXPECTED_TITLE = "Spider Solitaire +"
+# The store's "Cannot Connect / The page couldn't be loaded" page — its title
+# comes back through store_title() like any product's.
+CANNOT_CONNECT = "cannot connect"
+RETRY_WAIT = 5.0
 
 
 def run():
@@ -108,12 +112,56 @@ def run():
               "pressing No on the ad-free card did not leave About on screen")
     print(f"  No dismissed the card and stayed on About — see {no_shot}")
 
+    yes_shot, shot, title = _yes_to_store()
+    if CANNOT_CONNECT in title.lower():
+        # The store's own network error, not the link: come back to About and
+        # follow the link once more before judging the page.
+        print(f"  the App Store showed {title!r} — going back to About and "
+              f"retrying once in {RETRY_WAIT:.0f}s")
+        ui.expect(ui.tap_back_to_app() and ui.at_screen("about", timeout=10.0),
+                  f"the App Store showed {title!r} and switching back did not "
+                  f"return to About for a retry (see {shot})")
+        ui.sleep(RETRY_WAIT)
+        yes_shot, shot, title = _yes_to_store()
+    ui.expect(EXPECTED_TITLE.lower() in title.lower(),
+              f"the App Store opened, but on {title!r} rather than a page named "
+              f"{EXPECTED_TITLE!r} — the link reaches the store but not this "
+              f"game's paid build. (An empty title means the page had not "
+              f"rendered, and 'Cannot Connect' twice means the device or the "
+              f"store had no network — neither means the link is wrong.) "
+              f"See {shot}")
+    print(f"  'ad free version' opened the App Store on {title!r} — see {shot}")
+
+    # 10-11. Come back the way a PERSON does: tap the "◀ Spider" crumb iOS draws
+    #       in the status bar, rather than asking WDA to foreground the app.
+    #       Landing back on ABOUT is then what proves the app was never
+    #       relaunched — the App Store is an overlay Spider survives underneath.
+    ui.expect(ui.tap_back_to_app(),
+              "tapping the '◀ Spider' breadcrumb in the status bar did not bring "
+              "the game back from the App Store. That crumb is drawn by iOS, not "
+              "by the store, so it has no accessibility entry to fall back on — "
+              f"check the top-left of {shot} for it.")
+    ui.expect(ui.at_screen("about", timeout=10.0),
+              "came back from the App Store but not to the About screen — if "
+              "this is the main menu, the app was RESTARTED rather than resumed, "
+              "and any in-app state a run depends on is gone")
+    print("  switching back returns to About, with the app still running")
+
+    # 12-13. Leave the app where every other test expects to find it.
+    ui.expect(ui.to_menu(), "could not return to the main menu after About")
+    back_shot = ui.shoot("AdFreeVersionBackAbout")
+    print(f"PASS: About's 'ad free version' opens the App Store and switching "
+          f"back returns to About (see {no_shot}, {yes_shot}, {shot}, {back_shot})")
+
+
+def _yes_to_store():
+    """From About: link -> Yes -> the App Store. Returns (card, page, title)."""
     # 7. Answer Yes — index 1, the RIGHT-hand pill. Index 0 is No, and taking it
     #    would dismiss the card and pass nothing on to the store.
     ui.expect(ui.tap(LINK, settle=2.5),
-              "the 'ad free version' link could not be tapped a second time")
+              "the 'ad free version' link could not be tapped again")
     ui.expect(ui.card_up(timeout=6.0),
-              "the second 'ad free version' tap did not raise its confirmation")
+              "tapping 'ad free version' again did not raise its confirmation")
     buttons = ui.card_buttons()
     ui.expect(len(buttons) == 2,
               f"the ad-free card should offer two buttons (No, Yes) but "
@@ -139,34 +187,7 @@ def run():
     #    point of an ad-free link is that it lands on this game's paid build
     #    rather than any other page the store could have shown.
     shot = ui.shoot("AdFreeVersion")
-    title = ui.store_title()
-    ui.expect(EXPECTED_TITLE.lower() in title.lower(),
-              f"the App Store opened, but on {title!r} rather than a page named "
-              f"{EXPECTED_TITLE!r} — the link reaches the store but not this "
-              f"game's paid build. (An empty title means the page had not "
-              f"rendered, not that the link is wrong.) See {shot}")
-    print(f"  'ad free version' opened the App Store on {title!r} — see {shot}")
-
-    # 10-11. Come back the way a PERSON does: tap the "◀ Spider" crumb iOS draws
-    #       in the status bar, rather than asking WDA to foreground the app.
-    #       Landing back on ABOUT is then what proves the app was never
-    #       relaunched — the App Store is an overlay Spider survives underneath.
-    ui.expect(ui.tap_back_to_app(),
-              "tapping the '◀ Spider' breadcrumb in the status bar did not bring "
-              "the game back from the App Store. That crumb is drawn by iOS, not "
-              "by the store, so it has no accessibility entry to fall back on — "
-              f"check the top-left of {shot} for it.")
-    ui.expect(ui.at_screen("about", timeout=10.0),
-              "came back from the App Store but not to the About screen — if "
-              "this is the main menu, the app was RESTARTED rather than resumed, "
-              "and any in-app state a run depends on is gone")
-    print("  switching back returns to About, with the app still running")
-
-    # 12-13. Leave the app where every other test expects to find it.
-    ui.expect(ui.to_menu(), "could not return to the main menu after About")
-    back_shot = ui.shoot("AdFreeVersionBackAbout")
-    print(f"PASS: About's 'ad free version' opens the App Store and switching "
-          f"back returns to About (see {no_shot}, {yes_shot}, {shot}, {back_shot})")
+    return yes_shot, shot, ui.store_title()
 
 
 if __name__ == "__main__":

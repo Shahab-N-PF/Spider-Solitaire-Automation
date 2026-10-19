@@ -70,6 +70,9 @@ import helpers  # noqa: E402
 import unity_ui as ui  # noqa: E402
 
 LINK = "about_feedback"
+# How long Mail gets to come up. The home screen can hold the foreground
+# for a moment during the switch, so left_app() keeps polling past it.
+MAIL_WAIT = 20.0
 
 
 def expected_fields():
@@ -116,7 +119,14 @@ def run():
 
     # 7. It must reach Mail. A missing mail account shows an alert instead, and
     #    that is an environment problem, so it gets its own message.
-    went_to = ui.left_app()
+    went_to = ui.left_app(timeout=MAIL_WAIT)
+    if went_to == ui.SPRINGBOARD:
+        alert = ui.alert_now()
+        home = ui.shoot("FeedbackSpringboard")
+        ui.expect(False,
+                  f"'Write Email' left the game but Mail never came up — the "
+                  f"home screen was still in front after {MAIL_WAIT:.0f}s. "
+                  f"iOS alert: {alert!r} (empty means none). See {home}")
     ui.expect(went_to == ui.MAIL,
               f"'Write Email' did not open Mail — the foreground app is "
               f"{went_to or 'unknown'}. If this is still the game, check the "

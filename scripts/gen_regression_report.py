@@ -64,7 +64,9 @@ CASE_CATALOG = OrderedDict([
             "GP-07", "GP-08", "GP-09", "GP-10", "GP-11", "GP-14",
         ],
     }),
-    ("verifyVictory", {"ids": ["VI-01", "VI-02", "VI-03", "VI-04"]}),
+    ("verifyVictory", {
+        "ids": ["VI-01", "VI-02", "VI-03", "VI-04", "VI-05"],
+    }),
     ("verifyDifficultyLevels", {
         "ids": ["DL-01", "DL-02", "DL-03", "DL-04"],
     }),
@@ -83,7 +85,8 @@ CASE_CATALOG = OrderedDict([
     ("triggerAdPoints", {
         "ids": [
             "TA-01", "TA-02", "TA-03", "TA-04", "TA-05",
-            "TA-06", "TA-07", "TA-08", "TA-10",
+            "TA-06", "TA-07", "TA-08", "TA-10", "TA-11", "TA-12",
+            "TA-13",
         ],
     }),
     ("visitLastScore", {
@@ -637,6 +640,7 @@ def _chip(label, value):
 CHECK_STATUS = {
     "PASS": "passed",
     "FAIL": "failed",
+    "SKIP": "skipped",
     "Passed Manually": "passed_manually",
 }
 
@@ -745,7 +749,13 @@ def _case_card(case, parent, status, result, open_failed=True):
     check = (result or {}).get("check") or {}
     shots = check.get("shots") or (result or {}).get("shots") or []
     if status == "skipped":
-        if result:
+        if result and check.get("status") == "SKIP":
+            detail.append(
+                '<p class="note">Skipped by the test: '
+                f'{html.escape(result.get("error") or "precondition not met")}'
+                "</p>"
+            )
+        elif result:
             detail.append(
                 '<p class="note">Not exercised in this run. '
                 f'<code>{html.escape(parent)}</code> completed without '
@@ -763,6 +773,18 @@ def _case_card(case, parent, status, result, open_failed=True):
         detail.append(
             '<p class="note">Closed by hand after the automated closer '
             "could not match the interstitial.</p>"
+        )
+    if "ad_seconds" in check:
+        secs = check.get("ad_seconds")
+        left = check.get("ad_cooldown_left")
+        if secs is None:
+            ad_text = "unknown age"
+        else:
+            ad_text = f"{float(secs):.0f}s ad"
+            if left is not None:
+                ad_text += f", {float(left):.0f}s cooldown left"
+        detail.append(
+            f'<p class="note">Preceding ad: {html.escape(ad_text)}</p>'
         )
     if status in ("failed", "skipped"):
         detail.append(

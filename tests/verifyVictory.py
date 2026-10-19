@@ -5,8 +5,9 @@ Steps:
   1. win a game using the QA cheat (Dev Panel -> Gameplay -> Complete Game);
   2. tap Dev Panel again so its overlay isn't covering what we assert on;
   3. assert the victory screen renders all of its parts;
-  4. assert the footer names the level that was actually played;
-  5. leave via the screen's own "back" control, landing on the main menu.
+  4. assert all four stat rows — score, time, moves, run — show data;
+  5. assert the footer names the level that was actually played;
+  6. leave via the screen's own "back" control, landing on the main menu.
 
 Why a cheat and not a real win: winning Spider legitimately takes hundreds of
 correct moves, which no UI test can drive. The Obj-C suite used that build's QA
@@ -27,7 +28,14 @@ The level check is the assertion worth having. Any build shows *a* victory
 screen; this one has to report the level the game was actually dealt at, which
 catches the screen being rendered from stale or default state.
 
-Step 5 exits by the victory screen's own "back" control. It USED to tap "new"
+The stat rows (step 4) are values, not chrome, so PARTS cannot see them: a
+build shipped with the fourth (run) row missing while every template above
+still matched. ui.victory_rows_problems() reads each row's cells as ink against
+the felt and names the row that is empty. As in the Obj-C build, every row needs
+a "current" and a "best" entry ("-" counts), and the first three a "rank" — the
+run row has no rank by design.
+
+Step 6 exits by the victory screen's own "back" control. It USED to tap "new"
 (which deals a fresh game) and exit from the table, so leaving by back was a path
 the suite never took — and taking it turned up that build 363 had changed the
 control: the crops cut from 353-era captures no longer match it. It is now the
@@ -93,13 +101,18 @@ def run():
               f"{'; '.join(missing)} — see {shot}")
     print(f"  victory screen renders all {len(PARTS)} elements")
 
-    # 4. it reports the level actually played, not a default.
+    # 4. every stat row under current / rank / best carries data. Read now,
+    #    asserted once back on the menu, so a missing row neither strands the
+    #    next test on this screen nor hides the footer and back checks.
+    problems = ui.victory_rows_problems()
+
+    # 5. it reports the level actually played, not a default.
     ui.expect(ui.is_on(f"victory_level_{LEVEL}"),
               f"the victory screen does not report '{LEVEL} level' in its footer, "
               f"so it is not reflecting the game that was just played — see {shot}")
     print(f"  footer reports '{LEVEL} level' — matches the game played")
 
-    # 5. leave by the screen's own back control. ui.back() taps whichever back
+    # 6. leave by the screen's own back control. ui.back() taps whichever back
     #    template is on screen; on build 363 the victory screen's is the same
     #    small green-felt control as About's, which about_back matches at 0.992.
     ui.expect(ui.back(settle=2.5),
@@ -111,6 +124,12 @@ def run():
               "tapping 'back' on the victory screen did not lead to the main menu")
     menu = ui.shoot("VictoryBackMenu")
     print(f"  'back' leaves the victory screen and reaches the main menu (see {menu})")
+
+    ui.expect(not problems,
+              f"the victory screen's stat rows are incomplete: "
+              f"{'; '.join(problems)} (expected score, time, moves and run) "
+              f"— see {shot}")
+    print("  stat rows: score, time, moves and run all show data")
 
     print(f"PASS: the victory screen renders and can be left — see {shot}")
 

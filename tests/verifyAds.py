@@ -1,28 +1,60 @@
 #!/usr/bin/env python3
-"""Test: pin AppLovin in MAX's debugger, then walk the leave-game interstitial. [UNITY]
+"""Test: put MAX in Test Mode on Pangle, then walk the leave-game interstitial. [UNITY]
 
 *** NEEDS THE DEVICE ONLINE — and this test puts it online itself. ***
 
 **Chunks 1-3 of a rebuild.** verifyAds is being rebuilt around the Dev Panel's
 "Max Debugger" — AppLovin MAX's own mediation debugger — instead of watching
 banners from the outside. Chunks 1-2: online, into the app, into the Dev Panel
-whether or not it was already unlocked, then Debug, then Max Debugger,
-down to its **Ads** section, into **Select Live Network** (or **Live Network**
-when one is already selected), and **AppLovin** selected as the live network.
-Chunk 3: close those
-overlays, reach a game (resume if one is paused,
-otherwise deal Easy), wait ~30s, tap back, and walk the interstitial chain —
-StoreKit product-sheet X, then the ad's own X — landing back on the **game
-table**. If back does not show the interstitial, it fires on the **next**
-resume of the paused game or on dealing a new one — that second enter is
-the fallback, not a failure.
+whether or not it was already unlocked, then Debug, then Max Debugger, then
+MAX **Test Mode** on the **Pangle** network, ALWAYS in a fresh app session:
 
-**IT ENDS ON THE TABLE ON PURPOSE**, so a later chunk can carry on from that
-screen. A re-run therefore starts on the table (or behind leftover debugger
-overlays if an earlier run died in chunks 1-2). Step 2 unwinds whichever of
-those it finds. It does NOT call launch_to_menu() from the table: back() from
-there fires another interstitial, and to_menu() answers lost() with recover(),
-which COLD-LAUNCHES, RE-LOCKS the Dev Panel, and drops the AppLovin selection.
+  * Spider is relaunched first. A "Test Mode Enabled: true" reading was
+    once stale (after WDA crashed under a run, it read true with Pangle
+    ticked while every ad came from live networks), so it is never trusted
+    from an earlier session. A fresh session that still reads true is
+    switched back to live — the Enable link then sits on the live row — and
+    restarted, before Test Mode is enabled again.
+  * Test Mode OFF (the Ads section's "Test Mode Enabled" row reads false):
+    tap the blue **Enable** link on the "Select Test Mode Network" row. MAX
+    raises a **"Restart Required"** pop-up; OK it and relaunch Spider —
+    killed from the foreground, so it comes back on the menu instead of
+    restoring the table (Back from the table fires an interstitial). The
+    relaunch RE-LOCKS the Dev Panel, so it is unlocked again the usual way
+    (5 taps on About's emblem) and the debugger reopened. Test Mode must be
+    on after the relaunch — FAIL if it is not.
+
+Then **Select Test Mode Network** opens its own window; **Pangle** is ticked
+there (left alone when it already is) and the debugger is closed.
+
+THE SETUP RELAUNCHES ARE THE ONLY DELIBERATE COLD LAUNCHES. Everywhere else
+this test refuses to relaunch, because a relaunch re-locks the Dev Panel; here
+MAX requires it, and the Dev Panel is unlocked again straight after.
+
+TEST MODE LASTS ONE APP SESSION. It is on for the session the restart
+starts, and off again after the next relaunch (measured on 8.0.4: Pangle
+ticked, relaunch, "Test Mode Enabled" read false). Until then every ad is a
+Pangle test ad. The steps live in max_test_mode.py (ensure_network), which
+triggerAdPoints runs at its own start too.
+
+Chunk 3: close those overlays, reach a game (resume if one is paused,
+otherwise deal Easy), wait ~30s, tap back, and close the interstitial —
+landing back on the **game table**. A Pangle test ad opens no StoreKit
+sheet: about 5s in, a grey double-arrow sits top right; one tap closes the ad
+or skips to an end card whose dark X closes it (``close_interstitial_chain``).
+Ads are only ever triggered from a test network; a relaunch after setup turns
+Test Mode back on (``max_test_mode``), and an ad that closes without Pangle's
+skip or X is a LIVE ad: the test re-enables Test Mode and FAILs. If
+back does not show the interstitial (``log/ad_back_no_ad.png`` records what
+was there), the test deals a fresh Easy game — Resume no longer fires an ad
+(TA-09 was retired) — and, if that shows none either, waits ~30s on the new
+table and presses Back again (TA-07). It FAILs only when all three miss.
+
+**IT ENDS ON THE TABLE ON PURPOSE**, so a later chunk (VERIFY_ADS_CHUNK=3)
+can carry on from that screen in the same session. A full re-run only unwinds
+native leftovers (debugger, network window, restart pop-up) and then lets the
+fresh relaunch clear everything else — it never walks off the table first,
+because back() from there fires an ad before Test Mode is on.
 
 Still NOT in run_all.py's TESTS: the suite runs offline on purpose (ads
 interrupt screen transitions and make navigation flaky), and this needs the
@@ -44,47 +76,33 @@ Three things measured here that shape the debugger steps:
     accessibility name carries the whole string. Another reason to read text
     rather than crop the header.
   * Rows scrolled out of view stay in the tree with UNTAPPABLE rects — "Select
-    Live Network" reads y=102 while off screen and "AppLovin" reads y=-409. Only
+    Live Network" read y=102 while off screen and "AppLovin" read y=-409. Only
     the `visible` attribute says a row is really drawn, which is why the scroll
-    waits for visibility rather than presence (ui.scroll_to_text).
+    waits for visibility rather than presence.
 
-"AppLovin" IS AMBIGUOUS BY NAME. It appears on the debugger's own page under
-"Completed SDK Integrations" as well as on the Select Live Network list — it is
-in the tree before that window is ever opened. So the window is confirmed FIRST,
-by its navigation bar, and only then is AppLovin looked for. The navigation bar
-is the discriminator because both screens also carry a static text reading
-"Select Live Network".
-
-THE INTERSTITIAL CHAIN (chunk 3) is also read, not guessed. The video plays
-inside the app (~15s), then opens an in-app StoreKit product sheet BY ITSELF.
-The sheet's X is a native Close button (fallback: ad_store_close if a crop
-exists). Closing it reveals the ad's own X. The skip glyph is deliberately
-NOT tapped: its position moves between creatives and a crop scores 0.65-0.75
-on real ads but 0.656 on the plain main menu. After the second X the table
-comes back — that is the assertion, not "the menu is reachable".
+NETWORK NAMES ARE AMBIGUOUS. "Pangle" also appears on the debugger's own page
+under "Completed SDK Integrations", in the tree before the network window is
+ever opened. So that window is confirmed FIRST — by its navigation bar — and
+only then is Pangle looked for.
 
 WHAT EARLIER WORK ESTABLISHED, kept because later chunks rebuild on it (the
 banner/interstitial version of this test is in git history):
   * interstitials fire on leaving a game — 12 of 12 attempts — and render
     INSIDE the app; the foreground app stays Spider;
-  * they CHAIN: a video plays ~15s, then opens an App Store product sheet BY
-    ITSELF with no tap (confirmed with screenshot-only sampling, 40 frames, no
-    touch events), and closing that starts a further playable ad;
-  * watched for a full 5 minutes without pinning a network, only ONE closable
-    control ever appeared (the sheet's X, at t+27s) and Spider's own UI never
-    came back on its own — pinning AppLovin first is what makes the second X
-    show;
-  * if leaving a game does NOT show an interstitial, it will on the next
-    resume or new deal. Setup absorbs a picker ad with ui.ad_free() so we
-    can reach the table; the enter-after-back path must NOT, because that
-    ad is the assertion. Never ui.recover() — a cold launch re-locks the
-    Dev Panel and drops AppLovin.
-ui.ad_free() / ui.lost() / ui.dismiss_ad() / ui.tap_store_close() /
-ui.tap_ad_close() are the helpers this uses. ui.recover() is not.
+  * live creatives CHAIN: a video plays ~15s, then opens an App Store product
+    sheet BY ITSELF with no tap, and closing that starts a further playable ad;
+  * if leaving a game does NOT show an interstitial, it used to on the next
+    resume or new deal; Resume no longer does. Setup absorbs a picker ad
+    with ui.ad_free() so we can reach the table; the enter-after-back path
+    must NOT, because that ad is the assertion. Never ui.recover() — a cold launch re-locks the
+    Dev Panel.
+Live creatives' "▶▶" skip glyph moved between creatives and a crop scored
+0.65-0.75 on real ads but 0.656 on the plain menu, so it was never tapped.
+Pangle's double-arrow never moves, which is why it is.
 
-Captures log/ad_dev_panel.png, log/ad_max_debugger.png, log/ad_ads_section.png,
-log/ad_applovin.png, log/ad_interstitial.png, log/ad_store_closed.png,
-log/ad_back_on_table.png.
+Captures log/ad_dev_panel.png, log/ad_max_debugger.png,
+log/ad_restart_required.png (only when Test Mode was off),
+log/ad_test_mode_section.png, log/ad_pangle.png, log/ad_back_on_table.png.
 
 Prereqs: WDA up via scripts/wda.sh, iPhone unlocked, DEVICE_UDID set.
          The device may start offline — this test brings it online.
@@ -95,45 +113,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import max_test_mode as mtm  # noqa: E402
 import unity_ui as ui  # noqa: E402
 
-LIVE_NETWORK = "Select Live Network"
-LIVE_NETWORK_SELECTED = "Live Network"
-NETWORK = "AppLovin"
-SWIPES = 8
+NETWORK = mtm.NETWORK
 TABLE_WAIT = 30.0
-STORE_WAIT = 90.0
+CLOSE_WAIT = 90.0
 AD_CLOSE_WAIT = 30.0
-
-
-def _visible_live_network_row():
-    """Visible debugger row label for live-network selection, or None."""
-    for label in (LIVE_NETWORK, LIVE_NETWORK_SELECTED):
-        if ui._ax_rect(label):
-            return label
-    return None
-
-
-def _scroll_to_live_network(max_swipes: int):
-    """Scroll until either unselected or selected live-network row is visible."""
-    for _ in range(max_swipes):
-        label = _visible_live_network_row()
-        if label:
-            return label
-        ui.scroll(down=True)
-    return _visible_live_network_row()
-
-
-def _live_network_is(network: str, row_label: str) -> bool:
-    """True when the debugger's visible Live Network row shows ``network``."""
-    live = ui._ax_rect(row_label)
-    selected = ui._ax_rect(network)
-    if not live or not selected:
-        return False
-    live_y = live["y"] + live["height"] / 2
-    selected_y = selected["y"] + selected["height"] / 2
-    return abs(live_y - selected_y) <= max(
-        live["height"], selected["height"], 24)
 
 
 def _reach_table():
@@ -141,9 +127,8 @@ def _reach_table():
 
     Returns ``(description, ad_active)``. An interstitial during
     ``resume_or_deal`` is expected ad behavior, not a setup failure: the
-    caller owns the same StoreKit-X -> ad-X close sequence as an ad that
-    appeared on Back. ``recover()`` is forbidden because a cold launch
-    re-locks the Dev Panel and drops the AppLovin selection.
+    caller owns the same close sequence as an ad that appeared on Back.
+    ``recover()`` is forbidden because a cold launch re-locks the Dev Panel.
     """
     try:
         return ui.resume_or_deal("easy"), False
@@ -155,12 +140,20 @@ def _reach_table():
         return "interstitial during resume_or_deal", True
 
 
-def _enter_for_ad():
-    """Resume the paused game, or deal Easy. The interstitial is expected HERE.
+def _close_ad(where: str) -> bool:
+    """Close the ad; FAIL (after re-enabling Test Mode) if it was a live one."""
+    ok = ui.close_interstitial_chain(where, CLOSE_WAIT, AD_CLOSE_WAIT)
+    if ui.last_ad_was_live():
+        raise AssertionError(mtm.live_ad_served(where))
+    return ok
 
-    After back() with no ad, the game is paused. The next enter is when the
-    interstitial actually loads. Must not call ad_free()/recover() — that
-    would swallow the ad this step is waiting for.
+
+def _enter_for_ad():
+    """Deal a fresh Easy game. The interstitial may fire HERE.
+
+    Resume no longer fires an interstitial (TA-09 was retired), so the paused
+    game is abandoned for a new deal instead. Must not call ad_free()/recover()
+    — that would swallow the ad this step is waiting for.
     """
     if ui.alert_now():
         ui.settle_prompts()
@@ -185,28 +178,13 @@ def _enter_for_ad():
                   "could not reach the menu to resume/deal after back showed no ad")
         ui.expect(ui.open_picker(), "Play did not open the difficulty picker")
 
-    if ui.have("resume") and ui.is_on("resume"):
-        print("  resuming the paused game — interstitial should appear now")
-        ui.expect(ui.tap("resume", settle=2.0), "the Resume ribbon could not be tapped")
-        return "resuming the paused game"
-    print("  no Resume ribbon — dealing Easy, interstitial should appear now")
+    print("  dealing a fresh Easy game — the interstitial may appear now")
     ui.expect(ui.tap("difficulty_easy", settle=2.0), "Easy could not be tapped")
+    # Over a paused game, Easy raises the abandon prompt; settle_prompts()
+    # answers it Yes. An ad, if it fires, stays up for wait_lost() below.
+    if ui.alert_now():
+        ui.settle_prompts()
     return "dealing a fresh Easy game"
-
-
-def _close_debugger_overlays():
-    """Leave chunk 2's native overlays without restarting Spider."""
-    if ui.on_window(LIVE_NETWORK, timeout=2.0):
-        ui.expect(ui._tap_named("XCUIElementTypeButton", "BackButton"),
-                  f"could not back out of the {LIVE_NETWORK!r} window")
-        ui.sleep(2)
-    if ui.on_max_debugger(timeout=2.0):
-        ui.expect(ui.close_max_debugger(),
-                  "could not close the debugger; its 'Done' button is top-left "
-                  "('Share' sits beside it)")
-    if ui.dev_panel_open():
-        ui.expect(ui.close_dev_panel(),
-                  "could not collapse the Dev Panel overlay")
 
 
 def _restore_table_after_ad():
@@ -216,8 +194,7 @@ def _restore_table_after_ad():
         how, ad_active = _reach_table()
         print(f"  {how}")
         if ad_active:
-            ui.close_interstitial_chain(
-                "resume_or_deal after the first ad", STORE_WAIT, AD_CLOSE_WAIT)
+            _close_ad("resume_or_deal after the first ad")
             return _restore_table_after_ad()
         ui.settle_prompts()
         ui.expect(ui.at_table(timeout=8.0),
@@ -226,60 +203,69 @@ def _restore_table_after_ad():
     return ui.shoot("ad_back_on_table")
 
 
+def _leave_table_for_ad() -> str:
+    """Wait on the table, tap back, and return where the interstitial fired."""
+    print(f"  waiting {TABLE_WAIT:.0f}s on the table for an interstitial to arm")
+    ui.sleep(TABLE_WAIT)
+    ui.expect(ui.back(), "the table's back control could not be tapped")
+    # It usually fires on back. When it does not, deal a fresh game; if that
+    # shows none either, a second long table visit ending in Back (TA-07) is
+    # the documented trigger. A hand-off out of Spider is a different failure
+    # from "still on a Spider screen".
+    if ui.wait_lost(timeout=12.0):
+        print("  interstitial fired on back")
+        return "leaving the game"
+    missed = ui.shoot("ad_back_no_ad")
+    print(f"  no interstitial on back (see {missed}) — dealing a fresh game")
+    where = _enter_for_ad()
+    if ui.wait_lost(timeout=20.0):
+        return where
+    ui.expect(ui.at_table(timeout=8.0),
+              f"{where} showed no interstitial and did not reach the table — "
+              f"foreground app: {ui.active_app() or 'unknown'}")
+    print(f"  no interstitial on the deal either — waiting {TABLE_WAIT:.0f}s "
+          "on the new table and pressing Back again")
+    ui.sleep(TABLE_WAIT)
+    ui.expect(ui.back(), "the table's back control could not be tapped")
+    ui.expect(ui.wait_lost(timeout=12.0),
+              f"no interstitial on back, on {where}, or on a second Back after "
+              f"{TABLE_WAIT:.0f}s on the table — still on a recognisable Spider "
+              f"screen (first miss: {missed}). Foreground app: "
+              f"{ui.active_app() or 'unknown'}")
+    return "leaving the new game"
+
+
 def run_chunk3(net):
     """Run only chunk 3 from the current Spider state.
 
-    This is deliberately separate from ``run``: chunks 1-2 have already
-    selected AppLovin, and rerunning them can disturb the debugger's scroll
+    This is deliberately separate from ``run``: chunks 1-2 have already put
+    MAX on Pangle, and rerunning them can disturb the debugger's scroll
     position. The current screen may be a leftover debugger, table, menu, or
     the expected interstitial itself.
     """
-    _close_debugger_overlays()
+    mtm.close_overlays()
     if ui.lost(timeout=2.0):
-        ui.close_interstitial_chain("resume_or_deal",
-                                    STORE_WAIT, AD_CLOSE_WAIT)
+        _close_ad("resume_or_deal")
         table = _restore_table_after_ad()
-        print(f"PASS: chunk 3 closed the expected interstitial chain and "
+        print(f"PASS: chunk 3 closed the expected interstitial and "
               f"returned to the table (see {table})")
         return
 
-    ad_active = False
-    if ui.at_table(timeout=2.0):
-        ui.settle_prompts()
-        print(f"  current state is the table; waiting {TABLE_WAIT:.0f}s")
-        ui.sleep(TABLE_WAIT)
-        ui.expect(ui.back(), "the table's back control could not be tapped")
-        where = "leaving the game"
-        if not ui.wait_lost(timeout=12.0):
-            print("  no interstitial on back — trying the next resume/deal")
-            where = _enter_for_ad()
-            ui.expect(ui.wait_lost(timeout=20.0),
-                      f"{where} did not open an interstitial either")
-    else:
+    if not ui.at_table(timeout=2.0):
         how, ad_active = _reach_table()
         print(f"  {how}")
         if ad_active:
-            ui.close_interstitial_chain("resume_or_deal",
-                                        STORE_WAIT, AD_CLOSE_WAIT)
+            _close_ad("resume_or_deal")
             table = _restore_table_after_ad()
             print(f"PASS: chunk 3 accepted the interstitial during "
                   f"resume_or_deal and returned to the table (see {table})")
             return
-        ui.settle_prompts()
-        ui.expect(ui.at_table(), "did not reach the game table")
-        print(f"  waiting {TABLE_WAIT:.0f}s on the table")
-        ui.sleep(TABLE_WAIT)
-        ui.expect(ui.back(), "the table's back control could not be tapped")
-        where = "leaving the game"
-        if not ui.wait_lost(timeout=12.0):
-            print("  no interstitial on back — trying the next resume/deal")
-            where = _enter_for_ad()
-            ui.expect(ui.wait_lost(timeout=20.0),
-                      f"{where} did not open an interstitial either")
-
-    ui.close_interstitial_chain(where, STORE_WAIT, AD_CLOSE_WAIT)
+    ui.settle_prompts()
+    ui.expect(ui.at_table(), "did not reach the game table")
+    where = _leave_table_for_ad()
+    _close_ad(where)
     table = _restore_table_after_ad()
-    print(f"PASS: chunk 3 closed the interstitial chain and returned to "
+    print(f"PASS: chunk 3 closed the interstitial and returned to "
           f"the table (see {table})")
 
 
@@ -303,196 +289,44 @@ def run():
         run_chunk3(net)
         return
 
-    # 2. Unwind leftovers from a previous run. A finished run now ends on the
-    #    GAME TABLE; a run that died in chunks 1-2 may still have the debugger
-    #    up. Never launch_to_menu() from the table — back() fires an
-    #    interstitial and to_menu() answers lost() with recover(), which
-    #    cold-launches and re-locks the Dev Panel.
-    if ui.on_window(LIVE_NETWORK, timeout=2.0):
-        print(f"  a previous run left the {LIVE_NETWORK!r} window open — backing out")
-        ui.expect(ui._tap_named("XCUIElementTypeButton", "BackButton"),
-                  f"could not back out of the {LIVE_NETWORK!r} window left open "
-                  f"by an earlier run")
-        ui.sleep(2)
-    if ui.on_max_debugger(timeout=2.0):
-        print("  a previous run left the debugger open — closing it first")
-        ui.expect(ui.close_max_debugger(),
-                  "the debugger was left open by an earlier run and will not "
-                  "close; its 'Done' button is top-left ('Share' sits beside it)")
-    if ui.lost(timeout=2.0):
-        print("  a previous run left an ad up — clearing it without relaunching")
-        ui.expect(ui.ad_free(),
-                  "a leftover interstitial would not close; refusing to "
-                  "cold-launch because that re-locks the Dev Panel and drops "
-                  f"the {NETWORK} selection")
-    on_table = ui.at_table(timeout=2.0)
-    ad_active = False
-    if on_table:
-        print("  a previous run left a game on the table — opening the Dev "
-              "Panel from here rather than walking to the menu (back from the "
-              "table fires another interstitial)")
-    else:
-        ui.expect(ui.launch_to_menu(), "could not reach the main menu")
+    # 2. Unwind native leftovers from a previous run (the debugger, a network
+    #    window, MAX's restart pop-up). Nothing else needs unwinding and no
+    #    screen needs reaching: ensure_network() relaunches Spider first, which
+    #    clears a leftover ad or table — walking off a table here would fire
+    #    an ad before Test Mode is on, i.e. a LIVE ad.
+    mtm.unwind_leftovers()
 
-    # 3. Into the Dev Panel. ONE call covers both cases the requirement names:
-    #    already unlocked (button on this screen, including the table) -> just
-    #    expand it; not unlocked -> go to About, fire the 5 rapid taps on the
-    #    spider emblem, then expand. Both are idempotent.
-    ui.expect(ui.open_dev_panel(),
-              "could not open the Dev Panel. It is revealed by 5 RAPID TAPS on "
-              "the About screen's spider emblem (the emblem, not the wordmark "
-              "below it — the wordmark is inert), and the gesture TOGGLES, so a "
-              "second burst hides it again.")
-
-    # 4. Debug is on the root list. Max Debugger is the next list, so its
-    #    absence is a different failure from "the panel did not open".
-    ui.expect(ui.is_on("dev_debug") or ui.is_on("dev_max_debugger"),
-              "the Dev Panel opened but has no 'Debug' row — the panel's "
-              "contents may have changed in this build")
-    panel = ui.shoot("ad_dev_panel")
-    print(f"  Dev Panel is open — Max Debugger is under Debug — see {panel}")
-
-    # 5-6. Debug, then Max Debugger. Chunk 2 continues from here.
-    ui.expect(ui.tap_max_debugger(),
-              "the 'Max Debugger' row could not be opened from Debug")
-    ui.expect(ui.on_max_debugger(),
-              f"tapping 'Max Debugger' did not open MAX's mediation debugger "
-              f"— {ui.MAX_DEBUGGER!r} is not in the accessibility tree. The "
-              f"foreground app is {ui.active_app() or 'unknown'}.")
-    shot = ui.shoot("ad_max_debugger")
-    print(f"  MAX Mediation Debugger is open — see {shot}")
-
-    # ── chunk 2 ──────────────────────────────────────────────────
-    # 7. The Ads section is below the fold. Its row says "Select Live Network"
-    #    when empty and changes to "Live Network" once a choice is persisted.
-    #    Scroll until EITHER label is VISIBLE, not merely present in the tree.
-    row_label = _scroll_to_live_network(max_swipes=SWIPES)
-    if not row_label:
-        # The search only goes DOWN. A leftover scroll position (or a reopened
-        # debugger that remembered one) puts Ads ABOVE the viewport, and more
-        # down-swipes move further away. Close and reopen from the top.
-        print("  Ads section not in view — reopening the debugger from the top")
-        ui.expect(ui.close_max_debugger(),
-                  "could not close the debugger to reset its scroll")
-        ui.expect(ui.tap_max_debugger(),
-                  "could not reopen Max Debugger from Debug after a failed scroll")
-        ui.expect(ui.on_max_debugger(),
-                  "reopening Max Debugger did not bring it back")
-        row_label = _scroll_to_live_network(max_swipes=SWIPES)
-    ui.expect(row_label,
-              f"never brought {LIVE_NETWORK!r} or "
-              f"{LIVE_NETWORK_SELECTED!r} into view in {SWIPES} swipes "
-              f"(and a reopen-from-the-top did not help). It lives in the "
-              f"debugger's 'Ads' section — if the row is in the tree but never "
-              f"becomes visible, the list did not scroll.")
-    ads = ui.shoot("ad_ads_section")
-    print(f"  scrolled to the Ads section; found {row_label!r} — see {ads}")
-
-    already_selected = _live_network_is(NETWORK, row_label)
-    print(f"  {NETWORK} already shown on the Live Network row: "
-          f"{already_selected}")
-
-    # 8. Open it. The window that replaces the debugger carries its own
-    #    NAVIGATION BAR, which is the only thing that tells the two screens
-    #    apart — both also carry a static text reading "Select Live Network".
-    ui.expect(ui.tap_text(row_label), f"{row_label!r} could not be tapped")
-    ui.expect(ui.on_window(LIVE_NETWORK),
-              f"tapping {row_label!r} did not open the {LIVE_NETWORK!r} "
-              f"window — no navigation "
-              f"bar by that name. Still on the debugger: "
-              f"{ui.on_max_debugger(timeout=1.0)}")
-    print(f"  {LIVE_NETWORK!r} window opened")
-
-    # 9. Only NOW look for AppLovin. It also appears on the debugger's own page
-    #    under 'Completed SDK Integrations' (measured: present in the tree before
-    #    this window was ever opened), so searching for the name before
-    #    confirming the window could match the wrong row on the wrong screen and
-    #    still look like a pass.
-    ui.expect(ui._ax_rect(NETWORK), f"{NETWORK!r} is not listed on the "
-                                    f"{LIVE_NETWORK!r} window")
-    # Was anything ALREADY selected? MAX says the choice "will reset on the next
-    # app session", and runs do not always restart the app — so a leftover
-    # selection could make the checkmark assertion below pass without this tap
-    # doing anything. Reported every run rather than assumed either way: if this
-    # ever prints True, the assertion has stopped proving what it claims.
-    was_ticked = already_selected or bool(
-        ui._ax_first("XCUIElementTypeButton", "checkmark", timeout=6.0))
-    print(f"  a network was already selected before tapping: {was_ticked}")
-    if not already_selected:
-        ui.expect(ui.tap_text(NETWORK, settle=3.0),
-                  f"{NETWORK!r} could not be tapped")
-    else:
-        print(f"  keeping the existing {NETWORK} selection")
-
-    # 10. Selecting a network ticks it. The checkmark is a BUTTON that does not
-    #     exist until something is selected, so its appearance is the proof the
-    #     tap registered — the row's own text is identical either way.
-    ui.expect(ui._ax_first("XCUIElementTypeButton", "checkmark", timeout=8.0),
-              f"tapping {NETWORK!r} did not select it — no checkmark appeared on "
-              f"the {LIVE_NETWORK!r} list")
-    picked = ui.shoot("ad_applovin")
-    print(f"  {NETWORK} selected (checkmark shown) — see {picked}")
+    # 3-10. Fresh app session -> Dev Panel -> Max Debugger -> Test Mode on
+    #       (enabling it relaunches Spider and re-unlocks the panel) -> Pangle
+    #       ticked -> Back, Done, collapse the panel.
+    mtm.ensure_network(NETWORK)
 
     # ── chunk 3 ──────────────────────────────────────────────────
-    # 11. Close the debugger overlays and walk to the menu WITHOUT
-    #     launch_to_menu() — from this overlay that cold-launches.
-    ui.expect(ui._tap_named("XCUIElementTypeButton", "BackButton"),
-              f"could not back out of the {LIVE_NETWORK!r} window")
-    ui.sleep(2)
-    ui.expect(ui.close_max_debugger(),
-              "could not close the debugger; its 'Done' button is top-left "
-              "('Share' sits beside it)")
-    ui.expect(ui.close_dev_panel(),
-              "could not collapse the Dev Panel overlay — it covers the menu "
-              "labels, so on_menu()/open_picker() cannot see them")
-    # A re-run that opened the debugger from the table is already there —
-    # to_menu() would tap back and fire the interstitial before the 30s wait.
-    # A first run opened it from About, so walk to the menu and deal/resume.
-    if ui.at_table(timeout=2.0):
-        print("  debugger closed, already on the table")
-    else:
-        ui.expect(ui.to_menu(),
-                  "could not walk back to the main menu from About after "
-                  "closing the debugger")
-        print("  debugger closed, back on the main menu")
-        how, ad_active = _reach_table()
-        print(f"  {how}")
+    # The debugger was opened from About: walk to the menu and deal/resume.
+    ui.expect(ui.to_menu(),
+              "could not walk back to the main menu from About after "
+              "closing the debugger")
+    print("  debugger closed, back on the main menu")
+    how, ad_active = _reach_table()
+    print(f"  {how}")
     ui.settle_prompts()
     if ad_active:
-        ui.close_interstitial_chain("resume_or_deal",
-                                    STORE_WAIT, AD_CLOSE_WAIT)
+        _close_ad("resume_or_deal")
         table = _restore_table_after_ad()
-        print(f"PASS: device online ({net}), {NETWORK} selected as the live "
-              f"network, and the expected resume_or_deal interstitial was "
-              f"closed — left on the table (see {table})")
+        print(f"PASS: device online ({net}), MAX Test Mode on {NETWORK}, and "
+              f"the expected resume_or_deal interstitial was closed — left on "
+              f"the table (see {table})")
         return
     ui.expect(ui.at_table(), "did not reach the game table")
 
-    # 13. Wait for MAX to prefetch, then leave. The interstitial fires on
-    #     leaving a game, not on arriving.
-    print(f"  waiting {TABLE_WAIT:.0f}s on the table for an interstitial to arm")
-    ui.sleep(TABLE_WAIT)
-    ui.expect(ui.back(), "the table's back control could not be tapped")
-
-    # 14. Interstitial is inside the app. It often fires on back; when it
-    #     does not, it fires on the next resume or new deal. A hand-off out
-    #     of Spider is a different failure from "still on a Spider screen".
-    where = "leaving the game"
-    if ui.wait_lost(timeout=12.0):
-        print("  interstitial fired on back")
-    else:
-        print("  no interstitial on back — it fires on the next resume/deal")
-        where = _enter_for_ad()
-        ui.expect(ui.wait_lost(timeout=20.0),
-                  f"{where} did not open an interstitial either — still on a "
-                  "recognisable Spider screen. Foreground app: "
-                  f"{ui.active_app() or 'unknown'}")
-    ui.close_interstitial_chain(where, STORE_WAIT, AD_CLOSE_WAIT)
+    # 11-12. Wait for MAX to prefetch, leave, close the interstitial.
+    where = _leave_table_for_ad()
+    _close_ad(where)
     table = _restore_table_after_ad()
 
-    print(f"PASS: device online ({net}), {NETWORK} selected as the live "
-          f"network, leave-game interstitial closed (store X then ad X), "
-          f"back on the table — left there on purpose (see {table})")
+    print(f"PASS: device online ({net}), MAX Test Mode on {NETWORK}, "
+          f"leave-game interstitial closed, back on the table — left there on "
+          f"purpose (see {table})")
 
 
 if __name__ == "__main__":

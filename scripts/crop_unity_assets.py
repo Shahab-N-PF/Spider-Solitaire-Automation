@@ -16,7 +16,9 @@ around the glyphs but off the surrounding texture — the felt background is
 subtly noisy and animated, so extra margin costs match confidence.
 
 Run:  ./.venv/bin/python scripts/crop_unity_assets.py [--check]
+        [--device iphone14|iphone11] [--only name,name]
         --check  re-verify existing crops instead of rewriting them
+        --only   rewrite just these crops, leaving the rest of the set alone
 """
 import os
 import sys
@@ -173,8 +175,10 @@ CROPS_IP11 = {
     # The Dev Panel button that gesture reveals, bottom-right. Its source capture
     # is the ONLY one here that isn't a plain screen shot — it has to be taken
     # after the gesture (tests/openDebugTools.py writes log/debug_tools.png; copy
-    # one in as SpiderAboutDevPanel.png to re-cut this crop).
-    "dev_panel":       ("SpiderAboutDevPanel.png", (640, 1550, 824, 1606)),
+    # one in as SpiderAboutDevPanel.png to re-cut this crop). Stops at y=1592:
+    # online, the ad banner covers the button from y~1594, and a crop that
+    # reached 1606 scored 0.526 whenever the banner creative was not white.
+    "dev_panel":       ("SpiderAboutDevPanel.png", (640, 1550, 824, 1592)),
     # Entries inside the panel that button opens. "Complete Game" is the QA
     # synthetic win — the Unity equivalent of the Obj-C build's cheat — which is
     # what makes the victory screens reachable without playing a game out.
@@ -201,7 +205,10 @@ CROPS_IP11 = {
     # "current / rank / best" header rather than the won/abandoned counters or the
     # score block, which change with every win.
     "screen_victory":  ("VictoryClean.png", (172, 742, 560, 788)),
-    "victory_ranking": ("VictoryClean.png", (352, 583, 478, 612)),
+    # Build 395 draws "ranking for" ~10% larger (the 363 crop scored 0.827 only
+    # when enlarged 10%, below 0.7 inside find()'s +/-1% sweep). Re-cut from a
+    # 395 victory; the size change belongs to the pixel-fidelity reports.
+    "victory_ranking": ("VictoryScreen_395.png", (348, 580, 482, 612)),
     "victory_leaderboards": ("VictoryClean.png", (159, 1138, 358, 1178)),
     "victory_achieve": ("VictoryClean.png", (470, 1138, 684, 1178)),
     # The footer names the level that was just won — the one element on this
@@ -252,7 +259,16 @@ CROPS_IP11 = {
     # 0.471 on a 363 iPhone 11 capture; this one scores 1.000 on 363 and ~0.47 on
     # them. One shared crop cannot cover both renderings, so it tracks the build
     # under test. Re-capture those devices on 363 to clear the MISSED.
-    "game_center":     ("StatsPage.png", (663, 110, 746, 161)),
+    #
+    # Build 395 grew it again, ~16% (the 363 crop scored 0.988 only at 1.16x),
+    # so it is re-cut from a 395 Statistics capture. Still text only.
+    "game_center":     ("StatsPage_395.png", (646, 106, 746, 165)),
+    # Two more labels build 395 enlarged, previously derived from the iPhone 14
+    # set: Options' "Contact Us" (~7% larger and bolder; best 0.804 at 1.07x)
+    # and the table's "tap to lower" (~5%; 0.941 at 1.05x). "tap to undo" and
+    # "tap for hints" kept their size and still match at 0.99.
+    "contact_us":      ("OptionsPage_395.png", (616, 110, 797, 154)),
+    "tap_lower":       ("GamePlay_395.png", (335, 1384, 493, 1420)),
     # The ABOUT screen's back control, re-cut for build 363 — which shrank it and
     # slid it toward the edge, exactly as it did the Statistics header. Glyphs
     # went from ~103x24 to 87x19 and the centre moved from x87 to x63. back_game
@@ -409,6 +425,12 @@ def main():
         sys.exit(f"unknown --device {prof}; pick from {', '.join(PROFILES)}")
     SRC, OUT, crops = (PROFILES[prof]["src"], PROFILES[prof]["out"],
                        PROFILES[prof]["crops"])
+    if "--only" in sys.argv:
+        wanted = sys.argv[sys.argv.index("--only") + 1].split(",")
+        unknown = [n for n in wanted if n not in crops]
+        if unknown:
+            sys.exit(f"--only: not in the {prof} profile: {', '.join(unknown)}")
+        crops = {n: crops[n] for n in wanted}
     print(f"profile {prof}:  {SRC} -> {OUT}")
 
     os.makedirs(OUT, exist_ok=True)

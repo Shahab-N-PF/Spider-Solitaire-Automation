@@ -75,9 +75,12 @@ in `log/`. The
 standalone cases appear as SKIPPED until they are run through the runner, for
 example `run_all.py verifyAds`; a direct `python tests/verifyAds.py` run does
 not update the report ledger. `triggerAdPoints` is the exception: it writes
-each named check (TA-01..TA-08, TA-10) into that ledger itself, so a FAQ miss
-can fail TA-10 without failing the parent case. TA-09 is commented out of the
-TestRail catalog — Resume no longer fires an ad.
+each named check (TA-01..TA-08, TA-10..TA-13) into that ledger itself, so a FAQ
+miss can fail TA-10 without failing the parent case. A check whose precondition
+was not met (too little of the cooldown was left to land a tap inside it) is written as
+`SKIP` and renders as skipped with its reason and the preceding ad's measured
+length and the cooldown it left. TA-09 is commented out of the TestRail catalog — Resume no longer fires
+an ad.
 
 The report is generated from `log/run_results.json`. Subset runs merge their
 results into that ledger, so a full offline run followed by
@@ -227,18 +230,18 @@ deal a row from the stock → board changes **9.6%** → undo → residual **0.0
 | `verifyChooseLook` | starts **offline** (Airplane Mode + Wi-Fi off) and **Homes then kills** the app the way `verifyRelaunch` does, then force-launches to the menu. Surface/Cards tabs switch, then the **6th Surface palette** and the **5th Cards palette** are selected and proved to reach the **game table** — the felt and the card backs are read off the table and matched, on *normalised* colour, against the palette that was tapped in that same run. **Puts the default look back** from a `finally`: the menu's three icon controls carry the felt in their crops and drop to 0.62-0.69 against a 0.70 bar on a repainted surface. No "the screen changed" assertion — the selection persists, so that check passes once and fails forever after (standalone, **not in `run_all`**) |
 | `verifyPlay` | Play opens the picker, all 5 levels render, Easy deals a **table** |
 | `verifyAbandonNo` | with a paused game, declining the abandon confirmation keeps the difficulty picker open, does not start a new game, and leaves the paused game available |
-| `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
+| `verifyDifficultyLevels` | **Medium…Expert** each deal a game, **win it via the QA cheat**, check the victory screen's **score / time / moves / run** rows all show data (as `verifyVictory` does), and leave the victory screen by its own **"back"**; per-level failures reported individually. Needs `openDebugTools`' unlock (re-arms itself if the button has gone). Easy is covered by `verifyPlay` and `verifyVictory`. Every game is completed, so no level raises an abandon prompt — and 4 wins are written to local statistics |
 | `verifyFirstLaunch` | preserves an already-visible first-install prompt (otherwise performs a **cold start**) and checks both links on the one-time Terms & Conditions card: Terms must open the terms page and Privacy Policy must open the privacy page, and each page must close back to the card. It then accepts T&C, allows ATT, presses Home to persist those choices, enables Airplane Mode, turns Wi-Fi off, and hands the remaining suite a clean main menu. On a normal launch the card/link checks are skipped, but the phone is still put offline. Runs **first** |
 | `verifyGamePlay` | **deal/undo round trip**, **tap-to-lower** drops the playfield and raises it back, hints respond, all six drawer actions behave, and two Options settings are proved to reach the table — **"Use Hearts"** flips the dealt cards from black spades to red hearts and back, and **"Rich Features"** hides and restores the Timer, Score and Multiplier |
 | `verifyResetCancelled` | opens Reset Statistics, presses No, confirms the card closes, Statistics remains open, and the score region is unchanged |
 | `resetStats` | reset link + both confirmations, then back to the menu. **DESTRUCTIVE** — wipes local statistics, so it runs **last** |
-| `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, names the level played, and its own **"back"** returns to the menu — leaving no game in progress |
+| `verifyVictory` | wins via the QA cheat (reusing `openDebugTools`' unlock, so it must run after it), then the win screen renders all 7 elements, its four stat rows under current / rank / best — **score, time, moves, run** — all show data (`ui.victory_rows_problems()`: a value under current, a value or "-" under best, a rank on the first three; run has no rank in the Obj-C build either), it names the level played, and its own **"back"** returns to the menu — leaving no game in progress. A missing row is asserted only after leaving, so it does not strand the next test on the victory screen (case **VI-05**) |
 | `visitLastScore` | the picker's **"LAST SCORE"** opens the ranking view, its header reads **"Last Won Game Score"**, and its forward arrow takes 4 taps (2s apart) — which cycles the period week → month → overall → day → week, a full round trip. Then **"leaderboards"** and **"achievements"** each open Apple's Game Center sheet, headed **"Leaderboards"** / **"Achievements"**, its back arrow leaves that page, and a tap at the bottom dismisses it back to Last Score. The first tap of either can raise a Game Center notice card ("scores may take a little time to upload") instead of the sheet — OK that card and the sheet opens directly (online, opt-in) |
 | `verifyRelaunch` | one move is played, then the app is **sent to the background and killed on the game screen**, and launched again **~3.5s later and ~35s later** — both times it comes back on the game screen with **the same board**, matched by correlation against the played position (**1.000** on build 363, where a *different* deal scores 0.77-0.79). The second leg carries on with the game the first one restored. The Home press is load-bearing (without it the app comes back on the **menu**). Sits **before `openDebugTools`** so the kill cannot hide the Dev Panel unlock |
 | `verifyHelpShift` | Contact Us leaves Options for Helpshift. In `run_all` this half stays **offline**: the capture is the no-network redirect (`log/HelpShift.png`), and the loaded page is not asserted |
 | `verifyHelpShiftOnline` | Last in `run_all`. Brings the device **online** and asserts Contact Us opens **PeopleFun Support** (`log/HelpShiftOnline.png`). Standalone: `verifyHelpShift.py --online` |
-| `verifyAds` | **chunks 1-3 of a rebuild:** brings the device **online itself**, opens the **Dev Panel** (unlocking it with the 5-tap emblem gesture if needed — both branches are one idempotent call), opens **MAX's Mediation Debugger**, and scrolls to its **Ads** section. The row reads **Select Live Network** when empty but changes to **Live Network** once a network is persisted, so the test accepts either label; it opens that row and selects **AppLovin** only when needed, proved by the picker's checkmark. Then closes those overlays, **resumes a paused game or deals Easy**, waits ~30s, taps back, and walks the interstitial chain — StoreKit product-sheet X, then the ad's own X — landing back on the **game table**. **Ends on the table on purpose** so a later chunk continues from there; a re-run expands the Dev Panel from the table rather than walking to the menu (back from the table fires another interstitial). Never cold-launches: that re-locks the Dev Panel and drops the AppLovin selection. The skip glyph is never tapped. The banner checks this replaced are in git history (online, opt-in) |
-| `triggerAdPoints` | **Online-only trigger/cooldown coverage:** verifies the original five table/Victory rules plus global cooldown after a Help ad, long-table Back, short main-menu entry (Resume does not fire an ad), and long-table FAQ. A failed named check stays FAIL on its TA-* card in the regression report; the parent case stays PASS. TA-09 is not in the catalog. Entry ads are valid cooldown-expiry events and are closed before the table clock starts; one inherited-cooldown ad on the first Options attempt gets one clean retry. The shared closer always handles StoreKit X before the ad's own X and captures an unmatched creative before failing. `--part cooldown`, `--part victory`, `--part menu`, and `--part destinations` run the groups independently. Never cold-launches (standalone, not in `run_all`) |
+| `verifyAds` | **chunks 1-3 of a rebuild:** brings the device **online itself**, opens the **Dev Panel** (unlocking it with the 5-tap emblem gesture if needed — both branches are one idempotent call) and **MAX's Mediation Debugger**, then puts MAX in **Test Mode on Pangle**. If Test Mode is off (**Test Mode Enabled** reads false) it taps the **Enable** link on the Select Test Mode Network row, OKs the **"Restart Required"** pop-up and relaunches Spider from the foreground (so it lands on the menu, not a restored table) — the one deliberate cold launch — then unlocks the Dev Panel again, reopens the debugger and FAILs if Test Mode is not on. **Select Test Mode Network** opens its own window, where **Pangle** is ticked only when needed, proved by the checkmark. Then closes those overlays, **resumes a paused game or deals Easy**, waits ~30s, taps back (if no ad shows, it deals a fresh game — Resume no longer fires one — then tries a second 30s visit ending in Back), and closes the interstitial the Pangle way — the grey **double-arrow** top-right (about 5 s in), then the end card's dark X if the arrow skipped to one — landing back on the **game table**. The Test Mode steps live in `max_test_mode.py` (`ensure_network()`), shared with `triggerAdPoints`. Setup always starts from a **fresh relaunch** (a stale *Test Mode Enabled: true* once came with live ads), so a re-run never walks off the table first. An ad closed without Pangle's controls is a **live ad**: the test re-enables Test Mode and FAILs. **Ends on the table on purpose** so a later chunk continues from there. **Test Mode lasts one app session** — off again after the next relaunch; until then every ad is a Pangle test ad. The banner checks this replaced are in git history (online, opt-in) |
+| `triggerAdPoints` | **Online-only trigger/cooldown coverage:** verifies the original five table/Victory rules plus the Help-ad cooldown on both sides (Options inside the time left: no ad; once it runs out: ad, TA-13), long-table Back, immediate main-menu entry (Resume does not fire an ad), long-table FAQ, and 30s+ ads (TA-11 Victory New, TA-12 Options) firing the next trigger at once. The cooldown is **30 s from when the ad appears**, so what is left after the close is 30 minus the ad's length; every ad is timed and each follow-up tap is scheduled from that clock, with a check `SKIP` when the tap cannot land provably on one side (see *The cooldown runs from when the ad appears* below). A failed named check stays FAIL on its TA-* card in the regression report; the parent case stays PASS. TA-09 is not in the catalog. Entry ads are valid cooldown-expiry events and are closed before the table clock starts; an ad on the first short Options visit is excused only when no known ad's cooldown provably covered the tap. Setup puts MAX in **Test Mode on Pangle** itself (`max_test_mode.ensure_network`, the same steps as `verifyAds`), and the shared closer taps Pangle's double-arrow, then an end-card X, capturing an unmatched creative before failing. A relaunch mid-run turns Test Mode back on and forgets the cooldown clock. A held ad is never skipped before its cooldown runs out. `--part cooldown`, `--part victory`, `--part menu`, `--part destinations`, and `--part longad` run the groups independently. Setup relaunches Spider into a fresh session and enables Test Mode there (another relaunch); an ad closed without Pangle's controls fails its check as **live ad served** and Test Mode is re-enabled (standalone, not in `run_all`) |
 | `verifyAdFreeVersion` | About's **"ad free version"** link raises a **No/Yes card** ("Tap Yes to proceed to the App Store"). The **No** path must stay on About in Spider; the **Yes** path hands off to the App Store — asserted on the foreground **bundle id**, not pixels. It comes back the way a PLAYER does — tapping the `◀ Spider` crumb iOS draws in the status bar (`ui.tap_back_to_app()`), not a programmatic resume — and lands on **About**, which is what proves the app was resumed and not restarted. The page it lands on is asserted by name to be **Spider Solitaire +**, this game's paid build (online, opt-in) |
 | `submitFeedback` | About's **"submit feedback"** raises a Cancel / **Write Email** alert (identified by its TEXT), and Write Email opens **Mail** with a draft. Its **subject** is read from Mail's accessibility tree and must name the **game, app version, device model and iOS version** — each read off the device in the same run, never hardcoded, so it holds on any handset. **Never sends**: the X and the send arrow are addressed by name, and the draft is deleted from a `finally`. Returns by tapping the `◀ Spider` crumb, and lands on the **main menu** rather than About — Mail is a whole second app, unlike the App Store overlay, so that is EXPECTED and the test reports where it landed instead of demanding About (online/opt-in, needs a Mail account) |
 
@@ -630,10 +633,10 @@ them is a regression nothing else here would see.
 
 **It is being rebuilt in chunks, and chunks 1-3 are what exists today.** The
 earlier version watched banners and interstitials from the outside; the rebuild
-drives **AppLovin MAX's own Mediation Debugger** first, then walks a real
-leave-game interstitial with AppLovin pinned. The debugger is native UIKit
-drawn over the Unity view, so it publishes a real accessibility tree — every
-assertion there is READ text, not matched pixels.
+drives **AppLovin MAX's own Mediation Debugger** first — putting MAX in **Test
+Mode on the Pangle network** — then walks a real leave-game interstitial. The
+debugger is native UIKit drawn over the Unity view, so it publishes a real
+accessibility tree — every assertion there is READ text, not matched pixels.
 
 What chunks 1-3 assert, in order:
 
@@ -647,31 +650,103 @@ What chunks 1-3 assert, in order:
    panel did not open" and "the button is gone" stay separate failures;
 4. tapping it opens **MAX's Mediation Debugger**, confirmed by its full title in
    the tree (on screen the title is truncated to "MAX Mediation Debug…");
-5. the debugger scrolls down to its **Ads** section;
-6. **Select Live Network** opens its own window;
-7. **AppLovin** is selected there, proved by the **checkmark** button that does
+5. **Test Mode.** Read from the Ads section's **Test Mode Enabled** row
+   (true / false, matched to the row by line). When it is off, the *Select
+   Test Mode Network* row carries a blue **Enable** link; the test taps it,
+   asserts the pop-up says **"Restart Required"**
+   (`log/ad_restart_required.png`), presses OK and relaunches Spider — killed
+   from the foreground, so it comes back on the menu instead of restoring the
+   table (Back from the table fires an interstitial online). That relaunch
+   re-locks the Dev Panel, so steps 2-4 run again — and Test Mode must then
+   be on, or the test FAILs. This always happens in a **fresh app session**:
+   `ensure_network()` relaunches Spider before step 2, because the reading
+   proved stale once (after WDA crashed under a run it read *true* with
+   Pangle ticked while every ad and banner came from live networks). A fresh
+   session that still reads true is switched back to live — the Enable link
+   then sits on the *Select Live Network* row — and restarted first;
+6. **Select Test Mode Network** opens its own window (confirmed by its
+   navigation bar);
+7. **Pangle** is selected there, proved by the **checkmark** button that does
    not exist until something is picked — the row's own text reads the same
-   either way, so the text alone would prove nothing;
-8. those overlays close. A first run opened the debugger from About, so it
-   walks to the **main menu** without `launch_to_menu()` (from the debugger
-   that would cold-launch) and then reaches a game — **resume** if one is
-   paused, otherwise deal Easy. A re-run that opened the debugger from the
-   table is already there and must not tap back yet. An interstitial that
-   eats the picker is cleared with `ui.ad_free()`, never `ui.recover()`;
+   either way, so the text alone would prove nothing. A pop-up after the pick
+   is OK'd and its text logged;
+8. those overlays close (Back, Done, collapse the panel). The debugger was
+   opened from About, so the test walks to the **main menu** without
+   `launch_to_menu()` (from the debugger that would cold-launch) and then
+   reaches a game — **resume** if one is paused, otherwise deal Easy. An
+   interstitial that eats the picker is closed as the expected ad, never
+   with `ui.recover()`;
 9. after ~30s on the table, **back** *may* open an in-app interstitial
     (still `com.fingerarts.Spider`). If it does not, the same ad fires on
     the **next resume or new deal** — that is expected, not a miss;
-10. the video is left alone until the **StoreKit product-sheet X** appears
-    (`ui.tap_store_close()` — native Close, then `ad_store_close` if a crop
-    exists). The skip glyph is never tapped;
-11. closing that sheet reveals the **ad's own X** (`ui.tap_ad_close()`), and
-    tapping it returns to the **game table**.
+10. the ad is closed with `ui.close_interstitial_chain(...)`:
+    each pass taps a native Close, Pangle's double-arrow (`tap_ad_skip`), or
+    a registered ad X — whichever shows — until Spider's own UI is back, with
+    `tap_ad_close` (coordinates + `log/ad_unmatched.png`) as the last resort.
+    `ui.LAST_AD_CLOSE` records what closed it: an ad closed without
+    Pangle's double-arrow or X was served by a **live** network, so the test
+    re-enables Test Mode (`max_test_mode.live_ad_served`) and FAILs;
+11. the run lands back on the **game table**.
 
-**The run ENDS on the table, on purpose**, so a later chunk carries on from
-that screen. A re-run therefore starts on the table (or behind leftover
-debugger overlays). It expands the Dev Panel from wherever it is; it does
-**not** tap back off the table to reach the menu. Cold-launching would
-**re-lock the Dev Panel** and drop the AppLovin selection.
+**Test Mode lasts one app session.** It is on for the session the restart
+starts and off again after the next relaunch (measured on 8.0.4: Pangle
+ticked, relaunch, *Test Mode Enabled* read false). Until then every ad is a
+Pangle test ad. `triggerAdPoints` puts MAX on Pangle the same way at its own
+start, so its ad lengths are Pangle's too.
+
+**The run ENDS on the table, on purpose**, so a later chunk
+(`VERIFY_ADS_CHUNK=3`) carries on from that screen in the same session. A
+full re-run only unwinds native leftovers (debugger overlays, or MAX's
+restart pop-up — which it OKs and finishes the relaunch for) and then lets
+the fresh relaunch clear everything else. It never walks off the table
+first: Back from there would fire an ad before Test Mode is on — a live ad.
+Apart from the setup restarts, cold-launching would just **re-lock the Dev
+Panel** for nothing.
+
+**How a Pangle test interstitial closes** (four ads measured on 8.0.4:
+"Pangle Test Ads / Test Carousel", "Pangle Test Video 2" and "3"):
+
+* the ad is on screen ~4.5 s after Back. For about a second a "1s" countdown
+  pill sits top-right; then a grey (#858585) **double-arrow** circle takes
+  its place at **(767, 171)** and stays for the whole video;
+* **one tap on it** closed the Carousel and Video 2 at once. On Video 3 it
+  skipped to an **end card** whose dark X at (768, 156) closed it;
+* left alone, the double-arrow gives way to that same end-card X after
+  ~50–60 s;
+* **no StoreKit sheet** appeared on any of them, and Back's ad closed onto
+  the main menu.
+
+Its crop, `assets_unity/ad_skip_pangle.png`, is a 36×36 cut from inside the
+circle, registered in `AD_SKIP_COORDS` with a ±40 px position guard and a
+0.9 threshold: the arrow and the end-card X sit 15 px apart and score 0.585 on
+each other, while on the 79 saved Spider captures the best scores are 0.689
+and 0.710 (true matches are 1.000). It is tapped only while an ad covers
+Spider. Unlike the live ads' moving "▶▶" (below), it never moves.
+
+**Only test networks are triggered.** Test Mode lasts one app session, so
+`ensure_network()` registers a `ui.on_relaunch` hook: any later relaunch
+(`cold_launch()`, `launch_to_menu(force=True)`) turns Test Mode back on, on
+the same network, before the run continues — and `triggerAdPoints` forgets
+its cooldown clock, since earlier ads belong to another session. The
+live-network close path (StoreKit X, `ad_store_close`, and the three
+top-left AppLovin X crops) has been removed.
+
+The end card's X sits on
+white in one and on a black band in the other, so its crop
+`assets_unity/ad_close_creative_04.png` is cut 36×36 from INSIDE the opaque
+#333 circle — a 54×54 crop baked in the white corners and missed the black
+variant. Registered at (768, 156) in `AD_CLOSE_COORDS`, the first creative
+whose X is not top-left. The fill is
+not guaranteed: right after the Test Mode relaunch neither Back nor the next
+Resume showed an ad once, and the next attempt did.
+
+**Test Mode also draws a Pangle test BANNER** along the bottom, and its top
+edge covers the bottom ~12 px of the Dev Panel button. The `dev_panel` crop
+used to reach that far: it scored 0.984 while the banner creative was white
+and **0.526** when it rotated to a blue one, so `close_dev_panel()` failed
+after Done for about five seconds at a time. The crop now stops above the
+banner (`crop_unity_assets.py` box ends at y=1592) and scores 0.999 under
+both creatives.
 
 Three things measured on build 363 that shape the code:
 
@@ -680,14 +755,14 @@ Three things measured on build 363 that shape the code:
   screen that was plainly up read as absent. Targeted predicate queries
   (`ui._ax_first`) answer the same question in ~1.1 s;
 * **rows scrolled out of view keep UNTAPPABLE rects** — "Select Live Network"
-  reads y=102 while off screen, "AppLovin" reads y=-409. Only the `visible`
-  attribute says a row is really drawn, so `ui.scroll_to_text()` waits on
-  visibility, never on presence;
-* **"AppLovin" is ambiguous by name.** It also appears on the debugger's own page
-  under *Completed SDK Integrations*, so it is in the tree before the window is
-  ever opened. The window is therefore confirmed FIRST, by its **navigation
-  bar** — both screens carry a static text reading "Select Live Network", so the
-  nav bar is the only discriminator.
+  read y=102 while off screen, "AppLovin" read y=-409. Only the `visible`
+  attribute says a row is really drawn, so every scroll waits on visibility,
+  never on presence;
+* **network names are ambiguous.** "Pangle" (like "AppLovin" before it) also
+  appears on the debugger's own page under *Completed SDK Integrations*, so it
+  is in the tree before the network window is ever opened. The window is
+  therefore confirmed FIRST, by its **navigation bar**, and only then is the
+  network looked for.
 
 ### Kept from the version this replaced
 
@@ -704,17 +779,18 @@ because the later chunks build on them:
   control ever appeared (the store sheet's X, at t+27 s) and Spider's own UI
   never came back. A user, who has no relaunch button, is stuck for minutes.
   Worth raising with whoever owns the ad configuration;
-* the only other exit is a small **"▶▶" skip glyph**, which the driver
-  deliberately does **not** use: its position moves between creatives (top-left
+* the only other exit on those live AppLovin ads was a small **"▶▶" skip glyph**,
+  which the driver deliberately does **not** use: its position moves between creatives (top-left
   on some, top-right on others) and a crop of it scores 0.65–0.75 on real ads but
   **0.656 on the plain main menu** — indistinguishable from noise. Guessing at it
   would tap the ad and open the App Store;
 * `ui.dismiss_ad()` was **dead on Unity**: it only looked for an `ad_close` crop
   that exists in the Obj-C `assets/` set, and `have()` searches the Unity set, so
-  it always returned False. It now also knows `ad_store_close` — the X on the
-  in-app StoreKit sheet, which sits on plain white and matches cleanly (1.000 on
-  the sheet, ≤0.29 on all eight Spider screens). `ui.ad_free(budget)` loops
-  close-or-wait and gives up honestly rather than pretending.
+  it always returned False. It now closes one layer with the same controls as
+  the closer (native Close, a registered skip glyph, a registered X), and
+  `ui.ad_free(budget)` loops close-or-wait and gives up honestly rather than
+  pretending. (The live ads' StoreKit-sheet X crop, `ad_store_close`, was
+  removed with the move to test networks.)
 
 **Ads intercept navigation, not just the moment you are testing.** Measured
 while probing chunk 3: an interstitial fired *while* `resume_or_deal()` was
@@ -722,11 +798,55 @@ working the difficulty picker, so the picker tap was answered by an ad and
 `start_game()` failed with "easy did not deal a game" — app still Spider,
 `ui.lost()` True, neither menu nor table. This is the same hazard `run_all.py`
 avoids by running offline. Online tests treat that interstitial as an expected
-enter event, close the StoreKit-X → ad-X chain, and continue without a
+enter event, close it with the shared closer, and continue without a
 relaunch. They never call `ui.recover()` — `recover()` cold-launches, which
-re-locks the Dev Panel and drops the AppLovin selection, throwing away chunks
-1-2's setup.
+re-locks the Dev Panel, throwing away chunks 1-2's setup.
 
 Another observed path is distinct from the game-leave result: Back from the
 game can show an ad and its second X can return the user to the **main menu**.
 Resume from that menu does not show another interstitial.
+
+### The cooldown runs from when the ad appears (`triggerAdPoints.py`)
+
+Every interstitial starts a **30 s cooldown counted from the moment the ad
+appears**, not from when it is closed. What is left after the close is
+`30 − (seconds the ad was up)`, at every trigger point:
+
+| Ad closed after | Next ad allowed |
+|---|---|
+| 10 s | 20 s after the close |
+| 15 s | 15 s after the close |
+| 20 s | 10 s after the close |
+| 30 s or more | at once — the very next trigger fires |
+
+So an ad on Victory closed after 15 s means New tapped within the next 15 s
+shows no ad; one closed after 30 s means New tapped straight away shows one.
+How long an ad stays up is the creative's doing (the closer taps each X the
+moment it appears), so `triggerAdPoints` **times every ad** and schedules each
+follow-up tap from that clock.
+
+It cannot see the instant an ad starts, so it **brackets** it: the earliest
+start is the trigger tap (or the detection time minus `AD_DETECT_LAG` when the
+tap is buried inside a helper, as Complete Game is), the latest is when
+`wait_lost` sees the ad. Follow-up taps are bracketed the same way
+(`timed_tap`), and every claim keeps `AD_MARGIN` clear of the cooldown's end:
+
+* **no ad** (TA-03, TA-05, TA-08's fresh deal) needs the tap to finish
+  `AD_MARGIN` before the *earliest* possible end. With too little cooldown left
+  to manage that (`AD_ACT_LATENCY` is the cost of a tap), or a tap that came
+  out late, the action still runs, any ad it raises is closed, and the check is
+  `SKIP` with the numbers — never guessed;
+* **ad** (TA-06, TA-13) waits until `AD_MARGIN` after the *latest* possible
+  end, then taps — sooner than 30 s after the close, which is what tells this
+  rule apart from a cooldown counted from the close;
+* TA-11 / TA-12 **hold** the ad until its cooldown has run out before closing
+  it, then require an ad on the very next trigger (New on Victory; Options
+  right after returning to the table from Help). A held ad that closed itself
+  before 30 s is `SKIP`; a 30 s+ ad followed by no ad is `FAIL`.
+
+Once a cooldown has run out the next trigger fires even after a short table
+visit. `AD_COOLDOWN` (30), `AD_MARGIN` (3), `AD_DETECT_LAG` (4) and
+`AD_ACT_LATENCY` (2) read environment overrides. The run summary ends with a
+ledger of every ad's length and the cooldown it left — read it when TA-03 /
+TA-05 keep skipping with "no usable cooldown window": the ads are routinely
+running close to 30 s, and Dev Panel collapse time eats TA-05's window.

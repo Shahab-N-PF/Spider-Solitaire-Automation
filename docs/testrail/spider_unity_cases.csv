@@ -91,12 +91,13 @@ VI-01,Victory - Complete Game from the table shows the win screen,Spider Solitai
 VI-02,Victory - Win screen shows all of its parts,Spider Solitaire Unity > Victory,Functional,Medium,"1. On the Victory screen, with Dev Panel closed, look over the page.","1. You can see the ranking-for header, current / rank / best columns, leaderboards, achievements, help, new, and stats.",Manual
 VI-03,Victory - Footer names the level you just played,Spider Solitaire Unity > Victory,Functional,High,1. Win an Easy game with Complete Game and read the footer.,"1. It says Easy level, matching the game you started, not some other level.",Manual
 VI-04,Victory - Back returns to the main menu,Spider Solitaire Unity > Victory,Functional,Medium,"1. On Victory, tap the screen's own Back control — not New.",1. The main menu is showing. Leaving by Back leaves no game in progress.,Manual
+VI-05,"Victory - Score, time, moves and run rows all show data",Spider Solitaire Unity > Victory,Functional,High,"1. On the Victory screen, with Dev Panel closed, read the rows under current / rank / best.","1. There are four rows, in the order the footer names them: scores, time, moves, run. Every row shows a value under current and a value or ""-"" under best. Score, time and moves also show a rank; run has no rank, as in the original game.",Manual
 DL-01,Difficulty - Medium starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Medium.
 2. Open Dev Panel on the table, tap Complete Game, close the panel, then tap Back on Victory.","1. A Medium game is on the table.
-2. Victory appeared for Medium, then you can get back to the menu.",Manual
-DL-02,Difficulty - Hard starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Hard. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Hard dealt a table, Victory appeared, and you can get back to the menu.",Manual
-DL-03,Difficulty - Bold starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Bold. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Bold dealt a table, Victory appeared, and you can get back to the menu.",Manual
-DL-04,Difficulty - Expert starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Expert. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Expert dealt a table, Victory appeared, and you can get back to the menu.",Manual
+2. Victory appeared for Medium with all four rows (scores, time, moves, run) showing data, then you can get back to the menu.",Manual
+DL-02,Difficulty - Hard starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Hard. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Hard dealt a table, Victory appeared with all four rows (scores, time, moves, run) showing data, and you can get back to the menu.",Manual
+DL-03,Difficulty - Bold starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Bold. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Bold dealt a table, Victory appeared with all four rows (scores, time, moves, run) showing data, and you can get back to the menu.",Manual
+DL-04,Difficulty - Expert starts and can be completed,Spider Solitaire Unity > Difficulty,Functional,High,"1. From the menu, tap Play, then Expert. Complete the game from Dev Panel on the table, then tap Back on Victory.","1. Expert dealt a table, Victory appeared with all four rows (scores, time, moves, run) showing data, and you can get back to the menu.",Manual
 PI-01,Promo icons - Five game icons on the menu after a win,Spider Solitaire Unity > More Games,Functional,Medium,"1. Finish at least one game (or use Complete Game), then go to the main menu. Wait a few seconds.","1. Five icons sit on the left: Solitaire, Sudoku 2, Card Games, FreeCell, and Spiderette. A fresh install with no wins does not show this strip — that is normal.",Manual
 PI-02,Promo icons - Solitaire opens Solitaire: Classic Cards,Spider Solitaire Unity > More Games,Functional,Medium,"1. On the menu, tap the Solitaire icon. Wi-Fi must be on.
 2. Read the store page name.
@@ -132,25 +133,52 @@ AD-01,Ads - Dev Panel opens (unlock if needed),Spider Solitaire Unity > Ads,Func
 2. If Dev Panel is already on screen, tap it. If not, go to About, tap the spider emblem five times quickly, then tap Dev Panel.","1. Spider is in front.
 2. Dev Panel is open and shows Max Debugger.",Manual
 AD-02,Ads - Max Debugger opens,Spider Solitaire Unity > Ads,Functional,High,"1. With Dev Panel open, tap Max Debugger.",1. MAX Mediation Debugger opens. You are still in Spider.,Manual
-AD-03,Ads - Ads section shows the Live Network row,Spider Solitaire Unity > Ads,Functional,Medium,"1. In the debugger, scroll until you can tap the Ads row. It reads Select Live Network when empty, or Live Network when a network is already chosen.",1. That row is on screen and you can tap it.,Manual
-AD-04,Ads - AppLovin is the live network,Spider Solitaire Unity > Ads,Functional,High,"1. Tap the Live Network row. Wait for the picker (its title is Select Live Network). AppLovin also appears higher up under Completed SDK Integrations — ignore that one.
-2. If AppLovin is not already ticked, tap AppLovin.","1. The Select Live Network list is open.
-2. A checkmark sits on AppLovin.",Manual
-AD-06,"Ads - Leave-game ad: close the store X, then the ad X",Spider Solitaire Unity > Ads,Functional,High,"1. Close the debugger (Done, then close Dev Panel). Start or resume a game. Wait about 30 seconds, then tap Back. If no ad appears, resume or deal again — that second enter is allowed.
-2. First tap the App Store product sheet's X (if that sheet appears). Then tap the ad's own circular X. Do not tap the skip arrows that move around.","1. A full-screen ad plays inside Spider. You did not leave for another app.
-2. The store sheet closes first, then the ad.",Manual
-AD-07,Ads - After the ad you are back on the table,Spider Solitaire Unity > Ads,Functional,High,"1. After both X buttons, wait for the game.",1. The game table is showing.,Manual
-TA-01,"Ads - Under 30s on the table, Options has no ad",Spider Solitaire Unity > Ads,Functional,High,"1. Start a game. Within about 8 seconds, open the in-game menu and tap Options. If an ad from an earlier session appears, close it, get back to the table, and try once more within 8 seconds.",1. Options opens with no ad.,Manual
-TA-02,"Ads - Over 30s on the table, Help shows an ad",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds. Open the in-game menu and tap Help.,"1. An ad plays. Close the store X, then the ad X.",Manual
-TA-03,Ads - Options within 30s of the Help ad has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. Right after you close the Help ad, go back to the table, open the in-game menu, and tap Options.","1. Options opens with no ad. The cooldown applies everywhere, not only on Victory.",Manual
+AD-03,"Ads - MAX Test Mode is on (fresh launch, restart after enabling it)",Spider Solitaire Unity > Ads,Functional,High,"1. Start from a fresh launch: close Spider from the app switcher, open it again, unlock Dev Panel (About, tap the spider emblem five times quickly), tap Dev Panel, then Max Debugger. Scroll to the Ads section and read Test Mode Enabled. Do not trust a 'true' from an earlier session.
+2. Tap the blue Enable link on the Select Test Mode Network row.
+3. Tap OK. Close Spider from the app switcher and open it again.
+4. Unlock Dev Panel again (About, tap the spider emblem five times quickly), tap Dev Panel, then Max Debugger.","1. Test Mode Enabled says false. If it says true, tap Enable on the Select Live Network row, tap OK on Restart Required, and redo this step.
+2. A Restart Required pop-up asks you to re-launch the app.
+3. Spider opens. Dev Panel is hidden again.
+4. Test Mode Enabled now says true — Test Mode stayed on after the restart.",Manual
+AD-04,Ads - Pangle is the Test Mode network,Spider Solitaire Unity > Ads,Functional,High,"1. Tap Select Test Mode Network. Wait for its own screen. Pangle also appears on the debugger page under Completed SDK Integrations — ignore that one.
+2. If Pangle is not already ticked, tap Pangle.
+3. Tap Back, then Done.","1. The Test Mode network list is open.
+2. A checkmark sits on Pangle.
+3. The debugger is closed. Test Mode stays on until Spider is relaunched again.",Manual
+AD-06,"Ads - Leave-game ad closes (double-arrow, then the X if shown)",Spider Solitaire Unity > Ads,Functional,High,"1. Close the debugger (Done, then close Dev Panel). Start or resume a game. Wait about 30 seconds, then tap Back. If no ad appears, resume or deal again — that second enter is allowed.
+2. About 5 seconds into the ad, a grey double-arrow circle appears top right (a short countdown shows there first). Tap it. If it opens an end card instead of closing, tap the end card's dark X, also top right.","1. A full-screen ad plays inside Spider. You did not leave for another app.
+2. The ad closes. No App Store sheet opens. If the ad shows no double-arrow and closes some other way, it came from a live network: fail this case and redo AD-03 and AD-04.",Manual
+AD-07,Ads - After the ad you are back on the table,Spider Solitaire Unity > Ads,Functional,High,"1. After the ad closes, wait for the game.",1. The game table is showing.,Manual
+TA-01,"Ads - Under 30s on the table, Options has no ad",Spider Solitaire Unity > Ads,Functional,High,"1. With MAX in Test Mode on Pangle (AD-03, AD-04), start a game. Within about 8 seconds, open the in-game menu and tap Options. If an ad from an earlier session appears, close it, get back to the table, and try once more within 8 seconds.",1. Options opens with no ad.,Manual
+TA-02,"Ads - Over 30s on the table, Help shows an ad",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds. Open the in-game menu and tap Help.,"1. An ad plays. Close it (double-arrow, then the X if an end card shows).",Manual
+TA-03,Ads - Options inside the Help ad's cooldown has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. Time the Help ad from the moment it appears until you close it. The cooldown is 30 seconds from when the ad APPEARED, so what is left after closing is 30 minus that time: closed after 10s leaves 20s, after 15s leaves 15s, after 30s or more leaves nothing (see TA-12).
+2. Inside that time left, go back to the table, open the in-game menu, and tap Options.","1. You know how much cooldown is left.
+2. Options opens with no ad. The cooldown applies everywhere, not only on Victory.",Manual
 TA-04,"Ads - Over 30s on the table, Complete Game shows a Victory ad",Spider Solitaire Unity > Ads,Functional,High,"1. Stay on the table more than 30 seconds. Open Dev Panel and tap Complete Game.
-2. Close the store X, then the ad X, then close Dev Panel.","1. Victory appears with an ad on top.
+2. Close the ad (double-arrow, then the X if an end card shows), then close Dev Panel.","1. Victory appears with an ad on top.
 2. The Victory screen is visible. Close the ad before the panel — the ad covers it.",Manual
-TA-05,Ads - New within 30s of the Victory ad has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. After closing the Victory ad, tap New within 30 seconds.",1. A new table deals with no ad.,Manual
-TA-06,Ads - New after 30s on Victory shows an ad,Spider Solitaire Unity > Ads,Functional,High,"1. Win again with Complete Game after more than 30 seconds on the table. Close that Victory ad, stay on Victory more than 30 seconds, then tap New.","1. An ad plays before the next table. Close the store X, then the ad X.",Manual
-TA-07,"Ads - Over 30s on the table, Back shows an ad then the menu",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds and tap Back.,"1. An ad plays. After the store X and the ad X, you are on the main menu — not the table.",Manual
-TA-08,Ads - Starting a game within 30s on the menu has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. After the Back ad closed onto the menu, wait under 30 seconds and resume or deal a game.",1. The table appears with no ad.,Manual
+TA-05,Ads - New inside the Victory ad's cooldown has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. Time the Victory ad from the moment it appears until you close it. The time left is 30 seconds minus that — for example, closed after 15s leaves 15s.
+2. Close Dev Panel and tap New inside that time left.","1. You know how much cooldown is left.
+2. A new table deals with no ad.",Manual
+TA-06,Ads - New after the Victory ad's cooldown runs out shows an ad,Spider Solitaire Unity > Ads,Functional,High,"1. Win again with Complete Game after more than 30 seconds on the table. Time that Victory ad from when it appears until you close it (double-arrow, then the X if an end card shows).
+2. Wait only the time left — 30 seconds minus the ad's time, plus a few seconds — then tap New. Closed after 20s means waiting about 10s, not 30s.","1. The Victory screen is visible.
+2. An ad plays before the next table. Close it (double-arrow, then the X if an end card shows).",Manual
+TA-07,"Ads - Over 30s on the table, Back shows an ad then the menu",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds and tap Back.,"1. An ad plays. After you close it, you are on the main menu — not the table.",Manual
+TA-08,Ads - Starting a game right after the Back ad has no ad,Spider Solitaire Unity > Ads,Functional,High,"1. After the Back ad closed onto the menu, straight away — inside the time left (30 seconds minus the ad's time) — resume or deal a game.",1. The table appears with no ad. Resume never shows an ad.,Manual
 TA-10,"Ads - Over 30s on the table, FAQ shows an ad",Spider Solitaire Unity > Ads,Functional,High,1. Stay on the table more than 30 seconds. Open the in-game menu and tap FAQ.,1. An ad plays. After it closes you can get back to the table.,Manual
+TA-11,"Ads - After a Victory ad up 30s or more, New shows an ad at once",Spider Solitaire Unity > Ads,Functional,High,"1. Stay on the table more than 30 seconds. Open Dev Panel and tap Complete Game.
+2. Leave the ad up at least 35 seconds from when it appeared — do not tap its double-arrow or X before then. Then close it and Dev Panel.
+3. Tap New straight away.","1. Victory appears with an ad on top.
+2. The Victory screen is visible.
+3. Another ad plays before the next table. An ad up 30s or more leaves no cooldown.",Manual
+TA-12,"Ads - After a Help ad up 30s or more, Options shows an ad at once",Spider Solitaire Unity > Ads,Functional,High,"1. Stay on the table more than 30 seconds. Open the in-game menu and tap Help.
+2. Leave the ad up at least 35 seconds from when it appeared. Then close it (double-arrow, then the X if an end card shows) and go back to the table.
+3. Straight away, open the in-game menu and tap Options.","1. An ad plays.
+2. The game table is showing.
+3. Another ad plays, even though you were on the table only a few seconds.",Manual
+TA-13,Ads - Options after the Help ad's cooldown runs out shows an ad,Spider Solitaire Unity > Ads,Functional,High,"1. After TA-03 (Options with no ad), go back to the table.
+2. Wait until the Help ad's cooldown has run out — 30 seconds from when that ad APPEARED, plus a few seconds — then open the in-game menu and tap Options.","1. The game table is showing.
+2. An ad plays, sooner than 30 seconds after the Help ad was closed.",Manual
 LS-01,Last Score - LAST SCORE opens Last Won Game Score,Spider Solitaire Unity > Last Score,Functional,Medium,"1. From the menu, tap Play, then LAST SCORE. Wi-Fi should be on.",1. A ranking screen opens. The header reads Last Won Game Score.,Manual
 LS-02,"Last Score - Arrow cycles week, month, overall, day",Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Won Game Score, tap the forward arrow beside ranking for four times, about two seconds apart.",1. The period moves week → month → overall → day → week. You stay on Last Won Game Score — the arrow must not leave the screen.,Manual
 LS-03,Last Score - Leaderboards opens Game Center,Spider Solitaire Unity > Last Score,Functional,Medium,"1. On Last Score, tap leaderboards. You need a signed-in Apple ID.
