@@ -91,5 +91,5 @@ Full context and the surrounding setup steps are in [`../SETUP.md`](../SETUP.md)
 
 `embedded.mobileprovision` contains the team identifier, the 9 device UDIDs above, and
 the team's **public** certificates. It contains **no private key** — you cannot sign
-anything with it. This repo is private; the list is recorded here so nobody has to
-discover it by accident.
+anything with it. The repository is public. The device list is recorded here so a
+new machine can check it before installing.

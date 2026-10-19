@@ -489,6 +489,17 @@ CASES = [
            "The main menu is showing. Leaving by Back leaves no game "
            "in progress."),
       ]),
+    C("VI-05", "Victory - Score, time, moves and run rows all show data",
+      f"{S} > Victory",
+      [
+          ("On the Victory screen, with Dev Panel closed, read the rows "
+           "under current / rank / best.",
+           "There are four rows, in the order the footer names them: "
+           "scores, time, moves, run. Every row shows a value under "
+           "current and a value or \"-\" under best. Score, time and moves "
+           "also show a rank; run has no rank, as in the original game."),
+      ],
+      priority="High"),
 
     # ── Difficulty ────────────────────────────────────────────────────
     C("DL-01", "Difficulty - Medium starts and can be completed",
@@ -498,7 +509,8 @@ CASES = [
            "A Medium game is on the table."),
           ("Open Dev Panel on the table, tap Complete Game, close the "
            "panel, then tap Back on Victory.",
-           "Victory appeared for Medium, then you can get back to the menu."),
+           "Victory appeared for Medium with all four rows (scores, time, "
+           "moves, run) showing data, then you can get back to the menu."),
       ],
       priority="High"),
     C("DL-02", "Difficulty - Hard starts and can be completed",
@@ -506,7 +518,8 @@ CASES = [
       [
           ("From the menu, tap Play, then Hard. Complete the game from "
            "Dev Panel on the table, then tap Back on Victory.",
-           "Hard dealt a table, Victory appeared, and you can get back "
+           "Hard dealt a table, Victory appeared with all four rows "
+           "(scores, time, moves, run) showing data, and you can get back "
            "to the menu."),
       ],
       priority="High"),
@@ -515,7 +528,8 @@ CASES = [
       [
           ("From the menu, tap Play, then Bold. Complete the game from "
            "Dev Panel on the table, then tap Back on Victory.",
-           "Bold dealt a table, Victory appeared, and you can get back "
+           "Bold dealt a table, Victory appeared with all four rows "
+           "(scores, time, moves, run) showing data, and you can get back "
            "to the menu."),
       ],
       priority="High"),
@@ -524,7 +538,8 @@ CASES = [
       [
           ("From the menu, tap Play, then Expert. Complete the game from "
            "Dev Panel on the table, then tap Back on Victory.",
-           "Expert dealt a table, Victory appeared, and you can get back "
+           "Expert dealt a table, Victory appeared with all four rows "
+           "(scores, time, moves, run) showing data, and you can get back "
            "to the menu."),
       ],
       priority="High"),
@@ -672,26 +687,42 @@ CASES = [
            "MAX Mediation Debugger opens. You are still in Spider."),
       ],
       priority="High"),
-    C("AD-03", "Ads - Ads section shows the Live Network row",
+    C("AD-03", "Ads - MAX Test Mode is on (fresh launch, restart after enabling it)",
       f"{S} > Ads",
       [
-          ("In the debugger, scroll until you can tap the Ads row. It "
-           "reads Select Live Network when empty, or Live Network when "
-           "a network is already chosen.",
-           "That row is on screen and you can tap it."),
-      ]),
-    C("AD-04", "Ads - AppLovin is the live network",
-      f"{S} > Ads",
-      [
-          ("Tap the Live Network row. Wait for the picker (its title is "
-           "Select Live Network). AppLovin also appears higher up under "
-           "Completed SDK Integrations — ignore that one.",
-           "The Select Live Network list is open."),
-          ("If AppLovin is not already ticked, tap AppLovin.",
-           "A checkmark sits on AppLovin."),
+          ("Start from a fresh launch: close Spider from the app switcher, "
+           "open it again, unlock Dev Panel (About, tap the spider emblem "
+           "five times quickly), tap Dev Panel, then Max Debugger. Scroll to "
+           "the Ads section and read Test Mode Enabled. Do not trust a "
+           "'true' from an earlier session.",
+           "Test Mode Enabled says false. If it says true, tap Enable on "
+           "the Select Live Network row, tap OK on Restart Required, and "
+           "redo this step."),
+          ("Tap the blue Enable link on the Select Test Mode Network row.",
+           "A Restart Required pop-up asks you to re-launch the app."),
+          ("Tap OK. Close Spider from the app switcher and open it again.",
+           "Spider opens. Dev Panel is hidden again."),
+          ("Unlock Dev Panel again (About, tap the spider emblem five times "
+           "quickly), tap Dev Panel, then Max Debugger.",
+           "Test Mode Enabled now says true — Test Mode stayed on after "
+           "the restart."),
       ],
       priority="High"),
-    C("AD-06", "Ads - Leave-game ad: close the store X, then the ad X",
+    C("AD-04", "Ads - Pangle is the Test Mode network",
+      f"{S} > Ads",
+      [
+          ("Tap Select Test Mode Network. Wait for its own screen. Pangle "
+           "also appears on the debugger page under Completed SDK "
+           "Integrations — ignore that one.",
+           "The Test Mode network list is open."),
+          ("If Pangle is not already ticked, tap Pangle.",
+           "A checkmark sits on Pangle."),
+          ("Tap Back, then Done.",
+           "The debugger is closed. Test Mode stays on until Spider is "
+           "relaunched again."),
+      ],
+      priority="High"),
+    C("AD-06", "Ads - Leave-game ad closes (double-arrow, then the X if shown)",
       f"{S} > Ads",
       [
           ("Close the debugger (Done, then close Dev Panel). Start or "
@@ -700,16 +731,19 @@ CASES = [
            "allowed.",
            "A full-screen ad plays inside Spider. You did not leave "
            "for another app."),
-          ("First tap the App Store product sheet's X (if that sheet "
-           "appears). Then tap the ad's own circular X. Do not tap the "
-           "skip arrows that move around.",
-           "The store sheet closes first, then the ad."),
+          ("About 5 seconds into the ad, a grey double-arrow circle "
+           "appears top right (a short countdown shows there first). Tap "
+           "it. If it opens an end card instead of closing, tap the end "
+           "card's dark X, also top right.",
+           "The ad closes. No App Store sheet opens. If the ad shows no "
+           "double-arrow and closes some other way, it came from a live "
+           "network: fail this case and redo AD-03 and AD-04."),
       ],
       priority="High"),
     C("AD-07", "Ads - After the ad you are back on the table",
       f"{S} > Ads",
       [
-          ("After both X buttons, wait for the game.",
+          ("After the ad closes, wait for the game.",
            "The game table is showing."),
       ],
       priority="High"),
@@ -718,7 +752,8 @@ CASES = [
     C("TA-01", "Ads - Under 30s on the table, Options has no ad",
       f"{S} > Ads",
       [
-          ("Start a game. Within about 8 seconds, open the in-game menu "
+          ("With MAX in Test Mode on Pangle (AD-03, AD-04), start a "
+           "game. Within about 8 seconds, open the in-game menu "
            "and tap Options. If an ad from an earlier session appears, "
            "close it, get back to the table, and try once more within 8 "
            "seconds.",
@@ -730,14 +765,20 @@ CASES = [
       [
           ("Stay on the table more than 30 seconds. Open the in-game "
            "menu and tap Help.",
-           "An ad plays. Close the store X, then the ad X."),
+           "An ad plays. Close it (double-arrow, then the X if an end card shows)."),
       ],
       priority="High"),
-    C("TA-03", "Ads - Options within 30s of the Help ad has no ad",
+    C("TA-03", "Ads - Options inside the Help ad's cooldown has no ad",
       f"{S} > Ads",
       [
-          ("Right after you close the Help ad, go back to the table, "
-           "open the in-game menu, and tap Options.",
+          ("Time the Help ad from the moment it appears until you close "
+           "it. The cooldown is 30 seconds from when the ad APPEARED, so "
+           "what is left after closing is 30 minus that time: closed "
+           "after 10s leaves 20s, after 15s leaves 15s, after 30s or "
+           "more leaves nothing (see TA-12).",
+           "You know how much cooldown is left."),
+          ("Inside that time left, go back to the table, open the "
+           "in-game menu, and tap Options.",
            "Options opens with no ad. The cooldown applies everywhere, "
            "not only on Victory."),
       ],
@@ -748,42 +789,50 @@ CASES = [
           ("Stay on the table more than 30 seconds. Open Dev Panel and "
            "tap Complete Game.",
            "Victory appears with an ad on top."),
-          ("Close the store X, then the ad X, then close Dev Panel.",
+          ("Close the ad (double-arrow, then the X if an end card shows), then close Dev Panel.",
            "The Victory screen is visible. Close the ad before the "
            "panel — the ad covers it."),
       ],
       priority="High"),
-    C("TA-05", "Ads - New within 30s of the Victory ad has no ad",
+    C("TA-05", "Ads - New inside the Victory ad's cooldown has no ad",
       f"{S} > Ads",
       [
-          ("After closing the Victory ad, tap New within 30 seconds.",
+          ("Time the Victory ad from the moment it appears until you "
+           "close it. The time left is 30 seconds minus that — for "
+           "example, closed after 15s leaves 15s.",
+           "You know how much cooldown is left."),
+          ("Close Dev Panel and tap New inside that time left.",
            "A new table deals with no ad."),
       ],
       priority="High"),
-    C("TA-06", "Ads - New after 30s on Victory shows an ad",
+    C("TA-06", "Ads - New after the Victory ad's cooldown runs out shows an ad",
       f"{S} > Ads",
       [
           ("Win again with Complete Game after more than 30 seconds on "
-           "the table. Close that Victory ad, stay on Victory more than "
-           "30 seconds, then tap New.",
-           "An ad plays before the next table. Close the store X, then "
-           "the ad X."),
+           "the table. Time that Victory ad from when it appears until "
+           "you close it (double-arrow, then the X if an end card shows).",
+           "The Victory screen is visible."),
+          ("Wait only the time left — 30 seconds minus the ad's time, "
+           "plus a few seconds — then tap New. Closed after 20s means "
+           "waiting about 10s, not 30s.",
+           "An ad plays before the next table. Close it (double-arrow, then the X if an end card shows)."),
       ],
       priority="High"),
     C("TA-07", "Ads - Over 30s on the table, Back shows an ad then the menu",
       f"{S} > Ads",
       [
           ("Stay on the table more than 30 seconds and tap Back.",
-           "An ad plays. After the store X and the ad X, you are on "
+           "An ad plays. After you close it, you are on "
            "the main menu — not the table."),
       ],
       priority="High"),
-    C("TA-08", "Ads - Starting a game within 30s on the menu has no ad",
+    C("TA-08", "Ads - Starting a game right after the Back ad has no ad",
       f"{S} > Ads",
       [
-          ("After the Back ad closed onto the menu, wait under 30 "
-           "seconds and resume or deal a game.",
-           "The table appears with no ad."),
+          ("After the Back ad closed onto the menu, straight away — "
+           "inside the time left (30 seconds minus the ad's time) — "
+           "resume or deal a game.",
+           "The table appears with no ad. Resume never shows an ad."),
       ],
       priority="High"),
     # TA-09 retired: Resume no longer fires an interstitial, so a long menu
@@ -805,6 +854,47 @@ CASES = [
           ("Stay on the table more than 30 seconds. Open the in-game "
            "menu and tap FAQ.",
            "An ad plays. After it closes you can get back to the table."),
+      ],
+      priority="High"),
+    C("TA-11", "Ads - After a Victory ad up 30s or more, New shows an ad at once",
+      f"{S} > Ads",
+      [
+          ("Stay on the table more than 30 seconds. Open Dev Panel and "
+           "tap Complete Game.",
+           "Victory appears with an ad on top."),
+          ("Leave the ad up at least 35 seconds from when it appeared — "
+           "do not tap its double-arrow or X before then. Then close it "
+           "and Dev Panel.",
+           "The Victory screen is visible."),
+          ("Tap New straight away.",
+           "Another ad plays before the next table. An ad up 30s or "
+           "more leaves no cooldown."),
+      ],
+      priority="High"),
+    C("TA-12", "Ads - After a Help ad up 30s or more, Options shows an ad at once",
+      f"{S} > Ads",
+      [
+          ("Stay on the table more than 30 seconds. Open the in-game "
+           "menu and tap Help.",
+           "An ad plays."),
+          ("Leave the ad up at least 35 seconds from when it appeared. "
+           "Then close it (double-arrow, then the X if an end card shows) and go back to the table.",
+           "The game table is showing."),
+          ("Straight away, open the in-game menu and tap Options.",
+           "Another ad plays, even though you were on the table only a "
+           "few seconds."),
+      ],
+      priority="High"),
+    C("TA-13", "Ads - Options after the Help ad's cooldown runs out shows an ad",
+      f"{S} > Ads",
+      [
+          ("After TA-03 (Options with no ad), go back to the table.",
+           "The game table is showing."),
+          ("Wait until the Help ad's cooldown has run out — 30 seconds "
+           "from when that ad APPEARED, plus a few seconds — then open "
+           "the in-game menu and tap Options.",
+           "An ad plays, sooner than 30 seconds after the Help ad was "
+           "closed."),
       ],
       priority="High"),
 

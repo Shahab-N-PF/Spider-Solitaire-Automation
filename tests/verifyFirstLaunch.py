@@ -27,11 +27,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import unity_ui as ui  # noqa: E402
 
 
+RESULTS = []
+
 LINKS = (
     ("terms", "tc_terms_link", "tc_terms_page", "Terms & Conditions"),
     ("privacy", "tc_privacy_link", "tc_privacy_page", "Privacy Policy"),
 )
 COOKIE_BUTTON = "Accept All Cookies"
+_TC_SHOT = None
+_ATT_SHOT = None
+_POLICY_SHOTS = set()
 
 
 def _start_without_clearing_overlays():
@@ -50,16 +55,26 @@ def _start_without_clearing_overlays():
 
 def _reveal_terms_card() -> bool:
     """Return True when T&C is up, allowing an ATT-first sequence if needed."""
+    global _TC_SHOT, _ATT_SHOT
     if ui.is_on("att_prompt"):
+        _ATT_SHOT = ui.shoot("first_launch_att")
         ui.expect(ui.tap("att_allow", settle=2.0),
                   "the tracking prompt blocked the Terms & Conditions card")
-        return ui.seen("tc_continue", timeout=12.0)
+        visible = ui.seen("tc_continue", timeout=12.0)
+        if visible:
+            _TC_SHOT = ui.shoot("first_launch_tc_card")
+        return visible
     if ui.seen("tc_continue", timeout=8.0):
+        _TC_SHOT = ui.shoot("first_launch_tc_card")
         return True
     if ui.seen("att_prompt", timeout=8.0):
+        _ATT_SHOT = ui.shoot("first_launch_att")
         ui.expect(ui.tap("att_allow", settle=2.0),
                   "the tracking prompt blocked the Terms & Conditions card")
-        return ui.seen("tc_continue", timeout=12.0)
+        visible = ui.seen("tc_continue", timeout=12.0)
+        if visible:
+            _TC_SHOT = ui.shoot("first_launch_tc_card")
+        return visible
     return False
 
 
@@ -114,6 +129,7 @@ def _walk_link(tag: str, link: str, page: str, label: str):
                 f"the other policy page (see {failed})")
         _dismiss_cookie_banner(label)
         shot = ui.shoot(f"first_launch_{tag}_page")
+        _POLICY_SHOTS.add(tag)
     finally:
         where = f" (see {shot})" if shot else ""
         ui.expect(_close_web_page(),
@@ -137,6 +153,15 @@ def _finish_on_offline_menu(card_was_up: bool) -> str:
             ui.terminate()
             ui.sleep(1.0)
             ui.launch(force=True)
+    global _ATT_SHOT
+    # Capture ATT before the generic overlay sweep consumes it. When T&C is
+    # present, clear Continue explicitly so an ATT prompt that follows it can
+    # be captured at the passing moment too.
+    if card_was_up and ui.is_on("tc_continue"):
+        ui.expect(ui.tap("tc_continue", settle=2.0),
+                  "could not continue past the Terms & Conditions card")
+    if ui.is_on("att_prompt"):
+        _ATT_SHOT = ui.shoot("first_launch_att")
     ui.clear_overlays()
     if not ui.on_menu(timeout=6.0):
         ui.sleep(2.0)
@@ -184,6 +209,43 @@ def run():
         failure = exc
 
     shot = _finish_on_offline_menu(card_was_up)
+    RESULTS.clear()
+    RESULTS.append({
+        "id": "FL-01",
+        "label": "main menu after first-launch relaunch",
+        "status": "PASS",
+        "error": "",
+        "shots": [shot.removesuffix(".png")],
+    })
+    if card_was_up and _TC_SHOT:
+        RESULTS.append({
+            "id": "FL-02",
+            "label": "Terms & Conditions card",
+            "status": "PASS",
+            "error": "",
+            "shots": [_TC_SHOT.removesuffix(".png")],
+        })
+    if _ATT_SHOT:
+        RESULTS.append({
+            "id": "FL-03",
+            "label": "tracking prompt",
+            "status": "PASS",
+            "error": "",
+            "shots": [_ATT_SHOT.removesuffix(".png")],
+        })
+    if card_was_up:
+        for case_id, label, tag in (
+            ("FL-04", "Terms & Conditions page", "first_launch_terms_page"),
+            ("FL-05", "Privacy Policy page", "first_launch_privacy_page"),
+        ):
+            if tag.removeprefix("first_launch_").removesuffix("_page") in _POLICY_SHOTS:
+                RESULTS.append({
+                    "id": case_id,
+                    "label": label,
+                    "status": "PASS",
+                    "error": "",
+                    "shots": [tag],
+                })
     if failure:
         raise failure
     print("PASS: first launch checked the policy links when available, then "

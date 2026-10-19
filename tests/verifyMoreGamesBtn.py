@@ -69,9 +69,10 @@ def scroll_once():
 def run():
     shot = ui.visit_sub_screen("more_games", "more_games", "MoreGames",
                                after=scroll_once)
+    menu = ui.shoot("MoreGamesBackMenu")
     print(f"PASS: More Games opened (verified 'Tap any game to download it!'), "
           f"scrolled to its last two games, and returned to the main menu "
-          f"(see {shot})")
+          f"(see {shot}, {menu})")
 
 
 if __name__ == "__main__":

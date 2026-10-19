@@ -95,9 +95,12 @@ def run():
     # The header IS the assertion: this template is the words "Last Won Game
     # Score" and nothing else. See the module docstring for why a pixel match is
     # the only form this assertion can take on Unity.
-    ui.expect(ui.at_screen("last_score", timeout=6.0),
-              "tapping 'LAST SCORE' did not open a screen headed 'Last Won Game "
-              "Score' — either it opened nothing, or the header text changed")
+    if not ui.at_screen("last_score", timeout=6.0):
+        miss = ui.shoot("LastScoreFail")
+        ui.expect(False,
+                  "tapping 'LAST SCORE' did not open a screen headed 'Last Won "
+                  "Game Score' — either it opened nothing, or the header text "
+                  f"changed (see {miss})")
     shot = ui.shoot("unity_last_score")
     print(f"  header reads 'Last Won Game Score' — {shot}")
 
@@ -108,11 +111,12 @@ def run():
     # Leave the screen as we found it, so a suite run continues from the menu.
     ui.expect(ui.back(settle=2.0), "the Last Score screen's 'back' was not found")
     ui.expect(ui.to_menu(), "could not get back to the main menu afterwards")
+    menu = ui.shoot("LastScoreBackMenu")
 
     links = " and ".join(f"'{link}'" for link, _, _, _ in GAME_CENTER)
     print(f"PASS: 'Last Score' opens the 'Last Won Game Score' ranking view, its "
           f"forward arrow takes {TAPS} taps, and {links} each open and close "
-          f"Game Center (see {shot})")
+          f"Game Center (see {shot}, {menu})")
 
 
 def step_period(before_shot: str):

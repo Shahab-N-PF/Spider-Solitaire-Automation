@@ -69,6 +69,10 @@ LINK = "about_adfree"
 # Asserted as well as the bundle id: the id only says "an App Store page",
 # and the point of an ad-free link is WHICH product it reaches.
 EXPECTED_TITLE = "Spider Solitaire +"
+# The store's "Cannot Connect / The page couldn't be loaded" page — its title
+# comes back through store_title() like any product's.
+CANNOT_CONNECT = "cannot connect"
+RETRY_WAIT = 5.0
 
 
 def run():
@@ -108,42 +112,24 @@ def run():
               "pressing No on the ad-free card did not leave About on screen")
     print(f"  No dismissed the card and stayed on About — see {no_shot}")
 
-    # 7. Answer Yes — index 1, the RIGHT-hand pill. Index 0 is No, and taking it
-    #    would dismiss the card and pass nothing on to the store.
-    ui.expect(ui.tap(LINK, settle=2.5),
-              "the 'ad free version' link could not be tapped a second time")
-    ui.expect(ui.card_up(timeout=6.0),
-              "the second 'ad free version' tap did not raise its confirmation")
-    buttons = ui.card_buttons()
-    ui.expect(len(buttons) == 2,
-              f"the ad-free card should offer two buttons (No, Yes) but "
-              f"{len(buttons)} were found at {buttons} — the wrong card may be "
-              f"up, and answering it blind could tap the wrong thing")
-    ui.expect(ui.answer_card(1, settle=4.0), "could not press Yes on the ad-free card")
-    print("  the link raises a No/Yes card; answered Yes")
-
-    # 8. Now it should hand off. The bundle id is the assertion, not the pixels.
-    went_to = ui.left_app()
-    ui.expect(went_to == ui.APP_STORE,
-              f"answering Yes on the ad-free card did not open the App Store — "
-              f"the foreground app is {went_to or 'unknown'}. " + (
-                  "The app never left, even though the card promised 'Tap Yes "
-                  "to proceed to the App Store'."
-                  if went_to == config.BUNDLE_ID else
-                  f"It went somewhere, but to {went_to}, not "
-                  f"{ui.APP_STORE}."))
-
-    # 9. Now the page is worth capturing — and worth NAMING. The bundle id only
-    #    says "an App Store page"; the title says WHICH product, and the whole
-    #    point of an ad-free link is that it lands on this game's paid build
-    #    rather than any other page the store could have shown.
-    shot = ui.shoot("AdFreeVersion")
-    title = ui.store_title()
+    yes_shot, shot, title = _yes_to_store()
+    if CANNOT_CONNECT in title.lower():
+        # The store's own network error, not the link: come back to About and
+        # follow the link once more before judging the page.
+        print(f"  the App Store showed {title!r} — going back to About and "
+              f"retrying once in {RETRY_WAIT:.0f}s")
+        ui.expect(ui.tap_back_to_app() and ui.at_screen("about", timeout=10.0),
+                  f"the App Store showed {title!r} and switching back did not "
+                  f"return to About for a retry (see {shot})")
+        ui.sleep(RETRY_WAIT)
+        yes_shot, shot, title = _yes_to_store()
     ui.expect(EXPECTED_TITLE.lower() in title.lower(),
               f"the App Store opened, but on {title!r} rather than a page named "
               f"{EXPECTED_TITLE!r} — the link reaches the store but not this "
               f"game's paid build. (An empty title means the page had not "
-              f"rendered, not that the link is wrong.) See {shot}")
+              f"rendered, and 'Cannot Connect' twice means the device or the "
+              f"store had no network — neither means the link is wrong.) "
+              f"See {shot}")
     print(f"  'ad free version' opened the App Store on {title!r} — see {shot}")
 
     # 10-11. Come back the way a PERSON does: tap the "◀ Spider" crumb iOS draws
@@ -163,8 +149,45 @@ def run():
 
     # 12-13. Leave the app where every other test expects to find it.
     ui.expect(ui.to_menu(), "could not return to the main menu after About")
+    back_shot = ui.shoot("AdFreeVersionBackAbout")
     print(f"PASS: About's 'ad free version' opens the App Store and switching "
-          f"back returns to About (see {shot})")
+          f"back returns to About (see {no_shot}, {yes_shot}, {shot}, {back_shot})")
+
+
+def _yes_to_store():
+    """From About: link -> Yes -> the App Store. Returns (card, page, title)."""
+    # 7. Answer Yes — index 1, the RIGHT-hand pill. Index 0 is No, and taking it
+    #    would dismiss the card and pass nothing on to the store.
+    ui.expect(ui.tap(LINK, settle=2.5),
+              "the 'ad free version' link could not be tapped again")
+    ui.expect(ui.card_up(timeout=6.0),
+              "tapping 'ad free version' again did not raise its confirmation")
+    buttons = ui.card_buttons()
+    ui.expect(len(buttons) == 2,
+              f"the ad-free card should offer two buttons (No, Yes) but "
+              f"{len(buttons)} were found at {buttons} — the wrong card may be "
+              f"up, and answering it blind could tap the wrong thing")
+    yes_shot = ui.shoot("AdFreeVersionYes")
+    ui.expect(ui.answer_card(1, settle=4.0), "could not press Yes on the ad-free card")
+    print("  the link raises a No/Yes card; answered Yes")
+
+    # 8. Now it should hand off. The bundle id is the assertion, not the pixels.
+    went_to = ui.left_app()
+    ui.expect(went_to == ui.APP_STORE,
+              f"answering Yes on the ad-free card did not open the App Store — "
+              f"the foreground app is {went_to or 'unknown'}. " + (
+                  "The app never left, even though the card promised 'Tap Yes "
+                  "to proceed to the App Store'."
+                  if went_to == config.BUNDLE_ID else
+                  f"It went somewhere, but to {went_to}, not "
+                  f"{ui.APP_STORE}."))
+
+    # 9. Now the page is worth capturing — and worth NAMING. The bundle id only
+    #    says "an App Store page"; the title says WHICH product, and the whole
+    #    point of an ad-free link is that it lands on this game's paid build
+    #    rather than any other page the store could have shown.
+    shot = ui.shoot("AdFreeVersion")
+    return yes_shot, shot, ui.store_title()
 
 
 if __name__ == "__main__":

@@ -70,6 +70,9 @@ import helpers  # noqa: E402
 import unity_ui as ui  # noqa: E402
 
 LINK = "about_feedback"
+# How long Mail gets to come up. The home screen can hold the foreground
+# for a moment during the switch, so left_app() keeps polling past it.
+MAIL_WAIT = 20.0
 
 
 def expected_fields():
@@ -103,6 +106,7 @@ def run():
               f"tapping 'submit feedback' did not raise the feedback prompt — the "
               f"alert on screen reads {prompt!r}. An empty string means no alert "
               f"came up at all, so the link did nothing.")
+    alert_shot = ui.shoot("FeedbackAlert")
 
     # 6. Press Write Email — the RIGHT-hand button. Index 0 is Cancel, and the
     #    count is asserted first so a different dialog cannot be answered blind.
@@ -115,7 +119,14 @@ def run():
 
     # 7. It must reach Mail. A missing mail account shows an alert instead, and
     #    that is an environment problem, so it gets its own message.
-    went_to = ui.left_app()
+    went_to = ui.left_app(timeout=MAIL_WAIT)
+    if went_to == ui.SPRINGBOARD:
+        alert = ui.alert_now()
+        home = ui.shoot("FeedbackSpringboard")
+        ui.expect(False,
+                  f"'Write Email' left the game but Mail never came up — the "
+                  f"home screen was still in front after {MAIL_WAIT:.0f}s. "
+                  f"iOS alert: {alert!r} (empty means none). See {home}")
     ui.expect(went_to == ui.MAIL,
               f"'Write Email' did not open Mail — the foreground app is "
               f"{went_to or 'unknown'}. If this is still the game, check the "
@@ -183,9 +194,10 @@ def run():
               "neither About nor the main menu")
     print(f"  switching back returns to the game, on {landed}")
     ui.expect(ui.to_menu(), "could not reach the main menu after coming back")
+    menu_shot = ui.shoot("FeedbackBackMenu")
     print(f"PASS: 'submit feedback' opens a mail draft whose subject names the "
           f"game, version, device model and iOS version; draft discarded, "
-          f"nothing sent (see {shot})")
+          f"nothing sent (see {alert_shot}, {shot}, {menu_shot})")
 
 
 if __name__ == "__main__":

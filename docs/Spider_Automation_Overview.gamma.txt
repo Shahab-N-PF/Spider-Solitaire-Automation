@@ -1,0 +1,122 @@
+# Spider Solitaire
+## iOS Regression Automation
+
+**Unity port verification** on real devices
+
+One command for the bulk of the QA pass — plus pixel fidelity reports against the Obj-C baseline
+
+---
+
+# Automation Win
+
+## Replacing an ~8-hour manual QA pass with one command
+
+**~20** — Suite scripts end-to-end (+ 6 online / standalone lanes · ~100 TestRail case IDs)
+
+**~1 hour** — Full automated regression
+
+**~88%** — Time saved vs the original ~8-hour manual pass
+
+- Purpose-built for a **Unity-rendered iOS game** with **zero accessibility IDs**
+- Dual axis: functional “does it work?” + pixel “does it look like Obj-C?”
+- Shared scaled templates → **device-agnostic** on 19.5:9 phones (11 / 14 / 16)
+- No known Unity gaps on the functional suite; pixel reports across iPhone 7 / 14 / iPad
+
+---
+
+# Why this exists
+
+Spider is being ported from **Objective-C** to **Unity**. Automation answers two questions in parallel:
+
+**Functional suite**
+- Does the Unity build **work**?
+- Menu → play → options → victory and related flows
+- Pass / fail dashboard
+
+**Pixel comparison**
+- Does it **look** like the Obj-C build?
+- Screenshots vs committed Obj-C baselines
+- Interactive HTML fidelity reports
+
+Obj-C baselines stay the **source of truth** during the port. Large pixel diffs are findings — not a reason to re-baseline to Unity.
+
+---
+
+# How we run it
+
+**Real wired iPhone** (not a simulator) + a Mac harness.
+
+- **WebDriverAgent (WDA)** — Device control and session launch
+- **Airtest** — Image recognition — find and tap UI by sight
+- **Poco** — Accessibility tree for native overlays (App Store, alerts)
+- **OpenCV / NumPy** — Offline exact-pixel comparison for fidelity reports
+
+Unity draws the whole UI into one opaque view — **no accessibility tree** — so the game itself is driven by **image templates**, not element IDs.
+
+---
+
+# Functional automation
+
+**Question:** does the Unity build actually work?
+
+- Template-driven driver cropped from Unity’s own screens
+- One suite command covers install → first launch → menu, play, options, help, victory, and more
+- Runs **mostly offline** (Airplane Mode) so ads do not interrupt the pass
+- Online lanes (ads, App Store, Game Center, Mail) stay **standalone** on purpose
+- Result: self-contained pass / fail dashboard with TestRail case mapping
+
+---
+
+# UI pixel comparison
+
+**Question:** does Unity match the Obj-C UI?
+
+- Unity captures vs committed **Obj-C** baselines
+- **Masked exact-pixel** diff — catches position, size, font, and asset shifts (not a soft similarity score)
+- Masks ignore status bar, ads, dealt cards, and known animation flicker
+- Interactive HTML reports with a **build switcher** (iPhone 7, iPhone 14, iPad)
+
+A large diff is the intended finding. The fix is the product (or navigation) — never overwriting the Obj-C baseline with Unity.
+
+---
+
+# Coverage at a glance
+
+- **iPhone 11** (default) — Full functional suite + baselines
+- **iPhone 7** (portrait & landscape) — Pixel fidelity reports
+- **iPhone 14 Pro Max** — Pixel fidelity reports
+- **iPhone 16 Pro** — Functional suite via scaled templates
+- **iPad** — Pixel fidelity reports
+
+**Offline suite** — core regression without ad noise
+
+**Online exceptions** — ads, interstitial triggers, Game Center (Last Score), ad-free App Store hand-off, feedback mail
+
+---
+
+# Limitations & what stays manual
+
+Automation replaces the **bulk** of the pass — not every case.
+
+**Still manual**
+- **Update / upgrade** cases (version migration, save and options persistence)
+- **Audio** — Music and SFX (the harness cannot hear the device)
+- Other judgment / sensory checks in the ~46-case manual section of the regression dashboard
+
+**Automated, but can be flaky**
+- **Ads testing** is automated
+- Network creatives, StoreKit sheets, and close buttons vary run-to-run
+- Treat ad failures as investigate — not always a product bug
+
+A short human lane remains for what machines cannot judge reliably.
+
+---
+
+# Takeaways
+
+1. **Green functional run** ≈ the Unity build works end-to-end on a real device (~1 hour vs ~8 hours manual).
+2. **Pixel report** ≈ where Unity still differs from Obj-C — use it for port fidelity, not as a pass/fail gate alone.
+3. **Manual lane still matters** — updates, audio, and careful review of flaky ad results.
+
+**Where to look next**
+- Setup, functional suite docs, pixel-only comparison path, and fidelity HTML reports in the project repo

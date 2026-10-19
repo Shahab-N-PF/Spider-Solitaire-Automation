@@ -3,11 +3,48 @@ import json
 import os
 import tempfile
 import unittest
+from PIL import Image
 
 from scripts import gen_regression_report as report
 
 
 class ManualRegressionReportTests(unittest.TestCase):
+    def test_automated_case_embeds_passing_shot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            results = os.path.join(tmp, "results.json")
+            output = os.path.join(tmp, "report.html")
+            shot = os.path.join(tmp, "passing.png")
+            Image.new("RGB", (20, 20), (12, 34, 56)).save(shot)
+            with open(results, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "tests": [
+                            {
+                                "name": "verifyFirstLaunch",
+                                "ok": True,
+                                "seconds": 1,
+                                "error": "",
+                                "checks": [
+                                    {
+                                        "id": "FL-02",
+                                        "label": "Terms & Conditions card",
+                                        "status": "PASS",
+                                        "error": "",
+                                        "shots": [shot[:-4]],
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    fh,
+                )
+
+            report.build(results, output)
+            with open(output, encoding="utf-8") as fh:
+                document = fh.read()
+            self.assertIn('class="case-shot"', document)
+            self.assertIn("data:image/webp;base64,", document)
+
     def test_manual_cases_render_separately_and_start_skipped(self):
         with tempfile.TemporaryDirectory() as tmp:
             results = os.path.join(tmp, "results.json")
@@ -32,19 +69,19 @@ class ManualRegressionReportTests(unittest.TestCase):
             self.assertIn('data-id="C128612"', document)
             self.assertIn(">Localization<", document)
             self.assertIn("do not change automated release readiness", document)
-            self.assertIn("146 of 146 shown", document)
+            self.assertIn("150 of 150 shown", document)
             self.assertIn("Automated verification", document)
             self.assertIn("Manual verification", document)
             self.assertIn('id="manual-donut-value">0/46<', document)
             self.assertIn(
-                'id="coverage-summary">146 total cases ·\n'
-                "100 automated · 46 manual ·\n"
+                'id="coverage-summary">150 total cases ·\n'
+                "104 automated · 46 manual ·\n"
                 "46 awaiting manual review",
                 document,
             )
-            self.assertIn('data-filter="all" aria-pressed="true">All <b>146</b>', document)
+            self.assertIn('data-filter="all" aria-pressed="true">All <b>150</b>', document)
             self.assertIn(
-                'data-filter="skipped" aria-pressed="false">Skipped <b>146</b>',
+                'data-filter="skipped" aria-pressed="false">Skipped <b>150</b>',
                 document,
             )
             self.assertIn("averageRate > 92", document)
@@ -55,7 +92,57 @@ class ManualRegressionReportTests(unittest.TestCase):
             self.assertIn('id="bulk-select-visible"', document)
             self.assertIn('id="bulk-status"', document)
             self.assertIn('id="bulk-apply"', document)
-            self.assertEqual(document.count('class="case-check"'), 146)
+            self.assertEqual(document.count('class="case-check"'), 150)
+
+    def test_skipped_check_renders_skipped_with_reason_and_ad_length(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            results = os.path.join(tmp, "results.json")
+            output = os.path.join(tmp, "report.html")
+            with open(results, "w", encoding="utf-8") as fh:
+                json.dump(
+                    {
+                        "tests": [
+                            {
+                                "name": "triggerAdPoints",
+                                "ok": True,
+                                "seconds": 1,
+                                "error": "",
+                                "checks": [
+                                    {
+                                        "id": "TA-05",
+                                        "label": "Victory ad closed -> New "
+                                                 "within cooldown",
+                                        "status": "SKIP",
+                                        "error": "preceding ad ran 46s (gray)",
+                                        "ad_seconds": 46.2,
+                                        "ad_cooldown_left": 0.0,
+                                    },
+                                    {
+                                        "id": "TA-11",
+                                        "label": "long Victory ad closed -> "
+                                                 "New fires instantly",
+                                        "status": "PASS",
+                                        "error": "",
+                                        "ad_seconds": 63.0,
+                                        "ad_cooldown_left": 0.0,
+                                    },
+                                ],
+                            }
+                        ]
+                    },
+                    fh,
+                )
+
+            report.build(results, output)
+            with open(output, encoding="utf-8") as fh:
+                document = fh.read()
+            ta05 = document.split('data-id="TA-05"', 1)[1].split("</details>", 1)[0]
+            self.assertIn('data-original-status="skipped"', ta05)
+            self.assertIn("Skipped by the test: preceding ad ran 46s (gray)", ta05)
+            self.assertIn("Preceding ad: 46s ad, 0s cooldown left", ta05)
+            ta11 = document.split('data-id="TA-11"', 1)[1].split("</details>", 1)[0]
+            self.assertIn('data-original-status="passed"', ta11)
+            self.assertIn("Preceding ad: 63s ad, 0s cooldown left", ta11)
 
     def test_manual_csv_rejects_duplicate_case_ids(self):
         with tempfile.TemporaryDirectory() as tmp:

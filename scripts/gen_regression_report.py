@@ -3,8 +3,8 @@
 
 The report is one expandable card per manual TestRail case. A case inherits the
 result of the automated test that covers it; cases whose parent was not run are
-shown as skipped. Test screenshots stay in ``log/`` and are deliberately not
-embedded, keeping the report small enough to share and open quickly.
+shown as skipped. Passing evidence screenshots are embedded as compressed JPEG
+thumbnails when the test recorded them.
 
 Run:
     ./.venv/bin/python scripts/gen_regression_report.py
@@ -14,6 +14,7 @@ import argparse
 import base64
 import csv
 import html
+from io import BytesIO
 import json
 import os
 import re
@@ -63,7 +64,9 @@ CASE_CATALOG = OrderedDict([
             "GP-07", "GP-08", "GP-09", "GP-10", "GP-11", "GP-14",
         ],
     }),
-    ("verifyVictory", {"ids": ["VI-01", "VI-02", "VI-03", "VI-04"]}),
+    ("verifyVictory", {
+        "ids": ["VI-01", "VI-02", "VI-03", "VI-04", "VI-05"],
+    }),
     ("verifyDifficultyLevels", {
         "ids": ["DL-01", "DL-02", "DL-03", "DL-04"],
     }),
@@ -82,7 +85,8 @@ CASE_CATALOG = OrderedDict([
     ("triggerAdPoints", {
         "ids": [
             "TA-01", "TA-02", "TA-03", "TA-04", "TA-05",
-            "TA-06", "TA-07", "TA-08", "TA-10",
+            "TA-06", "TA-07", "TA-08", "TA-10", "TA-11", "TA-12",
+            "TA-13",
         ],
     }),
     ("visitLastScore", {
@@ -396,6 +400,9 @@ h1 { margin:0; color:#fff; font-size:clamp(26px,4vw,38px); line-height:1.08;
 .case.failed { border-color:#efc2c6; background:#fffafb; }
 .case.skipped { background:#fffdf7; }
 .case.passed_manually { background:#fffaf3; border-color:#f1d8b5; }
+.case-shots { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.case-shot { display:block; width:min(600px,100%); height:auto; border:1px solid var(--line);
+  border-radius:10px; box-shadow:0 3px 12px rgba(53,36,28,.08); }
 summary { list-style:none; cursor:pointer; display:flex; align-items:center;
   gap:12px; min-height:56px; padding:11px 14px; }
 summary::-webkit-details-marker { display:none; }
@@ -556,6 +563,23 @@ def _jpeg_data_uri(path):
         return None
 
 
+def _shot_data_uri(path):
+    """Embed a full-resolution, lossless WebP evidence image."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        from PIL import Image
+        with Image.open(path) as image:
+            output = BytesIO()
+            image.convert("RGB").save(
+                output, format="WEBP", lossless=True, method=6
+            )
+        encoded = base64.b64encode(output.getvalue()).decode("ascii")
+        return f"data:image/webp;base64,{encoded}"
+    except (OSError, ValueError):
+        return None
+
+
 def _load_results(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -616,6 +640,7 @@ def _chip(label, value):
 CHECK_STATUS = {
     "PASS": "passed",
     "FAIL": "failed",
+    "SKIP": "skipped",
     "Passed Manually": "passed_manually",
 }
 
@@ -722,8 +747,15 @@ def _case_card(case, parent, status, result, open_failed=True):
     duration = _format_duration(result.get("seconds") if result else None)
     detail = []
     check = (result or {}).get("check") or {}
+    shots = check.get("shots") or (result or {}).get("shots") or []
     if status == "skipped":
-        if result:
+        if result and check.get("status") == "SKIP":
+            detail.append(
+                '<p class="note">Skipped by the test: '
+                f'{html.escape(result.get("error") or "precondition not met")}'
+                "</p>"
+            )
+        elif result:
             detail.append(
                 '<p class="note">Not exercised in this run. '
                 f'<code>{html.escape(parent)}</code> completed without '
@@ -742,11 +774,39 @@ def _case_card(case, parent, status, result, open_failed=True):
             '<p class="note">Closed by hand after the automated closer '
             "could not match the interstitial.</p>"
         )
+    if "ad_seconds" in check:
+        secs = check.get("ad_seconds")
+        left = check.get("ad_cooldown_left")
+        if secs is None:
+            ad_text = "unknown age"
+        else:
+            ad_text = f"{float(secs):.0f}s ad"
+            if left is not None:
+                ad_text += f", {float(left):.0f}s cooldown left"
+        detail.append(
+            f'<p class="note">Preceding ad: {html.escape(ad_text)}</p>'
+        )
     if status in ("failed", "skipped"):
         detail.append(
             '<p class="note review-note" hidden>'
             "Marked Passed Manually after review.</p>"
         )
+    shot_tags = []
+    for stem in shots:
+        raw_path = str(stem)
+        if os.path.isabs(raw_path):
+            path = raw_path if raw_path.lower().endswith(".png") else raw_path + ".png"
+        else:
+            filename = raw_path if raw_path.lower().endswith(".png") else raw_path + ".png"
+            path = os.path.join(config.LOG, filename)
+        uri = _shot_data_uri(path)
+        if uri:
+            shot_tags.append(
+                f'<img class="case-shot" alt="{html.escape(case["title"])} '
+                f'passing evidence" src="{uri}">'
+            )
+    if shot_tags:
+        detail.append(f'<div class="case-shots">{"".join(shot_tags)}</div>')
 
     opened = " open" if (open_failed and status == "failed") else ""
     css_class = "passed passed_manually" if status == "passed_manually" else status
@@ -1611,8 +1671,8 @@ data-target="manual-verification">Manually verified</a></nav>
 </section>
 {"".join(body)}
 {"".join(manual_body)}
-<footer>Generated by scripts/gen_regression_report.py · test screenshots remain
-available separately in log/ and are not embedded here.</footer>
+<footer>Generated by scripts/gen_regression_report.py · passing evidence is
+embedded as lossless full-resolution WebP images; captures remain in log/.</footer>
 </div><script type="application/json" id="status-overrides">{{}}</script>
 <script>{FILTER_JS}</script></body></html>
 """

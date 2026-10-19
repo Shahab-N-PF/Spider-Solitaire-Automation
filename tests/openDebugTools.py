@@ -94,6 +94,7 @@ def run():
               "the Dev Panel button is showing on the About screen before the "
               "gesture and could not be cleared — it is supposed to be hidden "
               "until unlocked")
+    hidden_shot = ui.shoot("debug_tools_hidden")
 
     # 4. Five rapid taps on the emblem — the gesture itself.
     fast = ui.rapid_tap((x, y), times=TAPS)

@@ -15,35 +15,33 @@ Use this workflow whenever the ad's own X is not matched while verifying
 
 ## triggerAdPoints prerequisite
 
-Before the five trigger rules begin, the Dev Panel must be available:
-
-- If the panel is already open (`ui.dev_panel_open()` — Debug, Gameplay,
-  Complete Game, or Max Debugger is visible), leave it open until the
-  prerequisite closes it for the test.
-- If the panel is closed but its button (`dev_panel`) is visible, skip the
-  unlock gesture and expand it from the current screen.
-- If neither is visible, enable it first with `ui.open_dev_panel()`. That
-  helper walks to About and performs the rapid emblem taps only when needed.
-
-After confirming the panel is available, collapse it with
-`ui.close_dev_panel()` so it does not cover the table or menu controls.
+`prepare()` puts MAX in Test Mode on Pangle with
+`max_test_mode.ensure_network("Pangle", capture=False)` — the same steps as
+`verifyAds`: relaunch Spider into a fresh session, enable Test Mode (another
+relaunch), tick Pangle. That also re-unlocks the Dev Panel, which both
+synthetic wins need. An ad that closes without Pangle's skip or X is a live
+ad: its check fails as "live ad served" and Test Mode is re-enabled — do NOT
+register a live ad's X.
 
 ## Procedure
 
 1. Trigger this workflow when `tests/triggerAdPoints.py` or the shared closer
    used by `tests/verifyAds.py` reports:
 
-   `the interstitial's own X never appeared after the StoreKit sheet closed`
+   `the interstitial after <where> was still up after <N>s and no native
+   Close, skip or ad X closed it`
 
    Do not cold-launch or call `recover()`: both can destroy the current ad
    state and reset the Dev Panel.
 
 2. Confirm the correct layer before capturing:
    - Spider is still foregrounded (`ui.in_app()`).
-   - The StoreKit product sheet is closed.
+   - MAX is in Test Mode (ads only ever come from a test network; a live
+     ad means Test Mode was lost — fix that, do not register its X).
    - The playable interstitial is still present (`ui.lost()`).
-   - The target is the ad's circular close X, never the moving `▶▶` skip glyph
-     and never the StoreKit product-sheet X.
+   - The target is the ad's circular close X. A FIXED skip glyph (like
+     Pangle's double-arrow) is registered separately — see *Registering a
+     skip glyph* below.
 
 3. Open `log/ad_unmatched.png` first. `ui.tap_ad_close()` writes this full
    frame while the playable ad is still present, immediately before it reports
@@ -74,7 +72,10 @@ After confirming the panel is available, collapse it with
      registered.
 
 6. If it is genuinely new:
-   - Crop a `54×54` RGB PNG centred on the X.
+   - Crop a `54×54` RGB PNG centred on the X. If the X is an opaque circle
+     that can sit on different backgrounds, crop from inside the circle
+     instead (`ad_close_creative_04` is 36×36) so the corners carry no
+     background.
    - Save it as the next unused
      `assets_unity/ad_close_creative_NN.png`; never replace an existing
      creative.
@@ -87,9 +88,7 @@ After confirming the panel is available, collapse it with
 
    ```python
    AD_CLOSE_COORDS = {
-       "ad_close": (50, 136),
-       "ad_close_creative_02": (55, 139),
-       "ad_close_creative_03": (57, 145),
+       "ad_close_creative_04": (768, 156),   # Pangle test video end card
    }
    AD_CLOSE_REF_SIZE = (828, 1792)
    ```
@@ -97,3 +96,28 @@ After confirming the panel is available, collapse it with
 7. Stop after registering the new crop and coordinate. Report the asset path
    and measured coordinate. Do not rerun `triggerAdPoints` unless the user
    explicitly asks.
+
+## Registering a skip glyph
+
+Some networks close (or skip to an end card) from a skip glyph that never
+moves — Pangle's grey double-arrow at (767, 171), about 5 s into the ad. Only
+a glyph seen at the SAME spot on at least three ads qualifies; one that
+moves between creatives (like the old live ads' `▶▶`) must stay unregistered.
+
+1. Sample frames of a live ad without touching it, and confirm the glyph's
+   centre is identical across creatives.
+2. Crop 36×36 from INSIDE the glyph's circle (no background in the corners)
+   and save it as `assets_unity/ad_skip_<network>.png`.
+3. Add the centre to `AD_SKIP_COORDS` in `unity_ui.py` and a `THRESH` entry
+   of 0.9. Check the crop against every saved Spider capture in `log/` (best
+   score must stay well under 0.9) and against the network's end-card X,
+   which may sit only a few pixels away.
+4. `_tap_ad_skip()` iterates `AD_SKIP_COORDS`, and the closer loop tries it
+   after native Close and before the X crops, so no new branch is needed.
+
+Existing skip coordinates:
+
+```python
+AD_SKIP_COORDS = {"ad_skip_pangle": (767, 171)}
+_AD_SKIP_POS_TOL = 40
+```

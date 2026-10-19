@@ -99,6 +99,11 @@ THRESH = {
     # is gone) the crop still scores 0.713 against a neighbour. Its true match
     # is 1.0, so 0.85 keeps the root row and drops that neighbour.
     "dev_debug": 0.85,
+    # Pangle's skip glyph and end-card X sit 15 px apart and score 0.585 on
+    # each other; on the 79 saved Spider captures their best scores are 0.689
+    # and 0.710 (far from their registered centres). True matches are 1.000.
+    "ad_skip_pangle": 0.9,
+    "ad_close_creative_04": 0.9,
 }
 
 
@@ -604,6 +609,7 @@ def in_app() -> bool:
 
 
 APP_STORE = "com.apple.AppStore"        # where an outbound link should land
+SPRINGBOARD = "com.apple.springboard"   # the home screen, also seen mid-switch
 
 
 def left_app(timeout: float = 10.0) -> str:
@@ -619,13 +625,19 @@ def left_app(timeout: float = 10.0) -> str:
     report the id they got, not just "not the App Store" — the difference
     between "the link did nothing" and "the link opened the wrong thing" is the
     whole diagnosis.
+
+    The home screen (SpringBoard) owns the foreground for a moment while iOS
+    switches apps, so it is not taken as the answer until `timeout` runs out:
+    'Write Email' once read as com.apple.springboard on its way to Mail.
     """
     deadline = time.time() + timeout
+    app = active_app()
     while time.time() < deadline:
-        if not in_app():
-            break
+        if app and app not in (config.BUNDLE_ID, SPRINGBOARD):
+            return app
         time.sleep(1)
-    return active_app()
+        app = active_app()
+    return app
 
 
 _STORE_MARK = "▻"          # the App Store draws this INSIDE the app's title
@@ -1223,12 +1235,36 @@ def network() -> str:
     return helpers.wifi_status()
 
 
+# Called, in order, after every relaunch that reaches the menu (cold_launch()
+# and launch_to_menu(force=True)). max_test_mode registers one: a relaunch
+# turns MAX Test Mode off, and ads must never come from a live network.
+_RELAUNCH_HOOKS = []
+
+
+def on_relaunch(fn):
+    """Run ``fn()`` after every later relaunch; it must leave Spider on the menu."""
+    if fn not in _RELAUNCH_HOOKS:
+        _RELAUNCH_HOOKS.append(fn)
+
+
+def _after_relaunch() -> bool:
+    for fn in tuple(_RELAUNCH_HOOKS):
+        fn()
+    return on_menu(6.0)
+
+
 def cold_launch() -> bool:
     """Terminate + relaunch to a clean menu. The recovery of last resort.
 
     This is the one path that deliberately throws in-app state away (including
     any Dev Panel unlock), so it forces the relaunch.
     """
+    if not _cold_launch():
+        return False
+    return _after_relaunch()
+
+
+def _cold_launch() -> bool:
     sid = helpers.launch_app()
     time.sleep(1.5)
     terminate(sid)
@@ -1313,12 +1349,21 @@ def clear_overlays(rounds: int = 6) -> int:
     return cleared
 
 
-AD_CLOSERS = ("ad_store_close", "ad_close")
-
-# StoreKit's product-sheet X, and some ad SDKs' own close, publish as a button
-# named Close. Never include skip / "▶▶" — that glyph moves and matches the
-# plain menu.
+# Ads are only ever triggered from MAX Test Mode networks (max_test_mode), so
+# every closer here is a test ad's. Some SDKs publish their close as a native
+# button named Close; it is read by name, never guessed. Skip glyphs are not
+# matched loosely — only the fixed ones registered in AD_SKIP_COORDS.
 _CLOSE_AX = ("Close", "close")
+
+# Pangle test interstitials (MAX Test Mode) draw a "1s" countdown pill, then a
+# grey double-arrow at a fixed top-right spot for the whole video. One tap
+# closes the ad, or skips to an end card whose X is ad_close_creative_04.
+# Tapped only while an ad covers Spider and only within _AD_SKIP_POS_TOL of
+# this centre (iPhone-11 capture pixels, scaled like AD_CLOSE_COORDS).
+AD_SKIP_COORDS = {
+    "ad_skip_pangle": (767, 171),
+}
+_AD_SKIP_POS_TOL = 40
 
 # Capture-pixel centres for known iPhone-11 playable-ad X controls. These are
 # reference coordinates, not blind first-choice taps: tap_ad_close() reaches
@@ -1326,20 +1371,31 @@ _CLOSE_AX = ("Close", "close")
 # Spider, and accepts a tap only when the interstitial disappears. Add the
 # centre here whenever a new ad_close*.png creative is added.
 AD_CLOSE_COORDS = {
-    "ad_close": (50, 136),
-    "ad_close_creative_02": (55, 139),
-    "ad_close_creative_03": (57, 145),
+    "ad_close_creative_04": (768, 156),   # Pangle test video end card
 }
 AD_CLOSE_REF_SIZE = (828, 1792)
-# How far a crop match may sit from its registered centre. The false match that
-# opened the App Store was ~1600 px away; real creatives stay in the top-left.
+# How far a crop match may sit from its registered centre. A false match once
+# opened the App Store ~1600 px away; real creatives sit in a top corner.
 _AD_CLOSE_POS_TOL = 80
+
+
+# What closed the last interstitial: {"taps": [...], "test": bool}, set by
+# close_interstitial_chain(). "test" is True only when a registered skip glyph
+# or X was tapped — the controls of a test-network ad. An ad that closed some
+# other way (a native Close alone) was most likely served by a LIVE network.
+LAST_AD_CLOSE = None
+_close_taps = []
+
+
+def _note_close(what: str):
+    _close_taps.append(what)
 
 
 def _tap_ax_close() -> bool:
     """Tap a native Close button if one is showing. Does not guess a position."""
     for name in _CLOSE_AX:
         if _tap_named("XCUIElementTypeButton", name):
+            _note_close(f"native:{name}")
             return True
     return False
 
@@ -1360,35 +1416,13 @@ def wait_lost(timeout: float = 20.0) -> bool:
     return in_app() and lost(timeout=1.0)
 
 
-def tap_store_close(timeout: float = 90.0, settle: float = 2.0) -> bool:
-    """Wait for the in-app StoreKit product-sheet X and tap it.
-
-    The sheet is native UIKit over the Unity view — foreground stays Spider —
-    so the close control is READ first (a button named Close), then matched as
-    ad_store_close if a crop exists. Never a guessed corner: a miss taps the
-    ad and can open the real App Store. The video plays ~15s then opens this
-    sheet by itself; callers should wait, not tap skip.
-    """
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if _tap_ax_close():
-            time.sleep(settle)
-            return True
-        if have("ad_store_close") and seen("ad_store_close", timeout=1.0):
-            if tap("ad_store_close", timeout=1.0, settle=settle):
-                return True
-        time.sleep(1.5)
-    return False
-
-
 def tap_ad_close(timeout: float = 30.0, settle: float = 2.0) -> bool:
-    """Wait for the interstitial's own X (after the store sheet) and tap it.
+    """Wait for the interstitial's own X and tap it. The closer's last resort.
 
-    Same order as tap_store_close: native Close first, then every
-    ``ad_close*.png`` creative in the Unity asset directory. Each playable
-    creative can put the grey circular X over different artwork, so failed
-    runs add a new crop instead of replacing an older one. The skip glyph is
-    never a candidate.
+    Native Close first, then every ``ad_close*.png`` creative in the Unity
+    asset directory, then their registered coordinates. A new creative gets a
+    new crop rather than replacing an older one (capture-ad-close skill).
+    Skip glyphs are never candidates here; they have tap_ad_skip().
     """
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -1398,13 +1432,12 @@ def tap_ad_close(timeout: float = 30.0, settle: float = 2.0) -> bool:
                 return False
             if not lost(timeout=1.0):
                 return True
-        for name in sorted(
-                stem[:-4] for stem in os.listdir(config.UNITY_ASSETS)
-                if stem.startswith("ad_close") and stem.endswith(".png")):
+        for name in _ad_close_crop_names():
             pos = find(name)
             if pos is not None and _ad_close_pos_ok(name, pos):
                 if tap(name, timeout=1.0, settle=settle,
                        reason=f"tap_ad_close:{name}"):
+                    _note_close(name)
                     if not in_app():
                         return False
                     if not lost(timeout=1.0):
@@ -1420,6 +1453,7 @@ def tap_ad_close(timeout: float = 30.0, settle: float = 2.0) -> bool:
                     continue
                 point = (int(round(x * w / rw)), int(round(y * h / rh)))
                 tap_at(point, settle=settle)
+                _note_close(name)
                 if not in_app():
                     return False
                 if not lost(timeout=1.0):
@@ -1439,36 +1473,121 @@ def tap_ad_close(timeout: float = 30.0, settle: float = 2.0) -> bool:
 
 
 def close_interstitial_chain(where: str = "interstitial",
-                             store_timeout: float = 90.0,
+                             timeout: float = 90.0,
                              ad_timeout: float = 30.0) -> bool:
-    """Close the StoreKit product sheet first, then the ad's own X."""
+    """Close a test-network interstitial until Spider's own UI is back.
+
+    Each pass taps whichever shows: a native Close, a registered skip glyph
+    (Pangle's double-arrow, about 5s in — it closes the ad or skips to an end
+    card), or a registered ad X (that end card's). ``timeout`` bounds the
+    loop; ``tap_ad_close`` (coordinates + ``ad_unmatched`` capture) is the
+    last resort for ``ad_timeout`` more. ``LAST_AD_CLOSE`` records what
+    closed it, and whether that proves a test-network ad.
+    """
+    global LAST_AD_CLOSE
+    LAST_AD_CLOSE = None
+    del _close_taps[:]
     try:
-        return _close_interstitial_chain(where, store_timeout, ad_timeout)
+        ok = _close_interstitial_chain(where, timeout, ad_timeout)
     except Exception as e:  # noqa: BLE001
         if not is_session_error(e):
             raise
         reconnect(foreground=True)
-        return _close_interstitial_chain(where, store_timeout, ad_timeout)
+        ok = _close_interstitial_chain(where, timeout, ad_timeout)
+    test_controls = set(AD_SKIP_COORDS) | set(AD_CLOSE_COORDS)
+    LAST_AD_CLOSE = {"taps": list(_close_taps),
+                     "test": any(t in test_controls for t in _close_taps)}
+    return ok
 
 
-def _close_interstitial_chain(where: str, store_timeout: float,
+def last_ad_was_live() -> bool:
+    """True when the last close tapped controls, none of them a test ad's."""
+    return bool(LAST_AD_CLOSE and LAST_AD_CLOSE["taps"]
+                and not LAST_AD_CLOSE["test"])
+
+
+def _ad_close_crop_names() -> list:
+    return sorted(stem[:-4] for stem in os.listdir(config.UNITY_ASSETS)
+                  if stem.startswith("ad_close") and stem.endswith(".png"))
+
+
+def _tap_ad_close_crop(settle: float = 2.0) -> bool:
+    """Tap the first registered ad-X crop matched near its centre."""
+    for name in _ad_close_crop_names():
+        pos = find(name)
+        if pos is not None and _ad_close_pos_ok(name, pos):
+            if tap(name, timeout=1.0, settle=settle,
+                   reason=f"tap_ad_close:{name}"):
+                _note_close(name)
+                return True
+    return False
+
+
+def _ad_skip_pos_ok(name: str, pos) -> bool:
+    known = AD_SKIP_COORDS.get(name)
+    if known is None or pos is None:
+        return False
+    w, h = screen_size()
+    rw, rh = AD_CLOSE_REF_SIZE
+    return (abs(pos[0] - known[0] * w / rw) <= _AD_SKIP_POS_TOL
+            and abs(pos[1] - known[1] * h / rh) <= _AD_SKIP_POS_TOL)
+
+
+def _tap_ad_skip(settle: float = 2.0) -> bool:
+    """Tap a registered skip glyph matched near its centre. Caller checks lost()."""
+    for name in AD_SKIP_COORDS:
+        pos = find(name)
+        if pos is not None and _ad_skip_pos_ok(name, pos):
+            if tap(name, timeout=1.0, settle=settle,
+                   reason=f"tap_ad_skip:{name}"):
+                _note_close(name)
+                return True
+    return False
+
+
+def tap_ad_skip(timeout: float = 10.0, settle: float = 2.0) -> bool:
+    """Wait for Pangle's double-arrow (about 5s into the ad) and tap it.
+
+    Only while an interstitial covers Spider: the glyph is tapped nowhere else.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not (in_app() and lost(timeout=0.5)):
+            return False
+        if _tap_ad_skip(settle):
+            return True
+        time.sleep(1.0)
+    return False
+
+
+def _close_interstitial_chain(where: str, timeout: float,
                               ad_timeout: float) -> bool:
-    expect(in_app(),
-           "the interstitial took us out of Spider after "
-           f"{where} — now in {active_app() or 'unknown'}")
-    expect(tap_store_close(timeout=store_timeout),
-           f"the App Store product sheet's X never appeared after {where} "
-           f"within {store_timeout:.0f}s")
+    if not in_app():
+        expect(False, "the interstitial took us out of Spider after "
+                      f"{where} — now in {active_app() or 'unknown'}")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not in_app():
+            expect(False, f"closing the interstitial after {where} took us "
+                          f"out of Spider — now in {active_app() or 'unknown'}")
+        if not lost(timeout=1.0):
+            return True
+        if _tap_ax_close():
+            time.sleep(2.0)
+            continue
+        if _tap_ad_skip():
+            continue
+        if _tap_ad_close_crop():
+            continue
+        time.sleep(1.5)
     expect(tap_ad_close(timeout=ad_timeout),
-           f"the interstitial's own X never appeared after the StoreKit "
-           f"sheet closed ({where})")
+           f"the interstitial after {where} was still up after "
+           f"{timeout:.0f}s and no native Close, skip or ad X closed it")
     return True
 
 
 def _ad_close_pos_ok(name: str, pos) -> bool:
     """True when a playable-ad X crop matched near its registered centre."""
-    if name == "ad_store_close":
-        return True
     if pos is None:
         return False
     known = AD_CLOSE_COORDS.get(name)
@@ -1485,20 +1604,10 @@ def _ad_close_pos_ok(name: str, pos) -> bool:
 def dismiss_ad(timeout: float = 1.5) -> bool:
     """Close ONE layer of ad if a known close control is showing.
 
-    "One layer" is deliberate. Measured on build 353: leaving a game plays a
-    video interstitial, the video auto-opens a StoreKit product sheet at its end
-    with no tap from us, and closing that sheet starts a further playable ad. So
-    a single close is not the same as "back in the game" — callers must loop and
-    keep a time budget (see ad_free()).
-
-    Only known-safe controls are tapped: ad_store_close (the X on the in-app
-    StoreKit sheet, which sits on plain white and matches cleanly) and ad_close
-    if a crop exists for this build. Never a guessed position — a close button
-    moves with the creative and a miss taps the ad itself.
-
-    A playable-ad crop is also rejected unless it matched near its registered
-    centre. `ad_close` scored a hit at (111, 1730) on first-launch chrome —
-    that tap opened the real App Store.
+    "One layer" is deliberate: a skip can lead to an end card that needs its
+    own X, so callers loop with a time budget (see ad_free()). Only registered
+    controls are tapped, each near its registered centre — never a guessed
+    position, since a miss taps the ad itself and can open the App Store.
     """
     if _NETWORK_ONLINE is False:
         # There is no live ad to dismiss in Airplane Mode. Hunting stale ad
@@ -1507,15 +1616,7 @@ def dismiss_ad(timeout: float = 1.5) -> bool:
         return False
     if not lost(timeout=timeout):
         return False
-    for name in AD_CLOSERS:
-        if not have(name):
-            continue
-        pos = find(name)
-        if pos is None or not _ad_close_pos_ok(name, pos):
-            continue
-        if tap(name, settle=1.5, reason=f"dismiss_ad:{name}"):
-            return True
-    return False
+    return _tap_ax_close() or _tap_ad_skip() or _tap_ad_close_crop()
 
 
 def ad_free(budget: float = 90.0) -> bool:
@@ -1895,13 +1996,13 @@ def launch_to_menu(force: bool = False) -> bool:
     launch(force=force)
     clear_overlays()
     if to_menu():
-        return True
+        return _after_relaunch() if force else True
     # First-launch gates arrive in sequence and not instantly (ATT, then Terms &
     # Conditions on the following launch), so one immediate sweep can land in the
     # gap between them and see a clear screen that is about to be covered.
     time.sleep(2.5)
     if clear_overlays() and to_menu():
-        return True
+        return _after_relaunch() if force else True
     ok = cold_launch()
     if not ok:
         print(f"  [launch_to_menu] still not on the menu — {blocking()}")
@@ -1977,9 +2078,11 @@ def visit_sub_screen(control: str, screen: str, shot_name: str, after=None) -> s
 # of the screen, so it rescales with the templates. All four sliders and all
 # eight toggles share one column, verified against both Options captures:
 #   track 513-757 px, toggle pill 602-734 px, "-" 527, "+" 738, marks +43 px.
+# Build 395 moved the toggle pill to 630-762 px (centre 696): the knob sits at
+# x 670 OFF and 722 ON. Against the old 668 centre an OFF knob read as ON.
 OPT_TRACK_L = 0.6196        # slider track, left end
 OPT_TRACK_R = 0.9142        # slider track, right end
-OPT_PILL_C = 0.8068         # toggle pill centre — knob right of it means ON
+OPT_PILL_C = 0.8406         # toggle pill centre — knob right of it means ON
 OPT_MINUS_X = 0.6365        # the "-" end mark under a slider — a LABEL, not a
 OPT_PLUS_X = 0.8913         # button, and likewise "+" (see slider_drag's note)
 OPT_MARKS_DY = 0.0240       # the end-mark row, below the control's own centre
@@ -2079,9 +2182,13 @@ def _opt_clear_edge(label: str, cy: int) -> int:
     y=1750 on an 828x1792 screen has its end-mark row running off the bottom,
     where it reads as "no marks" — i.e. a slider silently reported as a
     toggle. One short scroll costs far less than that class of wrong answer.
+
+    The bottom bound also keeps the knob band clear of the white Dev Panel
+    button (from y~1550 on 1792), which opt_knob would otherwise read as a
+    132 px "knob" once openDebugTools has unlocked it.
     """
     _, h = screen_size()
-    lo, hi = 0.10 * h, h - 0.09 * h
+    lo, hi = 0.10 * h, h - 0.16 * h
     if lo <= cy <= hi:
         return cy
     scroll(down=cy > hi, frac=0.16)
@@ -2848,6 +2955,129 @@ def win_game(level: str = "easy", arm: bool = True) -> bool:
     if not at_table(timeout=12.0):
         return False
     return win_current_game()   # settles the tip, re-expands over the table, cheats
+
+
+# ── victory screen: the stat rows ─────────────────────────────────
+# Under "current / rank / best" the victory screen draws one row per stat, in
+# the order the footer legend names them: "scores, time, moves, run". Nothing
+# in PARTS covers them — they are values, not chrome, so no template can — and
+# a build shipped with the fourth (run) row missing while every PARTS check
+# still passed.
+#
+# There is no accessibility tree and no OCR here, so a row is read as INK: the
+# pixels inside one column cell that stand clearly off the felt, measured
+# against the felt's own median so a repainted surface changes nothing. All
+# geometry is relative to the screen_victory header match and scaled by
+# device_scale(), so the same numbers serve every 19.5:9 phone.
+#
+# Measured on the Obj-C source of truth (iphone14/baselines/VictoryScreen1/2,
+# scaled to 828) and on iPhone-11 Unity captures of all five levels:
+#   row centres, below the header centre    81 / 158 / 234 / 311  (pitch ~77)
+#   column dividers, right of header centre -18 / +117
+#   digit glyphs ~43 px tall; best's "-" placeholder ~7 px
+# The run row has NO rank in the Obj-C build — only current and best — so rank
+# is required on the first three rows only.
+VICTORY_ROWS = ("score", "time", "moves", "run")
+VICTORY_ROW_DY = (81, 158, 234, 311)
+VICTORY_ROW_TOL = 36            # half a pitch, less a margin
+VICTORY_DIVIDERS = (-18, 117)
+VICTORY_DIVIDER_SEARCH = 25     # how far the real divider may sit from that
+VICTORY_CURRENT_LEFT = -290     # left edge of the right-aligned current column
+VICTORY_BEST_RIGHT = 350        # right edge of the left-aligned best column
+VICTORY_GUTTER = 8              # keep the divider lines out of the cells
+VICTORY_INK = 180               # sum-of-|BGR - felt| for a pixel to be text
+VICTORY_DIGIT_H = 25            # band at least this tall is a real value
+VICTORY_MARK_H = 4              # ...this tall is at least a "-"
+VICTORY_RANK_ROWS = ("score", "time", "moves")
+
+
+def _ink_bands(mask, min_h):
+    """(start, end) runs of rows in `mask` that carry text, at least min_h tall."""
+    import numpy as np
+    on = mask.sum(axis=1) > 3
+    bands, start = [], None
+    for i, v in enumerate(np.append(on, False)):
+        if v and start is None:
+            start = i
+        elif not v and start is not None:
+            if i - start >= min_h:
+                bands.append((start, i))
+            start = None
+    return bands
+
+
+def _victory_dividers(ink, hx, s):
+    """x of the two column dividers: the near-full-height lines in `ink`."""
+    import numpy as np
+    filled = ink.mean(axis=0)
+    out = []
+    for dx in VICTORY_DIVIDERS:
+        want = hx + dx * s
+        lo = max(0, int(want - VICTORY_DIVIDER_SEARCH * s))
+        hi = min(ink.shape[1], int(want + VICTORY_DIVIDER_SEARCH * s))
+        if hi <= lo:
+            out.append(int(want))
+            continue
+        cand = lo + int(np.argmax(filled[lo:hi]))
+        out.append(cand if filled[cand] > 0.6 else int(want))
+    return out
+
+
+def victory_rows(screen=None):
+    """Per stat row, which columns carry a value — or None off the victory screen.
+
+    {"score": {"current": bool, "rank": bool, "best": bool}, "time": ..., ...}
+    current and rank count only a value of digit height; best also accepts the
+    "-" it shows when there is no best yet.
+    """
+    import numpy as np
+    img = _screen_image() if screen is None else screen
+    hdr = find("screen_victory", screen=img)
+    if hdr is None:
+        return None
+    s = device_scale()
+    hx, hy = hdr
+    top = int(hy + (VICTORY_ROW_DY[0] - VICTORY_ROW_TOL) * s)
+    bottom = int(hy + (VICTORY_ROW_DY[-1] + VICTORY_ROW_TOL) * s)
+    left = max(0, int(hx + VICTORY_CURRENT_LEFT * s))
+    right = min(img.shape[1], int(hx + VICTORY_BEST_RIGHT * s))
+    region = img[top:bottom, left:right].astype(int)
+    felt = np.median(region.reshape(-1, 3), axis=0)
+    ink = np.abs(region - felt).sum(axis=2) > VICTORY_INK
+
+    d1, d2 = (x - left for x in _victory_dividers(ink, hx, s))
+    g = int(round(VICTORY_GUTTER * s))
+    cells = {"current": ink[:, :d1 - g], "rank": ink[:, d1 + g:d2 - g],
+             "best": ink[:, d2 + g:]}
+    need = {"current": VICTORY_DIGIT_H, "rank": VICTORY_DIGIT_H,
+            "best": VICTORY_MARK_H}
+
+    rows = {r: {c: False for c in cells} for r in VICTORY_ROWS}
+    for col, mask in cells.items():
+        for y0, y1 in _ink_bands(mask, int(round(need[col] * s))):
+            centre = top + (y0 + y1) / 2.0 - hy
+            for row, dy in zip(VICTORY_ROWS, VICTORY_ROW_DY):
+                if abs(centre - dy * s) <= VICTORY_ROW_TOL * s:
+                    rows[row][col] = True
+    return rows
+
+
+def victory_rows_problems(screen=None) -> list:
+    """What is missing from the score / time / moves / run rows; [] when complete."""
+    rows = victory_rows(screen)
+    if rows is None:
+        return ["the 'current / rank / best' header was not found, so the stat "
+                "rows could not be located"]
+    problems = []
+    for i, row in enumerate(VICTORY_ROWS, 1):
+        cols = ["current", "best"] + (["rank"] if row in VICTORY_RANK_ROWS else [])
+        empty = [c for c in cols if not rows[row][c]]
+        if len(empty) == len(cols):
+            problems.append(f"row {i} ({row}) is missing")
+        elif empty:
+            problems.append(f"row {i} ({row}) has no value under "
+                            + ", ".join(f"'{c}'" for c in empty))
+    return problems
 
 
 # ── game-table controls ───────────────────────────────────────────

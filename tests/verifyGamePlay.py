@@ -172,19 +172,22 @@ def check_lower():
 
     ui.tap_at(button, settle=LOWER_SETTLE)      # 1. lower
     down = bar_y()
+    lower_shot = ui.shoot("GamePlayLowered")
     ui.tap_at(button, settle=LOWER_SETTLE)      # 2. raise — before asserting
     back = bar_y()
+    raised_shot = ui.shoot("GamePlayRaised")
 
     ui.expect(down - up > step,
               f"'tap to lower' did not lower the playfield — the top bar went "
               f"from y={up} to y={down}, a move of {down - up} px where more "
               f"than {step:.0f} was expected")
-    print(f"  tap to lower dropped the playfield {down - up} px (y {up} -> {down})")
+    print(f"  tap to lower dropped the playfield {down - up} px (y {up} -> {down}) "
+          f"(see {lower_shot})")
 
     ui.expect(abs(back - up) <= 4,
               f"tapping 'tap to lower' again did not raise the playfield — the "
               f"top bar is at y={back}, not back at y={up}")
-    print(f"  tapping it again raised it back (top bar y={back})")
+    print(f"  tapping it again raised it back (top bar y={back}, see {raised_shot})")
 
 
 # ── "Use Hearts": a setting on another page, read off the game table ──────────
@@ -274,8 +277,9 @@ def check_use_hearts():
         ui.expect(got == "hearts",
                   f"'Use Hearts' was switched ON but the dealt cards still read "
                   f"{got!r} — the setting did not reach the running game")
+        hearts_shot = ui.shoot("GamePlayHearts")
         print("  drawer -> options -> 'Use Hearts' ON -> the dealt cards are red "
-              "hearts")
+              f"hearts (see {hearts_shot})")
     finally:
         restored = restore_option(HEARTS, "Use Hearts", False)
 
@@ -284,7 +288,9 @@ def check_use_hearts():
     ui.expect(got == "spades",
               f"'Use Hearts' was switched back OFF but the dealt cards read "
               f"{got!r} — the setting only works one way")
-    print("  drawer -> options -> 'Use Hearts' OFF -> the spades are back")
+    spades_shot = ui.shoot("GamePlaySpades")
+    print(f"  drawer -> options -> 'Use Hearts' OFF -> the spades are back "
+          f"(see {spades_shot})")
 
 
 # ── "Rich Features": the Timer, Score and Multiplier under the table ─────────

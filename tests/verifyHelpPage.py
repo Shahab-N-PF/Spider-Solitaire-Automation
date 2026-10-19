@@ -35,8 +35,9 @@ def run():
     bottom = ui.shoot("HelpPageBottom")
 
     ui.expect(ui.to_menu(), "could not return to the main menu after Help")
+    menu = ui.shoot("HelpBackMenu")
     print(f"PASS: Help opened (verified 'Introduction'), scrolled to the bottom, "
-          f"and returned to the menu (see {shot}, {bottom})")
+          f"and returned to the menu (see {shot}, {bottom}, {menu})")
 
 
 if __name__ == "__main__":
